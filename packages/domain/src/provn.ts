@@ -10,10 +10,37 @@ import {
 } from './types';
 
 /**
- * Generates deterministic SHA-256 hash of any JSON-serializable object with sorted keys
+ * RFC-8785 Compliant Canonical JSON Serializer
+ * Recursively orders object keys lexicographically and preserves array ordering.
+ */
+export function canonicalJsonStringify(value: unknown): string {
+  if (value === null || typeof value !== 'object') {
+    return JSON.stringify(value);
+  }
+
+  if (Array.isArray(value)) {
+    return '[' + value.map(item => canonicalJsonStringify(item)).join(',') + ']';
+  }
+
+  const record = value as Record<string, unknown>;
+  const sortedKeys = Object.keys(record).sort();
+  const entries: string[] = [];
+
+  for (const key of sortedKeys) {
+    const val = record[key];
+    if (val !== undefined && typeof val !== 'function' && typeof val !== 'symbol') {
+      entries.push(`${JSON.stringify(key)}:${canonicalJsonStringify(val)}`);
+    }
+  }
+
+  return '{' + entries.join(',') + '}';
+}
+
+/**
+ * Generates deterministic SHA-256 hash using RFC-8785 canonical serialization
  */
 export function canonicalHash(data: unknown): string {
-  const canonicalString = JSON.stringify(data, Object.keys(data as object).sort());
+  const canonicalString = canonicalJsonStringify(data);
   return createHash('sha256').update(canonicalString).digest('hex');
 }
 
@@ -36,7 +63,7 @@ export function hashPortfolioState(snapshot: PortfolioSnapshot): string {
       exposureBps: a.exposureBps,
     })),
   };
-  return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+  return canonicalHash(payload);
 }
 
 /**
@@ -52,7 +79,7 @@ export function hashTradeIntent(intent: TradeIntent): string {
     tradeAmountUsd: intent.tradeAmountUsd,
     referencePriceUsd: intent.referencePriceUsd,
   };
-  return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+  return canonicalHash(payload);
 }
 
 /**
@@ -68,7 +95,7 @@ export function hashFinancialPolicy(policy: FinancialPolicy): string {
     maxSlippageBps: policy.maxSlippageBps,
     isActive: policy.isActive,
   };
-  return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+  return canonicalHash(payload);
 }
 
 /**

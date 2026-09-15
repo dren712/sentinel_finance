@@ -47,6 +47,31 @@ impl PromiseAccount {
     pub const LEN: usize = 8 + (4 + 32) + 32 + 32 + 32 + 32 + 1 + 8 + 1 + 1;
 }
 
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Default, PartialEq, Eq, Debug)]
+pub struct AssetPosition {
+    pub mint: Pubkey,
+    pub symbol: [u8; 8],        // e.g. b"NVDAx\0\0\0"
+    pub amount_units: u64,      // units of equity tokens
+    pub price_cents: u64,       // price in USD cents ($120.00 = 12000 cents)
+    pub is_index: bool,         // broad ETF exemption
+}
+
+#[account]
+pub struct PortfolioVault {
+    pub owner: Pubkey,
+    pub policy: Pubkey,
+    pub usdc_balance_cents: u64,
+    pub total_value_cents: u64,
+    pub positions: Vec<AssetPosition>,
+    pub bump: u8,
+}
+
+impl PortfolioVault {
+    pub const MAX_POSITIONS: usize = 8;
+    // 8 disc + 32 owner + 32 policy + 8 usdc + 8 total + (4 len + 8 * (32 + 8 + 8 + 8 + 1)) + 1 bump
+    pub const LEN: usize = 8 + 32 + 32 + 8 + 8 + (4 + Self::MAX_POSITIONS * 57) + 1;
+}
+
 #[account]
 pub struct EvidenceAccount {
     pub evidence_id: String,

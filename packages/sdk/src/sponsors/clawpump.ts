@@ -1,10 +1,20 @@
 import { Keypair, PublicKey } from '@solana/web3.js';
-import { TradeIntent, FinancialPolicy } from '@sentinel/domain';
+import { TradeIntent, FinancialPolicy, canonicalJsonStringify } from '@sentinel/domain';
+import nacl from 'tweetnacl';
+
+export interface SignedTradeIntent {
+  intent: TradeIntent;
+  canonicalMessage: string;
+  signatureBase64: string;
+  signerPublicKey: string;
+}
 
 /**
  * ClawPumpAgentWallet:
- * Implements autonomous agent identity and dedicated Solana wallet authority per ClawPump specifications.
- * Signs agent-originated trade intents and guarantees that agent actions remain strictly bounded by Sentinel policy.
+ * Implements the ClawPump Autonomous Agent Wallet Pattern.
+ * Generates an autonomous agent Solana keypair, produces cryptographically genuine
+ * Ed25519 signatures over canonical trade intents, and enforces that the agent cannot
+ * execute outside the user's Sentinel on-chain policy bounds.
  */
 export class ClawPumpAgentWallet {
   private keypair: Keypair;
@@ -26,24 +36,43 @@ export class ClawPumpAgentWallet {
   }
 
   /**
-   * Signs a trade intent as the authorized agent
+   * Cryptographically signs a trade intent using the agent's Ed25519 secret key
+   * over RFC-8785 canonical JSON bytes.
    */
-  signIntent(intent: TradeIntent): { intent: TradeIntent; agentSignature: string } {
-    // In browser/node, signs the intent payload using the agent keypair
-    const message = Buffer.from(JSON.stringify(intent));
-    // Simulated ed25519 signature representation
-    const agentSignature = `claw_sig_${this.keypair.publicKey.toBase58().slice(0, 8)}_${Date.now()}`;
+  signIntent(intent: TradeIntent): SignedTradeIntent {
+    const canonicalMessage = canonicalJsonStringify(intent);
+    const messageBytes = Buffer.from(canonicalMessage, 'utf-8');
+    const signatureBytes = nacl.sign.detached(messageBytes, this.keypair.secretKey);
+    const signatureBase64 = Buffer.from(signatureBytes).toString('base64');
+
     return {
       intent,
-      agentSignature,
+      canonicalMessage,
+      signatureBase64,
+      signerPublicKey: this.keypair.publicKey.toBase58(),
     };
   }
 
   /**
-   * Verifies that the agent wallet is registered under the user's Sentinel policy
+   * Cryptographically verifies an Ed25519 signature over a canonical intent message.
    */
-  isAuthorizedUnderPolicy(policy: FinancialPolicy, agentAuthorityAddress: string): boolean {
+  static verifySignature(signedIntent: SignedTradeIntent): boolean {
+    try {
+      const messageBytes = Buffer.from(signedIntent.canonicalMessage, 'utf-8');
+      const signatureBytes = Buffer.from(signedIntent.signatureBase64, 'base64');
+      const publicKeyBytes = new PublicKey(signedIntent.signerPublicKey).toBytes();
+
+      return nacl.sign.detached.verify(messageBytes, signatureBytes, publicKeyBytes);
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Verifies that the agent wallet address matches the authorized agent authority in the policy
+   */
+  isAuthorizedUnderPolicy(policy: FinancialPolicy, registeredAgentAuthority: string): boolean {
     if (!policy.isActive) return false;
-    return this.keypair.publicKey.toBase58() === agentAuthorityAddress;
+    return this.keypair.publicKey.toBase58() === registeredAgentAuthority;
   }
 }

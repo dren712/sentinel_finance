@@ -2,8 +2,12 @@ import { MeteoraDBCMetrics, MeteoraVerificationResult } from '../types';
 
 /**
  * MeteoraDBCMarketQualityVerifier:
- * Implements the Sentinel market-quality promise verifier for Meteora Dynamic Bonding Curves (DBC).
- * Prevents autonomous agents from settling stock trades on illiquid or manipulated bonding curves.
+ * Meteora-Compatible DBC Market-Quality Verifier Module.
+ * Evaluates dynamic bonding curve depth and price deviation against reference prices.
+ * Preflights curve health before autonomous agents commit capital.
+ * 
+ * Boundary Notice: This is a market-quality verifier module implementing Meteora DBC
+ * validation rules, not a live DEX execution venue.
  */
 export class MeteoraDBCMarketQualityVerifier {
   private minLiquidityDepthUsd: number;

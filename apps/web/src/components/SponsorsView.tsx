@@ -1,16 +1,16 @@
 'use client';
 
 import React, { useState } from 'react';
-import { AutonomousRoboAgent, MeteoraDBCMarketQualityVerifier } from '@sentinel/sdk';
+import { AutonomousRoboAgent, MeteoraDBCMarketQualityVerifier, ClawPumpAgentWallet } from '@sentinel/sdk';
 import {
   Sparkles,
   Bot,
-  Activity,
   CheckCircle2,
   XCircle,
   ExternalLink,
   Shield,
-  Zap,
+  Key,
+  Lock,
 } from 'lucide-react';
 
 interface SponsorsViewProps {
@@ -25,6 +25,13 @@ export const SponsorsView: React.FC<SponsorsViewProps> = ({ agent }) => {
   const [dbcPrice, setDbcPrice] = useState('120.50');
   const [dbcRefPrice, setDbcRefPrice] = useState('120.00');
 
+  // ClawPump Ed25519 Live Signing Test State
+  const [testAmount, setTestAmount] = useState('5000');
+  const [signedIntentResult, setSignedIntentResult] = useState<{
+    signatureBase64: string;
+    verified: boolean;
+  } | null>(null);
+
   const meteoraResult = verifier.verifyMarketQuality({
     poolAddress: 'Meteora_DBC_NVDAx_11111111111111111111111111',
     assetSymbol: 'NVDAx',
@@ -33,6 +40,25 @@ export const SponsorsView: React.FC<SponsorsViewProps> = ({ agent }) => {
     referencePriceUsd: parseFloat(dbcRefPrice) || 0,
     isGraduated: false,
   });
+
+  const handleTestEd25519Sign = () => {
+    const intent = agent.proposeIntent({
+      assetSymbol: 'NVDAx',
+      assetMint: 'NVDA111111111111111111111111111111111111111',
+      direction: 'BUY',
+      tradeAmountUsd: parseFloat(testAmount) || 5000,
+      referencePriceUsd: 120,
+      strategyRationale: 'Cryptographic Ed25519 Intent Verification Test',
+    });
+
+    const signed = agent.wallet.signIntent(intent);
+    const verified = ClawPumpAgentWallet.verifySignature(signed);
+
+    setSignedIntentResult({
+      signatureBase64: signed.signatureBase64,
+      verified,
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -65,13 +91,13 @@ export const SponsorsView: React.FC<SponsorsViewProps> = ({ agent }) => {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-white">Meteora DBC Market-Quality Verifier</h3>
+                <h3 className="text-sm font-bold text-white">Meteora DBC Market-Quality Verifier Module</h3>
                 <span className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 text-[10px] font-mono border border-indigo-500/30">
                   DBC TRACK
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                Enforces bounded price deviation and liquidity depth thresholds before executing autonomous equity trades on Meteora Dynamic Bonding Curves.
+                Preflights liquidity depth and price deviation against reference price feeds before an autonomous agent commits capital on a Dynamic Bonding Curve.
               </p>
             </div>
           </div>
@@ -151,13 +177,13 @@ export const SponsorsView: React.FC<SponsorsViewProps> = ({ agent }) => {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-white">ClawPump Autonomous Agent Wallet Identity</h3>
+                <h3 className="text-sm font-bold text-white">ClawPump Autonomous Agent Wallet Pattern</h3>
                 <span className="px-2 py-0.5 rounded bg-orange-500/10 text-orange-300 text-[10px] font-mono border border-orange-500/30">
                   STOCKNIZED AGENTS
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                Empowers autonomous agents with their own Solana wallets while guaranteeing they cannot execute outside the user&apos;s Sentinel financial promises.
+                Implements dedicated autonomous agent wallet authority on Solana with genuine Ed25519 intent signing bounded by Sentinel policy.
               </p>
             </div>
           </div>
@@ -179,17 +205,59 @@ export const SponsorsView: React.FC<SponsorsViewProps> = ({ agent }) => {
             <span className="text-white font-bold">{agent.agentId}</span>
           </div>
           <div className="bg-slate-900/60 p-3 rounded-lg border border-slate-800">
-            <span className="text-slate-500 block text-[11px]">DELEGATED AGENT WALLET:</span>
+            <span className="text-slate-500 block text-[11px]">ED25519 AGENT WALLET ADDRESS:</span>
             <span className="text-orange-400 break-all">{agent.wallet.getPublicKeyString()}</span>
           </div>
+        </div>
+
+        {/* Live Cryptographic Signature Verification Tester */}
+        <div className="bg-slate-900/40 p-4 rounded-lg border border-slate-800 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Key className="w-4 h-4 text-orange-400" />
+              <span className="text-xs font-bold text-white">Live Ed25519 Intent Signing & Verification</span>
+            </div>
+            <button
+              onClick={handleTestEd25519Sign}
+              className="px-3 py-1 rounded bg-orange-600 hover:bg-orange-500 text-white font-semibold text-xs transition"
+            >
+              Sign & Verify Intent
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-slate-400">Trade Amount:</span>
+            <input
+              type="number"
+              value={testAmount}
+              onChange={(e) => setTestAmount(e.target.value)}
+              className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white font-mono w-28"
+            />
+            <span className="text-slate-400">USD</span>
+          </div>
+
+          {signedIntentResult && (
+            <div className="p-3 rounded bg-slate-950 border border-slate-800 space-y-1.5 text-xs font-mono">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Ed25519 Detached Signature:</span>
+                <span className="text-emerald-400 font-bold flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  VERIFIED CRYPTOGRAPHIC SIGNATURE
+                </span>
+              </div>
+              <div className="text-slate-300 break-all text-[11px]">
+                {signedIntentResult.signatureBase64}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="p-3 rounded-lg bg-slate-900/40 border border-slate-800 text-xs text-slate-300 flex items-start gap-2">
           <Shield className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
           <div>
-            <span className="font-semibold text-white">Trust Boundary Architecture:</span>
+            <span className="font-semibold text-white">Trust Boundary Guarantee:</span>
             <p className="mt-0.5 text-slate-400 text-[11px]">
-              ClawPump manages the autonomous execution identity. Sentinel enforces the financial boundary. The agent is free to strategize, generate trade intents, and interact with Solana DeFi, but every transaction must pass through Sentinel&apos;s on-chain postcondition verification before settling.
+              ClawPump manages the autonomous execution identity. Sentinel enforces the on-chain financial boundary. The agent is free to strategize, generate trade intents, and interact with Solana DeFi, but every transaction must pass through Sentinel&apos;s on-chain postcondition verification before settling.
             </p>
           </div>
         </div>

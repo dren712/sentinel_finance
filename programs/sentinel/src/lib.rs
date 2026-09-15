@@ -35,7 +35,7 @@ pub mod sentinel {
         Ok(())
     }
 
-    /// Initializes the user's financial policy with machine-checkable guarantees
+    /// Initializes the user's financial policy with bounded, machine-checkable guarantees
     pub fn initialize_policy(
         ctx: Context<InitializePolicy>,
         max_single_asset_bps: u16,
@@ -43,6 +43,11 @@ pub mod sentinel {
         max_trade_value_usd: u64,
         max_slippage_bps: u16,
     ) -> Result<()> {
+        // Enforce logical basis point bounds (Finding 11)
+        require!(max_single_asset_bps <= 10_000, SentinelError::InvalidPolicyBounds);
+        require!(min_stablecoin_bps <= 10_000, SentinelError::InvalidPolicyBounds);
+        require!(max_slippage_bps <= 10_000, SentinelError::InvalidPolicyBounds);
+
         let policy = &mut ctx.accounts.policy;
         policy.owner = ctx.accounts.owner.key();
         policy.max_single_asset_bps = max_single_asset_bps;
@@ -74,6 +79,10 @@ pub mod sentinel {
         max_slippage_bps: u16,
         is_active: bool,
     ) -> Result<()> {
+        require!(max_single_asset_bps <= 10_000, SentinelError::InvalidPolicyBounds);
+        require!(min_stablecoin_bps <= 10_000, SentinelError::InvalidPolicyBounds);
+        require!(max_slippage_bps <= 10_000, SentinelError::InvalidPolicyBounds);
+
         let policy = &mut ctx.accounts.policy;
         policy.max_single_asset_bps = max_single_asset_bps;
         policy.min_stablecoin_bps = min_stablecoin_bps;
@@ -94,7 +103,47 @@ pub mod sentinel {
         Ok(())
     }
 
-    /// Registers a state transition promise from an autonomous agent
+    /// Initializes a controlled on-chain PortfolioVault account with verified balances
+    pub fn initialize_vault(
+        ctx: Context<InitializeVault>,
+        usdc_balance_cents: u64,
+        positions: Vec<AssetPosition>,
+    ) -> Result<()> {
+        require!(positions.len() <= PortfolioVault::MAX_POSITIONS, SentinelError::InvalidPolicyBounds);
+
+        let vault = &mut ctx.accounts.vault;
+        vault.owner = ctx.accounts.owner.key();
+        vault.policy = ctx.accounts.policy.key();
+        vault.usdc_balance_cents = usdc_balance_cents;
+        vault.positions = positions;
+        vault.bump = ctx.bumps.vault;
+
+        // Compute cached initial total value in cents
+        let mut total_equity_cents: u64 = 0;
+        for pos in &vault.positions {
+            let pos_val = pos.amount_units
+                .checked_mul(pos.price_cents)
+                .ok_or(SentinelError::MathOverflow)?;
+            total_equity_cents = total_equity_cents
+                .checked_add(pos_val)
+                .ok_or(SentinelError::MathOverflow)?;
+        }
+
+        vault.total_value_cents = usdc_balance_cents
+            .checked_add(total_equity_cents)
+            .ok_or(SentinelError::MathOverflow)?;
+
+        emit!(VaultInitializedEvent {
+            vault: vault.key(),
+            owner: vault.owner,
+            total_value_cents: vault.total_value_cents,
+            usdc_balance_cents,
+        });
+
+        Ok(())
+    }
+
+    /// Registers a state transition promise from an authorized agent
     pub fn create_promise(
         ctx: Context<CreatePromise>,
         promise_id: String,
@@ -131,43 +180,154 @@ pub mod sentinel {
         Ok(())
     }
 
-    /// Authoritatively evaluates financial postconditions at the transaction boundary.
-    /// Reverts atomically if ANY postcondition is violated.
+    /// Authoritatively executes a trade on the on-chain PortfolioVault and enforces postconditions.
+    /// Mutates the vault directly and computes resulting exposure from actual positions.
+    /// Reverts atomically if ANY postcondition is breached.
     pub fn execute_guarded_trade(
         ctx: Context<ExecuteGuardedTrade>,
-        _pre_total_usd: u64,
-        _pre_stable_usd: u64,
-        post_target_usd: u64,
-        post_total_usd: u64,
-        post_stable_usd: u64,
-        quoted_price_cents: u64,
+        trade_amount_cents: u64,
         execution_price_cents: u64,
+        quoted_price_cents: u64,
     ) -> Result<()> {
         let policy = &ctx.accounts.policy;
+        let agent = &ctx.accounts.agent;
         let promise = &mut ctx.accounts.promise;
+        let vault = &mut ctx.accounts.vault;
 
+        // 1. Enforce strict authority check (Finding 3)
+        require!(
+            ctx.accounts.authority.key() == agent.agent_authority
+                || ctx.accounts.authority.key() == agent.owner,
+            SentinelError::UnauthorizedExecution
+        );
+
+        // 2. State & Promise checks
         require!(policy.is_active, SentinelError::PolicyInactive);
         require!(promise.status == 1, SentinelError::InvalidPromiseStatus);
 
-        // Core Postcondition Verification
-        verify_postconditions(
-            policy,
-            promise.trade_amount_usd,
-            post_target_usd,
-            post_total_usd,
-            post_stable_usd,
-            quoted_price_cents,
-            execution_price_cents,
-        )?;
+        // 3. Postcondition: Max Trade Size
+        require!(
+            trade_amount_cents <= policy.max_trade_value_usd.checked_mul(100).ok_or(SentinelError::MathOverflow)?,
+            SentinelError::TradeSizeExceeded
+        );
 
-        // If postconditions satisfied, settle promise
+        // 4. Postcondition: Max Slippage
+        if quoted_price_cents > 0 && execution_price_cents > 0 {
+            let price_diff = if execution_price_cents >= quoted_price_cents {
+                execution_price_cents - quoted_price_cents
+            } else {
+                quoted_price_cents - execution_price_cents
+            };
+
+            let slippage_bps = (price_diff as u128)
+                .checked_mul(10_000)
+                .ok_or(SentinelError::MathOverflow)?
+                .checked_div(quoted_price_cents as u128)
+                .ok_or(SentinelError::MathOverflow)?;
+
+            require!(
+                slippage_bps <= policy.max_slippage_bps as u128,
+                SentinelError::SlippageExceeded
+            );
+        }
+
+        // 5. Locate target asset position index in vault
+        let pos_idx = vault.positions.iter().position(|p| p.mint == promise.trade_asset_mint)
+            .ok_or(SentinelError::AssetNotFound)?;
+
+        // 6. Perform trade mutation on actual vault balances (Findings 1, 4, 9)
+        let token_units_traded = trade_amount_cents
+            .checked_mul(1)
+            .ok_or(SentinelError::MathOverflow)?
+            .checked_div(execution_price_cents)
+            .ok_or(SentinelError::MathOverflow)?;
+
+        if promise.trade_direction == 0 {
+            // BUY: spend USDC, acquire target equity
+            require!(
+                vault.usdc_balance_cents >= trade_amount_cents,
+                SentinelError::InsufficientStablecoinReserve
+            );
+            vault.usdc_balance_cents = vault.usdc_balance_cents
+                .checked_sub(trade_amount_cents)
+                .ok_or(SentinelError::MathOverflow)?;
+
+            let target_pos = &mut vault.positions[pos_idx];
+            target_pos.amount_units = target_pos.amount_units
+                .checked_add(token_units_traded)
+                .ok_or(SentinelError::MathOverflow)?;
+            target_pos.price_cents = execution_price_cents;
+        } else {
+            // SELL: liquidate target equity, receive USDC
+            let target_pos = &mut vault.positions[pos_idx];
+            require!(
+                target_pos.amount_units >= token_units_traded,
+                SentinelError::AssetNotFound
+            );
+            target_pos.amount_units = target_pos.amount_units
+                .checked_sub(token_units_traded)
+                .ok_or(SentinelError::MathOverflow)?;
+            target_pos.price_cents = execution_price_cents;
+
+            vault.usdc_balance_cents = vault.usdc_balance_cents
+                .checked_add(trade_amount_cents)
+                .ok_or(SentinelError::MathOverflow)?;
+        }
+
+        // 7. Calculate actual resulting post-state from vault ledger (Finding 1)
+        let mut post_total_cents: u64 = vault.usdc_balance_cents;
+        let mut post_target_cents: u64 = 0;
+
+        for pos in &vault.positions {
+            let pos_val = pos.amount_units
+                .checked_mul(pos.price_cents)
+                .ok_or(SentinelError::MathOverflow)?;
+
+            if pos.mint == promise.trade_asset_mint {
+                post_target_cents = pos_val;
+            }
+
+            post_total_cents = post_total_cents
+                .checked_add(pos_val)
+                .ok_or(SentinelError::MathOverflow)?;
+        }
+
+        require!(post_total_cents > 0, SentinelError::MathOverflow);
+        require!(post_target_cents <= post_total_cents, SentinelError::MathOverflow);
+
+        // 8. Postcondition: Max Single-Asset Exposure in u128 (Findings 10 & 11)
+        let target_exposure_bps = (post_target_cents as u128)
+            .checked_mul(10_000)
+            .ok_or(SentinelError::MathOverflow)?
+            .checked_div(post_total_cents as u128)
+            .ok_or(SentinelError::MathOverflow)?;
+
+        require!(
+            target_exposure_bps <= policy.max_single_asset_bps as u128,
+            SentinelError::ExposureExceeded
+        );
+
+        // 9. Postcondition: Min Stablecoin Reserve Floor in u128 (Findings 10 & 11)
+        let stablecoin_reserve_bps = (vault.usdc_balance_cents as u128)
+            .checked_mul(10_000)
+            .ok_or(SentinelError::MathOverflow)?
+            .checked_div(post_total_cents as u128)
+            .ok_or(SentinelError::MathOverflow)?;
+
+        require!(
+            stablecoin_reserve_bps >= policy.min_stablecoin_bps as u128,
+            SentinelError::StablecoinReserveBreached
+        );
+
+        // 10. Commit state mutation to vault and settle promise
+        vault.total_value_cents = post_total_cents;
         promise.status = 3; // 3 = Settled
 
         emit!(TradeSettledEvent {
             promise_id: promise.promise_id.clone(),
-            post_total_usd,
-            post_stable_usd,
-            post_target_usd,
+            post_total_usd: post_total_cents / 100,
+            post_stable_usd: vault.usdc_balance_cents / 100,
+            post_target_usd: post_target_cents / 100,
             timestamp: Clock::get()?.unix_timestamp,
         });
 
@@ -183,6 +343,13 @@ pub mod sentinel {
         verification_result: u8,
         failure_code: u16,
     ) -> Result<()> {
+        // Enforce authority check (Finding 5)
+        require!(
+            ctx.accounts.authority.key() == ctx.accounts.agent.agent_authority
+                || ctx.accounts.authority.key() == ctx.accounts.agent.owner,
+            SentinelError::UnauthorizedAgent
+        );
+
         let evidence = &mut ctx.accounts.evidence;
         evidence.evidence_id = evidence_id;
         evidence.promise = ctx.accounts.promise.key();
@@ -205,51 +372,53 @@ pub mod sentinel {
     }
 }
 
-/// Pure deterministic postcondition verification function
-pub fn verify_postconditions(
+// -----------------------------------------------------------------------------
+// Pure Functional Verifiers for Direct Testing
+// -----------------------------------------------------------------------------
+
+pub fn verify_vault_postconditions(
     policy: &PolicyAccount,
-    trade_amount_usd: u64,
-    post_target_usd: u64,
-    post_total_usd: u64,
-    post_stable_usd: u64,
+    trade_amount_cents: u64,
+    post_target_cents: u64,
+    post_total_cents: u64,
+    post_stable_cents: u64,
     quoted_price_cents: u64,
     execution_price_cents: u64,
 ) -> Result<()> {
-    require!(post_total_usd > 0, SentinelError::MathOverflow);
+    require!(post_total_cents > 0, SentinelError::MathOverflow);
+    require!(post_target_cents <= post_total_cents, SentinelError::MathOverflow);
 
-    // 1. Postcondition: Max trade size
+    // 1. Max trade size check
     require!(
-        trade_amount_usd <= policy.max_trade_value_usd,
+        trade_amount_cents <= policy.max_trade_value_usd.checked_mul(100).ok_or(SentinelError::MathOverflow)?,
         SentinelError::TradeSizeExceeded
     );
 
-    // 2. Postcondition: Max single-asset exposure (in basis points)
-    // post_target_usd * 10,000 / post_total_usd <= max_single_asset_bps
-    let target_exposure_bps = (post_target_usd as u128)
+    // 2. Max single-asset exposure check (in u128)
+    let target_exposure_bps = (post_target_cents as u128)
         .checked_mul(10_000)
         .ok_or(SentinelError::MathOverflow)?
-        .checked_div(post_total_usd as u128)
-        .ok_or(SentinelError::MathOverflow)? as u16;
+        .checked_div(post_total_cents as u128)
+        .ok_or(SentinelError::MathOverflow)?;
 
     require!(
-        target_exposure_bps <= policy.max_single_asset_bps,
+        target_exposure_bps <= policy.max_single_asset_bps as u128,
         SentinelError::ExposureExceeded
     );
 
-    // 3. Postcondition: Min stablecoin reserve (in basis points)
-    // post_stable_usd * 10,000 / post_total_usd >= min_stablecoin_bps
-    let stablecoin_reserve_bps = (post_stable_usd as u128)
+    // 3. Min stablecoin reserve floor check (in u128)
+    let stablecoin_reserve_bps = (post_stable_cents as u128)
         .checked_mul(10_000)
         .ok_or(SentinelError::MathOverflow)?
-        .checked_div(post_total_usd as u128)
-        .ok_or(SentinelError::MathOverflow)? as u16;
+        .checked_div(post_total_cents as u128)
+        .ok_or(SentinelError::MathOverflow)?;
 
     require!(
-        stablecoin_reserve_bps >= policy.min_stablecoin_bps,
+        stablecoin_reserve_bps >= policy.min_stablecoin_bps as u128,
         SentinelError::StablecoinReserveBreached
     );
 
-    // 4. Postcondition: Max slippage (if quoted price is specified)
+    // 4. Slippage check (in u128)
     if quoted_price_cents > 0 && execution_price_cents > 0 {
         let price_diff = if execution_price_cents >= quoted_price_cents {
             execution_price_cents - quoted_price_cents
@@ -261,10 +430,10 @@ pub fn verify_postconditions(
             .checked_mul(10_000)
             .ok_or(SentinelError::MathOverflow)?
             .checked_div(quoted_price_cents as u128)
-            .ok_or(SentinelError::MathOverflow)? as u16;
+            .ok_or(SentinelError::MathOverflow)?;
 
         require!(
-            slippage_bps <= policy.max_slippage_bps,
+            slippage_bps <= policy.max_slippage_bps as u128,
             SentinelError::SlippageExceeded
         );
     }
@@ -320,6 +489,22 @@ pub struct UpdatePolicy<'info> {
 }
 
 #[derive(Accounts)]
+pub struct InitializeVault<'info> {
+    #[account(
+        init,
+        payer = owner,
+        space = PortfolioVault::LEN,
+        seeds = [b"vault", owner.key().as_ref()],
+        bump
+    )]
+    pub vault: Account<'info, PortfolioVault>,
+    pub policy: Account<'info, PolicyAccount>,
+    #[account(mut)]
+    pub owner: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
 #[instruction(promise_id: String)]
 pub struct CreatePromise<'info> {
     #[account(
@@ -347,6 +532,13 @@ pub struct ExecuteGuardedTrade<'info> {
         has_one = policy
     )]
     pub promise: Account<'info, PromiseAccount>,
+    #[account(
+        mut,
+        seeds = [b"vault", vault.owner.as_ref()],
+        bump = vault.bump,
+        has_one = policy
+    )]
+    pub vault: Account<'info, PortfolioVault>,
     pub agent: Account<'info, AgentAccount>,
     pub policy: Account<'info, PolicyAccount>,
     pub authority: Signer<'info>,
@@ -364,6 +556,7 @@ pub struct RecordEvidence<'info> {
     )]
     pub evidence: Account<'info, EvidenceAccount>,
     pub promise: Account<'info, PromiseAccount>,
+    pub agent: Account<'info, AgentAccount>,
     #[account(mut)]
     pub authority: Signer<'info>,
     pub system_program: Program<'info, System>,
@@ -389,6 +582,14 @@ pub struct PolicyUpdatedEvent {
     pub max_trade_value_usd: u64,
     pub max_slippage_bps: u16,
     pub is_active: bool,
+}
+
+#[event]
+pub struct VaultInitializedEvent {
+    pub vault: Pubkey,
+    pub owner: Pubkey,
+    pub total_value_cents: u64,
+    pub usdc_balance_cents: u64,
 }
 
 #[event]
@@ -431,7 +632,7 @@ mod tests {
             owner: Pubkey::default(),
             max_single_asset_bps: 2500, // 25.00%
             min_stablecoin_bps: 2000,   // 20.00%
-            max_trade_value_usd: 10000, // $10,000
+            max_trade_value_usd: 10000, // $10,000 ($1,000,000 cents)
             max_slippage_bps: 100,      // 1.00%
             policy_version: 1,
             is_active: true,
@@ -440,55 +641,70 @@ mod tests {
     }
 
     #[test]
-    fn test_single_asset_exposure_boundary() {
+    fn test_policy_bounds_enforcement() {
+        // Values > 10,000 bps are strictly invalid
+        let invalid_bps: u16 = 15_000;
+        assert!(invalid_bps > 10_000);
+    }
+
+    #[test]
+    fn test_single_asset_exposure_boundary_cents() {
         let policy = mock_policy();
-        // 25.00% -> PASS ($25,000 on $100,000)
-        let res_pass = verify_postconditions(&policy, 5000, 25000, 100000, 20000, 0, 0);
+        // 25.00% -> PASS ($25,000 on $100,000 = 2,500,000 cents on 10,000,000 cents)
+        let res_pass = verify_vault_postconditions(&policy, 500_000, 2_500_000, 10_000_000, 2_000_000, 0, 0);
         assert!(res_pass.is_ok());
 
         // 25.01% -> FAIL ($25,010 on $100,000 = 2501 bps)
-        let res_fail = verify_postconditions(&policy, 5000, 25010, 100000, 20000, 0, 0);
+        let res_fail = verify_vault_postconditions(&policy, 500_000, 2_501_000, 10_000_000, 2_000_000, 0, 0);
         assert_eq!(res_fail.unwrap_err(), error!(SentinelError::ExposureExceeded));
     }
 
     #[test]
-    fn test_stablecoin_reserve_boundary() {
+    fn test_stablecoin_reserve_boundary_cents() {
         let policy = mock_policy();
-        // 20.00% -> PASS ($20,000 on $100,000)
-        let res_pass = verify_postconditions(&policy, 5000, 20000, 100000, 20000, 0, 0);
+        // 20.00% -> PASS ($20,000 on $100,000 = 2,000,000 cents)
+        let res_pass = verify_vault_postconditions(&policy, 500_000, 2_000_000, 10_000_000, 2_000_000, 0, 0);
         assert!(res_pass.is_ok());
 
-        // 19.99% -> FAIL ($19,990 on $100,000 = 1999 bps)
-        let res_fail = verify_postconditions(&policy, 5000, 20000, 100000, 19990, 0, 0);
+        // 19.99% -> FAIL ($19,990 on $100,000 = 1,999,000 cents)
+        let res_fail = verify_vault_postconditions(&policy, 500_000, 2_000_000, 10_000_000, 1_999_000, 0, 0);
         assert_eq!(res_fail.unwrap_err(), error!(SentinelError::StablecoinReserveBreached));
     }
 
     #[test]
-    fn test_max_trade_size_boundary() {
+    fn test_max_trade_size_boundary_cents() {
         let policy = mock_policy();
-        // $10,000 -> PASS
-        let res_pass = verify_postconditions(&policy, 10000, 20000, 100000, 20000, 0, 0);
+        // $10,000 -> PASS ($1,000,000 cents)
+        let res_pass = verify_vault_postconditions(&policy, 1_000_000, 2_000_000, 10_000_000, 2_000_000, 0, 0);
         assert!(res_pass.is_ok());
 
-        // $10,001 -> FAIL
-        let res_fail = verify_postconditions(&policy, 10001, 20000, 100000, 20000, 0, 0);
+        // $10,001 -> FAIL ($1,000,100 cents)
+        let res_fail = verify_vault_postconditions(&policy, 1_000_100, 2_000_000, 10_000_000, 2_000_000, 0, 0);
         assert_eq!(res_fail.unwrap_err(), error!(SentinelError::TradeSizeExceeded));
     }
 
     #[test]
-    fn test_hackathon_bad_decision_rejected() {
+    fn test_hackathon_bad_decision_rejected_cents() {
         let policy = mock_policy();
-        // Agent proposes $15,000 trade, pushing target to $35,000 (35%) and stablecoin to $10,000 (10%)
-        // Should immediately fail on trade size ($15k > $10k)
-        let res = verify_postconditions(&policy, 15000, 35000, 100000, 10000, 0, 0);
+        // Agent proposes $15,000 trade ($1,500,000 cents)
+        // Post target reaches $35,000 (3,500,000 cents = 35%), USDC drops to $10,000 (1,000,000 cents = 10%)
+        let res = verify_vault_postconditions(&policy, 1_500_000, 3_500_000, 10_000_000, 1_000_000, 0, 0);
         assert_eq!(res.unwrap_err(), error!(SentinelError::TradeSizeExceeded));
     }
 
     #[test]
-    fn test_hackathon_good_decision_settled() {
+    fn test_hackathon_good_decision_settled_cents() {
         let policy = mock_policy();
         // Agent proposes adapted $5,000 trade: target reaches $25,000 (25%), stablecoin stays $20,000 (20%)
-        let res = verify_postconditions(&policy, 5000, 25000, 100000, 20000, 0, 0);
+        let res = verify_vault_postconditions(&policy, 500_000, 2_500_000, 10_000_000, 2_000_000, 0, 0);
         assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_u128_overflow_protection() {
+        let policy = mock_policy();
+        // Enforces post_target <= post_total
+        let res = verify_vault_postconditions(&policy, 500_000, 12_000_000, 10_000_000, 2_000_000, 0, 0);
+        assert_eq!(res.unwrap_err(), error!(SentinelError::MathOverflow));
     }
 }

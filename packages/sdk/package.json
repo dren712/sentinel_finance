@@ -12,7 +12,9 @@
   "dependencies": {
     "@sentinel/domain": "workspace:*",
     "@solana/web3.js": "^1.95.8",
-    "@coral-xyz/anchor": "^0.30.1"
+    "@coral-xyz/anchor": "^0.30.1",
+    "tweetnacl": "^1.0.3",
+    "tweetnacl-util": "^0.15.1"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

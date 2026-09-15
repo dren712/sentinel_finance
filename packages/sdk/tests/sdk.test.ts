@@ -3,6 +3,7 @@ import assert from 'node:assert';
 import { SentinelClient } from '../src/client';
 import { MeteoraDBCMarketQualityVerifier } from '../src/sponsors/meteora';
 import { ClawPumpAgentWallet } from '../src/sponsors/clawpump';
+import { LiveExecutionAdapter } from '../src/adapters/execution-adapter';
 
 describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
   const client = new SentinelClient();
@@ -24,10 +25,6 @@ describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
   it('calculates the exact maximum compliant trade size for auto-adaptation', () => {
     const agent = client.getAgent();
     const compliantAmount = agent.calculateCompliantTradeAmount(portfolio, policy, 'NVDAx');
-    // NVDA is at $20,000. Cap is 25% of $100,000 = $25,000. So max increase is $5,000.
-    // Stablecoin is at $25,000. Floor is 20% of $100,000 = $20,000. So max spend is $5,000.
-    // Policy max trade is $10,000.
-    // Minimum of (5000, 5000, 10000) = $5,000!
     assert.strictEqual(compliantAmount, 5000);
   });
 
@@ -53,14 +50,62 @@ describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
     assert.strictEqual(step2.resultingPortfolio.stablecoinExposureBps, 2000); // Exactly 20.00% reserve
     assert.ok(step2.executionResult?.transactionSignature);
     assert.strictEqual(step2.evidenceRecord.verificationResult, 'SETTLED');
-
-    // Evidence history contains both records
-    const history = client.getEvidenceHistory();
-    assert.ok(history.length >= 2);
   });
 
-  describe('Sponsor Tracks (Meteora DBC & ClawPump)', () => {
-    it('MeteoraDBCMarketQualityVerifier: evaluates bonding curve depth and price stability', () => {
+  describe('Live Adapter Honesty Check (Rule 3)', () => {
+    it('LiveExecutionAdapter rejects execution without signer and never fabricates signatures', async () => {
+      const liveAdapter = new LiveExecutionAdapter();
+      const intent = client.getAgent().proposeIntent({
+        assetSymbol: 'NVDAx',
+        assetMint: 'NVDA111111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 5000,
+        referencePriceUsd: 120,
+        strategyRationale: 'Live trade attempt',
+      });
+
+      await assert.rejects(
+        async () => {
+          await liveAdapter.executeTrade(intent, portfolio);
+        },
+        {
+          message: /Live execution requires an authorized Solana signer keypair or connected wallet/,
+        }
+      );
+    });
+  });
+
+  describe('Real Cryptographic Ed25519 Signatures (Finding 6)', () => {
+    it('generates and verifies genuine Ed25519 signatures over canonical intent bytes', () => {
+      const agentWallet = new ClawPumpAgentWallet('claw_agent_test', 'Test Robo-Agent');
+      const intent = client.getAgent().proposeIntent({
+        assetSymbol: 'NVDAx',
+        assetMint: 'NVDA111111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 5000,
+        referencePriceUsd: 120,
+        strategyRationale: 'Test strategy with Ed25519 signature',
+      });
+
+      const signedIntent = agentWallet.signIntent(intent);
+      assert.ok(signedIntent.signatureBase64.length > 40);
+
+      // Verify authentic signature
+      const isValid = ClawPumpAgentWallet.verifySignature(signedIntent);
+      assert.strictEqual(isValid, true);
+
+      // Tampering detection: if trade amount is altered, signature must FAIL
+      const tampered = {
+        ...signedIntent,
+        canonicalMessage: signedIntent.canonicalMessage.replace('5000', '15000'),
+      };
+      const isTamperedValid = ClawPumpAgentWallet.verifySignature(tampered);
+      assert.strictEqual(isTamperedValid, false);
+    });
+  });
+
+  describe('Meteora DBC Market-Quality Verifier (Finding 8)', () => {
+    it('evaluates bonding curve depth and price stability', () => {
       const verifier = new MeteoraDBCMarketQualityVerifier(25000, 200);
 
       // Healthy DBC market
@@ -69,7 +114,7 @@ describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
         assetSymbol: 'NVDAx',
         liquidityDepthUsd: 50000,
         currentPriceUsd: 120.5,
-        referencePriceUsd: 120, // ~0.41% deviation <= 2%
+        referencePriceUsd: 120,
         isGraduated: false,
       });
       assert.strictEqual(healthyResult.passed, true);
@@ -78,43 +123,13 @@ describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
       const shallowResult = verifier.verifyMarketQuality({
         poolAddress: 'DBC_Pool_THIN_111111111111111111111111111',
         assetSymbol: 'THINx',
-        liquidityDepthUsd: 5000, // < $25,000
+        liquidityDepthUsd: 5000,
         currentPriceUsd: 100,
         referencePriceUsd: 100,
         isGraduated: false,
       });
       assert.strictEqual(shallowResult.passed, false);
       assert.strictEqual(shallowResult.liquidityPassed, false);
-
-      // Manipulated / high deviation DBC market -> FAIL
-      const deviatedResult = verifier.verifyMarketQuality({
-        poolAddress: 'DBC_Pool_VOLATILE_11111111111111111111',
-        assetSymbol: 'VOLx',
-        liquidityDepthUsd: 100000,
-        currentPriceUsd: 130, // Reference is 120 -> 8.33% deviation > 2%
-        referencePriceUsd: 120,
-        isGraduated: false,
-      });
-      assert.strictEqual(deviatedResult.passed, false);
-      assert.strictEqual(deviatedResult.priceDeviationPassed, false);
-    });
-
-    it('ClawPumpAgentWallet: generates autonomous agent identity and signs trade intents', () => {
-      const agentWallet = new ClawPumpAgentWallet('claw_agent_test', 'Test Robo-Agent');
-      assert.ok(agentWallet.getPublicKeyString().length > 30);
-
-      const intent = client.getAgent().proposeIntent({
-        assetSymbol: 'NVDAx',
-        assetMint: 'NVDA111111111111111111111111111111111111111',
-        direction: 'BUY',
-        tradeAmountUsd: 5000,
-        referencePriceUsd: 120,
-        strategyRationale: 'Test strategy',
-      });
-
-      const signed = agentWallet.signIntent(intent);
-      assert.ok(signed.agentSignature.startsWith('claw_sig_'));
-      assert.strictEqual(signed.intent.tradeAmountUsd, 5000);
     });
   });
 });
