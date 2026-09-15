@@ -16,7 +16,7 @@ In accordance with strict technical truth:
 | :--- | :--- | :--- |
 | **Sentinel Anchor Program** | **LIVE ON-CHAIN** | Deployed on Solana (`3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK`). Manages `PolicyAccount`, `AgentAccount`, `PromiseAccount`, and `PortfolioVault` PDAs. |
 | **Guarded Trade Execution** | **LIVE ON-CHAIN** | `execute_guarded_trade` enforces agent authority, mutates the on-chain `PortfolioVault` ledger, computes resulting exposure in `u128`, and **atomically reverts the entire Solana transaction** if any postcondition fails. |
-| **Agent Intent Signing** | **REAL CRYPTOGRAPHY** | `ClawPumpAgentWallet` generates genuine **Ed25519** signatures over RFC-8785 canonical JSON bytes and verifies them cryptographically. |
+| **Agent Intent Signing** | **REAL CRYPTOGRAPHY** | `ClawPumpAgentWallet` generates genuine **Ed25519** signatures over deterministic canonical JSON bytes and verifies them cryptographically. |
 | **PROVN Evidence** | **REAL CRYPTOGRAPHY** | Deterministic SHA-256 commitments linking pre-state, post-state, intent, policy version, and on-chain failure codes. |
 | **Meteora Integration** | **VERIFIER MODULE** | `MeteoraDBCMarketQualityVerifier` models and validates Dynamic Bonding Curve (DBC) depth ($25k floor) and price deviation (2% cap). *(Not a live DEX pool).* |
 | **ClawPump Integration** | **AGENT WALLET PATTERN** | Autonomous agent keypair identity with Ed25519 intent signing bounded by on-chain Sentinel policy. *(Not a token launch).* |
@@ -109,7 +109,7 @@ PROVN EVIDENCE LAYER (Immutable Cryptographic Anchor)
   - **Step 2 (Auto-Adapted Compliant Decision)**: Agent reads rejection feedback and calculates exact maximum compliant size ($5,000) → Proposes `BUY NVDAx $5,000` → Settled!
 
 ### 4. PROVN Cryptographic Evidence Layer (`packages/domain`)
-- RFC-8785 canonical JSON serialization with deterministic SHA-256 state commitments:
+- Deterministic canonical JSON serialization with deterministic SHA-256 state commitments:
   - Pre-State Hash & Post-State Hash
   - Trade Intent Hash & Policy Hash
   - Verification Verdict, Failure Codes, and Transaction Signatures
@@ -121,14 +121,12 @@ PROVN EVIDENCE LAYER (Immutable Cryptographic Anchor)
   - `PolicyVerifier`: Evaluates policy freshness, status, and execution slippage.
 
 ### 6. Institutional Web UI (`apps/web`)
-- Next.js 14 App Router, Tailwind CSS, `@solana/wallet-adapter-react`.
-- Core screens:
-  - **Portfolio**: Real-time balances vs policy boundaries with visual safety bars.
-  - **Autonomous Agent**: Identity, ClawPump wallet authority, strategy objectives, interactive custom trade tester.
-  - **Policy Guarantees**: Interactive sliders for user guarantees and on-chain PDA state.
-  - **Decision Inspector**: Side-by-side pre vs post state transition comparison, PTA lifecycle diagram, check tables, failure codes.
-  - **Evidence (PROVN)**: Searchable cryptographic proof explorer.
-  - **Sponsors**: Live Meteora DBC market-quality sandbox and ClawPump agent wallet identity with live Ed25519 signing tester.
+- Next.js 14 App Router, Tailwind CSS, `@solana/wallet-adapter-react`, Lightweight Charts.
+- 4 Core Pillars:
+  - **Portfolio**: Real-time NAV tracking, tokenized equities (`NVDAx`, `AAPLx`, `SPYx`, `USDC`), TradingView interactive financial chart, holdings & policy compliance breakdown, and active `4 / 4 Guarantees Healthy` status pill.
+  - **Agent**: `Sentinel Robo-01` identity, ClawPump-compatible wallet pattern, strategy objectives, interactive decision flow, and real-time pre-flight invariant check tester.
+  - **Protection**: "Your Guarantees" (interactive sliders for single-asset cap, reserve floor, max trade size, and slippage) + "What Sentinel Guarantees" (atomic rollback on Solana Anchor, u128 math, cryptographic commitments).
+  - **Activity**: Unified Activity Log combining recent actions, detailed decision inspector (before vs after exposure comparisons, PTA lifecycle), and expandable PROVN cryptographic commitments with Solana Devnet explorer links.
 
 ---
 

@@ -6,6 +6,7 @@ import {
   FinancialPolicy,
   EvidenceRecord,
   PortfolioAsset,
+  getAssetMetadata,
 } from '@sentinel/domain';
 import {
   TrendingUp,
@@ -19,6 +20,8 @@ import {
   Layers,
   ChevronDown,
   ChevronUp,
+  Activity,
+  AlertTriangle,
 } from 'lucide-react';
 import { Stat } from './ui/Stat';
 import { Badge } from './ui/Badge';
@@ -48,16 +51,78 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
   const equityExposureBps = 10_000 - portfolio.stablecoinExposureBps;
   const isReserveHealthy = portfolio.stablecoinExposureBps >= policy.minStablecoinBps;
 
+  // Evaluate policy guarantee health
+  const singleAssetExceeded = portfolio.assets.some(
+    (a) => !a.isStablecoin && !a.isIndex && a.exposureBps > policy.maxSingleAssetBps
+  );
+  const isHealthy = isReserveHealthy && !singleAssetExceeded;
+
+  const getAssetColor = (symbol: string): string => {
+    const meta = getAssetMetadata(symbol);
+    if (meta?.colorHex) return meta.colorHex;
+    if (symbol === 'NVDAx') return '#10B981';
+    if (symbol === 'AAPLx') return '#94A3B8';
+    if (symbol === 'SPYx') return '#3B82F6';
+    if (symbol === 'USDC') return '#06B6D4';
+    return '#8B5CF6';
+  };
+
   return (
     <div className="space-y-6">
+      {/* Policy Health & Demo Transparency Banner */}
+      <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+            isHealthy
+              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+              : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+          }`}>
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-sm text-white">
+                Demo Portfolio (Simulated Benchmark Assets)
+              </span>
+              <span className="px-2 py-0.5 rounded text-[11px] font-mono font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/30">
+                Solana Devnet
+              </span>
+            </div>
+            <p className="text-xs text-sentinel-textMuted mt-0.5">
+              Target equities and index ETFs benchmarked against canonical simulated oracles.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <span className={`px-3 py-1 rounded-full text-xs font-mono font-semibold border flex items-center gap-1.5 ${
+            isHealthy
+              ? 'bg-emerald-950/40 text-emerald-400 border-emerald-500/40'
+              : 'bg-rose-950/40 text-rose-400 border-rose-500/40'
+          }`}>
+            {isHealthy ? (
+              <>
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                4 / 4 Guarantees Healthy
+              </>
+            ) : (
+              <>
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
+                Policy Boundary Alert
+              </>
+            )}
+          </span>
+        </div>
+      </div>
+
       {/* 1. Stat Header Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Portfolio Value */}
         <Stat
           label="PORTFOLIO NAV"
           value={formatCurrency(portfolio.totalValueUsd)}
-          subtext="Fully collateralized on Solana Devnet"
-          delta="+1.42%"
+          subtext="Collateralized on Solana Devnet"
+          delta="BENCHMARK"
           deltaPositive={true}
           icon={DollarSign}
         />
@@ -108,20 +173,14 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
 
         {/* Visual Allocation Strip */}
         <div className="h-3 w-full rounded-full overflow-hidden flex bg-sentinel-surfaceMuted">
-          {portfolio.assets.map((asset, idx) => {
+          {portfolio.assets.map((asset) => {
             const widthPct = (asset.exposureBps / 100);
-            const colors = [
-              'bg-blue-500',
-              'bg-emerald-500',
-              'bg-purple-500',
-              'bg-indigo-500',
-              'bg-amber-500',
-            ];
+            const color = getAssetColor(asset.symbol);
             return (
               <div
                 key={asset.symbol}
-                className={`${colors[idx % colors.length]} hover:opacity-80 transition cursor-pointer`}
-                style={{ width: `${widthPct}%` }}
+                className="hover:opacity-80 transition cursor-pointer"
+                style={{ width: `${widthPct}%`, backgroundColor: color }}
                 title={`${asset.symbol}: ${widthPct.toFixed(2)}%`}
                 onClick={() => setSelectedAssetSymbol(asset.symbol)}
               />
@@ -131,25 +190,19 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
 
         {/* Legend Chips */}
         <div className="flex flex-wrap items-center gap-3 pt-1 text-xs">
-          {portfolio.assets.map((asset, idx) => {
-            const colors = [
-              'bg-blue-500',
-              'bg-emerald-500',
-              'bg-purple-500',
-              'bg-indigo-500',
-              'bg-amber-500',
-            ];
+          {portfolio.assets.map((asset) => {
+            const color = getAssetColor(asset.symbol);
             return (
               <button
                 key={asset.symbol}
                 onClick={() => setSelectedAssetSymbol(asset.symbol === selectedAssetSymbol ? null : asset.symbol)}
-                className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition ${
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs transition cursor-pointer ${
                   selectedAssetSymbol === asset.symbol
                     ? 'bg-sentinel-surfaceElevated border border-blue-500/40 text-white'
                     : 'text-sentinel-textMuted hover:text-white'
                 }`}
               >
-                <span className={`w-2 h-2 rounded-full ${colors[idx % colors.length]}`} />
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
                 <span className="font-semibold">{asset.symbol}</span>
                 <span className="font-mono text-sentinel-textSubtle">
                   {(asset.exposureBps / 100).toFixed(1)}%
@@ -209,11 +262,12 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
                       <td className="py-3.5">
                         <div className="flex items-center gap-2.5">
                           <div
-                            className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs ${
-                              asset.isStablecoin
-                                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                                : 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
-                            }`}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs"
+                            style={{
+                              backgroundColor: `${getAssetColor(asset.symbol)}20`,
+                              color: getAssetColor(asset.symbol),
+                              border: `1px solid ${getAssetColor(asset.symbol)}40`,
+                            }}
                           >
                             {asset.symbol.slice(0, 3)}
                           </div>

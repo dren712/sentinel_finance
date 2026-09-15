@@ -14,13 +14,10 @@ import {
 } from '@sentinel/sdk';
 import { Header } from '@/components/Header';
 import { Navigation, NavTab } from '@/components/Navigation';
-import { OverviewView } from '@/components/OverviewView';
 import { PortfolioView } from '@/components/PortfolioView';
 import { AgentView } from '@/components/AgentView';
 import { GuaranteesView } from '@/components/GuaranteesView';
-import { DecisionsView } from '@/components/DecisionsView';
-import { EvidenceView } from '@/components/EvidenceView';
-import { SponsorsView } from '@/components/SponsorsView';
+import { ActivityView } from '@/components/ActivityView';
 import { TransactionModal, TxLifecycleStep, TxDetails } from '@/components/ui/TransactionModal';
 import { APP_CONFIG, getExplorerAddressUrl } from '@/lib/config';
 import { formatAddress } from '@/lib/formatters';
@@ -29,7 +26,7 @@ export default function Home() {
   const client = useMemo(() => new SentinelClient(), []);
 
   const [mode, setMode] = useState<'SIMULATION' | 'LIVE'>('SIMULATION');
-  const [activeTab, setActiveTab] = useState<NavTab>('overview');
+  const [activeTab, setActiveTab] = useState<NavTab>('portfolio');
   const [portfolio, setPortfolio] = useState<PortfolioSnapshot>(() => client.createDefaultPortfolio());
   const [policy, setPolicy] = useState<FinancialPolicy>(() => client.createDefaultPolicy());
   const [evidenceList, setEvidenceList] = useState<EvidenceRecord[]>([]);
@@ -94,7 +91,7 @@ export default function Home() {
         setPortfolio(report.resultingPortfolio);
       }
 
-      setActiveTab('decisions');
+      setActiveTab('activity');
     } finally {
       setIsRunningTrade(false);
     }
@@ -103,7 +100,7 @@ export default function Home() {
   // Run Scripted Hackathon Demo Scenario (Section 17 & 26)
   const handleRunDemo = async () => {
     setIsRunningDemo(true);
-    setActiveTab('decisions');
+    setActiveTab('activity');
 
     try {
       const agent = client.getAgent();
@@ -157,7 +154,7 @@ export default function Home() {
 
   const handleSelectEvidenceRecord = (record: EvidenceRecord) => {
     setSelectedEvidenceId(record.id);
-    setActiveTab('evidence');
+    setActiveTab('activity');
   };
 
   const handleUpdatePolicy = (updated: Partial<FinancialPolicy>) => {
@@ -178,7 +175,7 @@ export default function Home() {
         isRunningDemo={isRunningDemo}
       />
 
-      {/* Primary Navigation Tabs */}
+      {/* Primary Navigation Tabs (4 Pillars) */}
       <Navigation
         activeTab={activeTab}
         onSelectTab={setActiveTab}
@@ -187,30 +184,13 @@ export default function Home() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {activeTab === 'overview' && (
-          <OverviewView
-            portfolio={portfolio}
-            policy={policy}
-            agent={client.getAgent()}
-            latestReport={latestReport}
-            recentEvidence={evidenceList}
-            onNavigateToDecisions={() => setActiveTab('decisions')}
-            onNavigateToEvidence={() => setActiveTab('evidence')}
-            onNavigateToGuarantees={() => setActiveTab('guarantees')}
-            onNavigateToPortfolio={() => setActiveTab('portfolio')}
-            onNavigateToAgent={() => setActiveTab('agent')}
-            onRunDemo={handleRunDemo}
-            isRunningDemo={isRunningDemo}
-          />
-        )}
-
         {activeTab === 'portfolio' && (
           <PortfolioView
             portfolio={portfolio}
             policy={policy}
             recentEvidence={evidenceList}
             onSelectEvidence={handleSelectEvidenceRecord}
-            onNavigateToDecisions={() => setActiveTab('decisions')}
+            onNavigateToDecisions={() => setActiveTab('activity')}
           />
         )}
 
@@ -224,35 +204,22 @@ export default function Home() {
           />
         )}
 
-        {activeTab === 'guarantees' && (
+        {activeTab === 'protection' && (
           <GuaranteesView
             policy={policy}
             onUpdatePolicy={handleUpdatePolicy}
           />
         )}
 
-        {activeTab === 'decisions' && (
-          <DecisionsView
+        {activeTab === 'activity' && (
+          <ActivityView
             latestReport={latestReport}
-            policy={policy}
-            portfolio={portfolio}
-            onSelectEvidenceId={(id) => {
-              setSelectedEvidenceId(id);
-              setActiveTab('evidence');
-            }}
-          />
-        )}
-
-        {activeTab === 'evidence' && (
-          <EvidenceView
             evidenceList={evidenceList}
             selectedEvidenceId={selectedEvidenceId}
             onSelectEvidenceId={setSelectedEvidenceId}
+            policy={policy}
+            portfolio={portfolio}
           />
-        )}
-
-        {activeTab === 'sponsors' && (
-          <SponsorsView agent={client.getAgent()} />
         )}
       </main>
 

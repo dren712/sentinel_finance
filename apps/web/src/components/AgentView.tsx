@@ -90,7 +90,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
                 </Badge>
               </div>
               <p className="text-xs text-sentinel-textMuted mt-1">
-                Authorized via ClawPump Autonomous Agent Wallet protocol on Solana Devnet
+                Sentinel Robo-01 • ClawPump-compatible wallet pattern on Solana Devnet
               </p>
             </div>
           </div>
@@ -337,7 +337,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
             <div className="font-mono text-sentinel-accent font-bold">01. INTENT</div>
             <div className="font-semibold text-white">Agent Proposes Action</div>
             <p className="text-sentinel-textMuted text-[11px]">
-              Agent generates trade intent with detached Ed25519 signature from ClawPump authority.
+              Agent generates trade intent with detached Ed25519 signature from ClawPump-compatible agent authority.
             </p>
           </div>
 

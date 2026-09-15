@@ -284,7 +284,7 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
           <div className="bg-sentinel-surfaceMuted p-4 rounded-lg border border-sentinel-border">
             <span className="text-sentinel-textSubtle block">PORTFOLIO VAULT PDA SEEDS</span>
             <span className="text-white mt-1 block">
-              b&quot;portfolio_vault&quot;, owner.key()
+              b&quot;vault&quot;, owner.key()
             </span>
           </div>
 

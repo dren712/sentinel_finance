@@ -10,7 +10,7 @@ import {
 } from './types';
 
 /**
- * RFC-8785 Compliant Canonical JSON Serializer
+ * Deterministic Canonical JSON Serializer
  * Recursively orders object keys lexicographically and preserves array ordering.
  */
 export function canonicalJsonStringify(value: unknown): string {
@@ -37,7 +37,7 @@ export function canonicalJsonStringify(value: unknown): string {
 }
 
 /**
- * Generates deterministic SHA-256 hash using RFC-8785 canonical serialization
+ * Generates deterministic SHA-256 hash using canonical JSON serialization
  */
 export function canonicalHash(data: unknown): string {
   const canonicalString = canonicalJsonStringify(data);

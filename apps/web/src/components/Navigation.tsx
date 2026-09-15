@@ -12,13 +12,10 @@ import {
 } from 'lucide-react';
 
 export type NavTab =
-  | 'overview'
   | 'portfolio'
   | 'agent'
-  | 'guarantees'
-  | 'decisions'
-  | 'evidence'
-  | 'sponsors';
+  | 'protection'
+  | 'activity';
 
 interface NavigationProps {
   activeTab: NavTab;
@@ -26,19 +23,24 @@ interface NavigationProps {
   evidenceCount: number;
 }
 
+interface TabItem {
+  id: NavTab;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  count?: number;
+  badge?: string;
+}
+
 export const Navigation: React.FC<NavigationProps> = ({
   activeTab,
   onSelectTab,
   evidenceCount,
 }) => {
-  const tabs = [
-    { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+  const tabs: TabItem[] = [
     { id: 'portfolio', label: 'Portfolio', icon: PieChart },
-    { id: 'agent', label: 'Autonomous Agent', icon: Bot },
-    { id: 'guarantees', label: 'Guarantees', icon: ShieldCheck },
-    { id: 'decisions', label: 'Decision Inspector', icon: Scale, badge: 'Core PTA' },
-    { id: 'evidence', label: 'Evidence (PROVN)', icon: FileCheck, count: evidenceCount },
-    { id: 'sponsors', label: 'Sponsors', icon: Sparkles },
+    { id: 'agent', label: 'Agent', icon: Bot },
+    { id: 'protection', label: 'Protection', icon: ShieldCheck },
+    { id: 'activity', label: 'Activity', icon: FileCheck, count: evidenceCount },
   ];
 
   return (

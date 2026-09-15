@@ -2,6 +2,7 @@ import {
   TradeIntent,
   PortfolioSnapshot,
 } from '@sentinel/domain';
+import { createHash } from 'crypto';
 import { ExecutionAdapter, ExecutionResult } from '../types';
 import {
   Connection,
@@ -111,35 +112,63 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
       const outputAmount = isBuy ? intent.tradeAmountUsd / intent.referencePriceUsd : intent.tradeAmountUsd;
 
       // Construct Anchor instruction data for execute_guarded_trade
-      // Instruction discriminator (sighash of "global:execute_guarded_trade")
-      const instructionData = Buffer.alloc(24);
-      // Data payload: trade_amount_cents (u64), execution_price_cents (u64), quoted_price_cents (u64)
+      // Instruction discriminator: sha256("global:execute_guarded_trade").slice(0, 8)
+      const discriminator = createHash('sha256')
+        .update('global:execute_guarded_trade')
+        .digest()
+        .subarray(0, 8);
+
+      // Data payload: 8-byte discriminator + trade_amount_cents (u64) + execution_price_cents (u64) + quoted_price_cents (u64)
+      const instructionData = Buffer.alloc(32);
+      discriminator.copy(instructionData, 0);
+
       const tradeAmountCents = BigInt(Math.round(intent.tradeAmountUsd * 100));
       const executionPriceCents = BigInt(Math.round(intent.referencePriceUsd * 100));
       const quotedPriceCents = BigInt(Math.round(intent.referencePriceUsd * 100));
 
-      instructionData.writeBigUInt64LE(tradeAmountCents, 0);
-      instructionData.writeBigUInt64LE(executionPriceCents, 8);
-      instructionData.writeBigUInt64LE(quotedPriceCents, 16);
+      instructionData.writeBigUInt64LE(tradeAmountCents, 8);
+      instructionData.writeBigUInt64LE(executionPriceCents, 16);
+      instructionData.writeBigUInt64LE(quotedPriceCents, 24);
 
-      // Derive PDAs
+      // Derive PDAs matching Anchor on-chain constraints
+      const authorityPubkey = this.signerKeypair.publicKey;
       const [vaultPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from('vault'), this.signerKeypair.publicKey.toBuffer()],
+        [Buffer.from('vault'), authorityPubkey.toBuffer()],
         this.programId
       );
 
       const [policyPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from('policy'), this.signerKeypair.publicKey.toBuffer()],
+        [Buffer.from('policy'), authorityPubkey.toBuffer()],
         this.programId
       );
 
+      const agentId = intent.agentId || 'sentinel-robo-01';
+      const [agentPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from('agent'), authorityPubkey.toBuffer(), Buffer.from(agentId)],
+        this.programId
+      );
+
+      const promiseId = intent.intentId || 'promise_default';
+      const [promisePda] = PublicKey.findProgramAddressSync(
+        [Buffer.from('promise'), agentPda.toBuffer(), Buffer.from(promiseId)],
+        this.programId
+      );
+
+      // Pass all 5 accounts required by ExecuteGuardedTrade in exact Anchor order:
+      // 1. promise (mut)
+      // 2. vault (mut)
+      // 3. agent (non-mut)
+      // 4. policy (non-mut)
+      // 5. authority (signer, mut)
       const tx = new Transaction().add(
         new TransactionInstruction({
           programId: this.programId,
           keys: [
+            { pubkey: promisePda, isSigner: false, isWritable: true },
             { pubkey: vaultPda, isSigner: false, isWritable: true },
+            { pubkey: agentPda, isSigner: false, isWritable: false },
             { pubkey: policyPda, isSigner: false, isWritable: false },
-            { pubkey: this.signerKeypair.publicKey, isSigner: true, isWritable: true },
+            { pubkey: authorityPubkey, isSigner: true, isWritable: true },
           ],
           data: instructionData,
         })
