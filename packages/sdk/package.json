@@ -1,0 +1,21 @@
+{
+  "name": "@sentinel/sdk",
+  "version": "0.1.0",
+  "description": "Sentinel Finance client SDK, execution adapters, and autonomous agent simulator",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "tsc && node --test dist/tests/*.test.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@sentinel/domain": "workspace:*",
+    "@solana/web3.js": "^1.95.8",
+    "@coral-xyz/anchor": "^0.30.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.4.5"
+  }
+}

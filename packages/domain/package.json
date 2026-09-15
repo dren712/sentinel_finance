@@ -1,0 +1,16 @@
+{
+  "name": "@sentinel/domain",
+  "version": "0.1.0",
+  "description": "Sentinel Finance shared domain types and deterministic policy engine",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "tsc && node --test dist/tests/policy-engine.test.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.4.5"
+  }
+}

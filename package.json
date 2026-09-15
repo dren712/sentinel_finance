@@ -1,0 +1,17 @@
+{
+  "name": "sentinel-finance-monorepo",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "Sentinel Finance - Autonomous Robo-Portfolio for Tokenized Stocks on Solana",
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "dev": "npm --workspace apps/web run dev"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ]
+}
