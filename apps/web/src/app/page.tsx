@@ -14,18 +14,22 @@ import {
 } from '@sentinel/sdk';
 import { Header } from '@/components/Header';
 import { Navigation, NavTab } from '@/components/Navigation';
+import { OverviewView } from '@/components/OverviewView';
 import { PortfolioView } from '@/components/PortfolioView';
 import { AgentView } from '@/components/AgentView';
 import { GuaranteesView } from '@/components/GuaranteesView';
 import { DecisionsView } from '@/components/DecisionsView';
 import { EvidenceView } from '@/components/EvidenceView';
 import { SponsorsView } from '@/components/SponsorsView';
+import { TransactionModal, TxLifecycleStep, TxDetails } from '@/components/ui/TransactionModal';
+import { APP_CONFIG, getExplorerAddressUrl } from '@/lib/config';
+import { formatAddress } from '@/lib/formatters';
 
 export default function Home() {
   const client = useMemo(() => new SentinelClient(), []);
 
   const [mode, setMode] = useState<'SIMULATION' | 'LIVE'>('SIMULATION');
-  const [activeTab, setActiveTab] = useState<NavTab>('portfolio');
+  const [activeTab, setActiveTab] = useState<NavTab>('overview');
   const [portfolio, setPortfolio] = useState<PortfolioSnapshot>(() => client.createDefaultPortfolio());
   const [policy, setPolicy] = useState<FinancialPolicy>(() => client.createDefaultPolicy());
   const [evidenceList, setEvidenceList] = useState<EvidenceRecord[]>([]);
@@ -33,6 +37,11 @@ export default function Home() {
   const [selectedEvidenceId, setSelectedEvidenceId] = useState<string | undefined>(undefined);
   const [isRunningDemo, setIsRunningDemo] = useState(false);
   const [isRunningTrade, setIsRunningTrade] = useState(false);
+
+  // Transaction Lifecycle Modal State
+  const [txModalOpen, setTxModalOpen] = useState(false);
+  const [txStep, setTxStep] = useState<TxLifecycleStep>('idle');
+  const [txDetails, setTxDetails] = useState<TxDetails | null>(null);
 
   // Toggle Live vs Simulation Mode
   const handleToggleMode = () => {
@@ -159,8 +168,8 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-sentinel-bg">
-      {/* Header Bar */}
+    <div className="min-h-screen flex flex-col bg-sentinel-bg text-sentinel-text">
+      {/* Header Bar with Devnet Badge & Mode Switch */}
       <Header
         mode={mode}
         onToggleMode={handleToggleMode}
@@ -178,6 +187,23 @@ export default function Home() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {activeTab === 'overview' && (
+          <OverviewView
+            portfolio={portfolio}
+            policy={policy}
+            agent={client.getAgent()}
+            latestReport={latestReport}
+            recentEvidence={evidenceList}
+            onNavigateToDecisions={() => setActiveTab('decisions')}
+            onNavigateToEvidence={() => setActiveTab('evidence')}
+            onNavigateToGuarantees={() => setActiveTab('guarantees')}
+            onNavigateToPortfolio={() => setActiveTab('portfolio')}
+            onNavigateToAgent={() => setActiveTab('agent')}
+            onRunDemo={handleRunDemo}
+            isRunningDemo={isRunningDemo}
+          />
+        )}
+
         {activeTab === 'portfolio' && (
           <PortfolioView
             portfolio={portfolio}
@@ -208,6 +234,8 @@ export default function Home() {
         {activeTab === 'decisions' && (
           <DecisionsView
             latestReport={latestReport}
+            policy={policy}
+            portfolio={portfolio}
             onSelectEvidenceId={(id) => {
               setSelectedEvidenceId(id);
               setActiveTab('evidence');
@@ -228,18 +256,35 @@ export default function Home() {
         )}
       </main>
 
-      {/* Clean Institutional Footer */}
-      <footer className="border-t border-sentinel-cardBorder bg-sentinel-card/40 py-6 mt-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+      {/* Intent Approval & Lifecycle Modal */}
+      <TransactionModal
+        isOpen={txModalOpen}
+        step={txStep}
+        details={txDetails}
+        onClose={() => setTxModalOpen(false)}
+      />
+
+      {/* Clean Institutional Footer with Devnet Identifier */}
+      <footer className="border-t border-sentinel-border bg-sentinel-surface/60 py-6 mt-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-sentinel-textMuted">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-slate-300">Sentinel Finance</span>
+            <span className="font-semibold text-white">Sentinel Finance</span>
             <span>•</span>
             <span>Stocklana Tokenized-Stock Hackathon</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="font-mono">Solana Program: 3gh1...vAJK</span>
             <span>•</span>
-            <span className="text-emerald-400 font-semibold">Invariant Engine: Authoritative</span>
+            <span className="text-purple-400 font-mono font-semibold">Devnet Deployment</span>
+          </div>
+          <div className="flex items-center gap-4 font-mono text-xs">
+            <a
+              href={getExplorerAddressUrl(APP_CONFIG.sentinelProgramId)}
+              target="_blank"
+              rel="noreferrer"
+              className="text-blue-400 hover:underline"
+            >
+              Anchor Program: {formatAddress(APP_CONFIG.sentinelProgramId, 4)}
+            </a>
+            <span>•</span>
+            <span className="text-emerald-400 font-semibold">On-Chain Vault: Authoritative</span>
           </div>
         </div>
       </footer>

@@ -1,20 +1,31 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   PortfolioSnapshot,
   FinancialPolicy,
   EvidenceRecord,
+  PortfolioAsset,
 } from '@sentinel/domain';
 import {
   TrendingUp,
-  DollarSign,
   ShieldCheck,
   CheckCircle2,
   XCircle,
   ArrowUpRight,
   Lock,
+  DollarSign,
+  ExternalLink,
+  Layers,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
+import { Stat } from './ui/Stat';
+import { Badge } from './ui/Badge';
+import { ProgressBar } from './ui/ProgressBar';
+import { FinancialChart } from './ui/FinancialChart';
+import { formatCurrency, formatPercent, formatAddress } from '@/lib/formatters';
+import { getExplorerAddressUrl } from '@/lib/config';
 
 interface PortfolioViewProps {
   portfolio: PortfolioSnapshot;
@@ -31,106 +42,134 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
   onSelectEvidence,
   onNavigateToDecisions,
 }) => {
+  const [selectedAssetSymbol, setSelectedAssetSymbol] = useState<string | null>(null);
+
   const equityValue = portfolio.totalValueUsd - portfolio.stablecoinValueUsd;
   const equityExposureBps = 10_000 - portfolio.stablecoinExposureBps;
+  const isReserveHealthy = portfolio.stablecoinExposureBps >= policy.minStablecoinBps;
 
   return (
     <div className="space-y-6">
-      {/* 4 Metric Cards */}
+      {/* 1. Stat Header Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Portfolio Value */}
-        <div className="bg-sentinel-card border border-sentinel-cardBorder rounded-xl p-5 relative overflow-hidden">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-medium">
-            <span>TOTAL PORTFOLIO VALUE</span>
-            <DollarSign className="w-4 h-4 text-blue-400" />
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl sm:text-3xl font-bold tracking-tight text-white mono-num">
-              ${portfolio.totalValueUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </span>
-            <span className="text-xs text-slate-400 font-mono">USD</span>
-          </div>
-          <div className="mt-2 flex items-center gap-1.5 text-xs text-emerald-400 font-medium">
-            <TrendingUp className="w-3.5 h-3.5" />
-            <span>Fully collateralized on Solana</span>
-          </div>
-        </div>
+        <Stat
+          label="PORTFOLIO NAV"
+          value={formatCurrency(portfolio.totalValueUsd)}
+          subtext="Fully collateralized on Solana Devnet"
+          delta="+1.42%"
+          deltaPositive={true}
+          icon={DollarSign}
+        />
 
         {/* Stablecoin Reserve Floor */}
-        <div className="bg-sentinel-card border border-sentinel-cardBorder rounded-xl p-5 relative overflow-hidden">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-medium">
-            <span>STABLECOIN RESERVE (USDC)</span>
-            <Lock className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl sm:text-3xl font-bold tracking-tight text-emerald-400 mono-num">
-              {(portfolio.stablecoinExposureBps / 100).toFixed(2)}%
-            </span>
-            <span className="text-xs text-slate-400 font-mono">
-              (${portfolio.stablecoinValueUsd.toLocaleString('en-US', { minimumFractionDigits: 0 })})
-            </span>
-          </div>
-          <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-400">
-            <span>Guaranteed floor:</span>
-            <span className="text-white font-mono font-semibold">
-              {(policy.minStablecoinBps / 100).toFixed(2)}%
-            </span>
-            <span className="text-emerald-400 font-bold ml-1">✓ SAFE</span>
-          </div>
-        </div>
+        <Stat
+          label="USDC RESERVE FLOOR"
+          value={formatPercent(portfolio.stablecoinExposureBps / 100)}
+          subtext={`Guaranteed floor: ${(policy.minStablecoinBps / 100).toFixed(1)}%`}
+          delta={isReserveHealthy ? 'SAFE' : 'BREACH'}
+          deltaPositive={isReserveHealthy}
+          icon={Lock}
+          iconColor="text-emerald-400"
+        />
 
-        {/* Equity Holdings */}
-        <div className="bg-sentinel-card border border-sentinel-cardBorder rounded-xl p-5 relative overflow-hidden">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-medium">
-            <span>TOKENIZED EQUITIES</span>
-            <TrendingUp className="w-4 h-4 text-indigo-400" />
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl sm:text-3xl font-bold tracking-tight text-white mono-num">
-              {(equityExposureBps / 100).toFixed(2)}%
-            </span>
-            <span className="text-xs text-slate-400 font-mono">
-              (${equityValue.toLocaleString('en-US', { minimumFractionDigits: 0 })})
-            </span>
-          </div>
-          <div className="mt-2 text-xs text-slate-400">
-            <span>Single equity cap: </span>
-            <span className="text-white font-mono font-semibold">
-              {(policy.maxSingleAssetBps / 100).toFixed(2)}%
-            </span>
-          </div>
-        </div>
+        {/* Tokenized Equities */}
+        <Stat
+          label="TOKENIZED EQUITIES"
+          value={formatCurrency(equityValue)}
+          subtext={`Cap: ${(policy.maxSingleAssetBps / 100).toFixed(1)}% per stock`}
+          delta={formatPercent(equityExposureBps / 100)}
+          deltaPositive={true}
+          icon={TrendingUp}
+          iconColor="text-indigo-400"
+        />
 
         {/* Active Policy Status */}
-        <div className="bg-sentinel-card border border-sentinel-cardBorder rounded-xl p-5 relative overflow-hidden">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-medium">
-            <span>SENTINEL ENFORCEMENT</span>
-            <ShieldCheck className="w-4 h-4 text-blue-400" />
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
-              ACTIVE
-            </span>
-            <span className="text-xs px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/30">
-              v{policy.policyVersion}
-            </span>
-          </div>
-          <div className="mt-2 text-xs text-slate-400">
-            <span>Enforced at state-transition layer</span>
-          </div>
+        <Stat
+          label="POLICY ENFORCEMENT"
+          value={`v${policy.policyVersion}`}
+          subtext="On-chain Anchor constraints"
+          delta="ACTIVE"
+          deltaPositive={true}
+          icon={ShieldCheck}
+          iconColor="text-blue-400"
+        />
+      </div>
+
+      {/* 2. TradingView Lightweight Financial Chart */}
+      <FinancialChart currentValueUsd={portfolio.totalValueUsd} />
+
+      {/* 3. Asset Allocation Distribution Bar */}
+      <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-5 space-y-3">
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-semibold text-sentinel-text">Portfolio Allocation Distribution</span>
+          <span className="text-sentinel-textMuted font-mono">100.00% Total NAV</span>
+        </div>
+
+        {/* Visual Allocation Strip */}
+        <div className="h-3 w-full rounded-full overflow-hidden flex bg-sentinel-surfaceMuted">
+          {portfolio.assets.map((asset, idx) => {
+            const widthPct = (asset.exposureBps / 100);
+            const colors = [
+              'bg-blue-500',
+              'bg-emerald-500',
+              'bg-purple-500',
+              'bg-indigo-500',
+              'bg-amber-500',
+            ];
+            return (
+              <div
+                key={asset.symbol}
+                className={`${colors[idx % colors.length]} hover:opacity-80 transition cursor-pointer`}
+                style={{ width: `${widthPct}%` }}
+                title={`${asset.symbol}: ${widthPct.toFixed(2)}%`}
+                onClick={() => setSelectedAssetSymbol(asset.symbol)}
+              />
+            );
+          })}
+        </div>
+
+        {/* Legend Chips */}
+        <div className="flex flex-wrap items-center gap-3 pt-1 text-xs">
+          {portfolio.assets.map((asset, idx) => {
+            const colors = [
+              'bg-blue-500',
+              'bg-emerald-500',
+              'bg-purple-500',
+              'bg-indigo-500',
+              'bg-amber-500',
+            ];
+            return (
+              <button
+                key={asset.symbol}
+                onClick={() => setSelectedAssetSymbol(asset.symbol === selectedAssetSymbol ? null : asset.symbol)}
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition ${
+                  selectedAssetSymbol === asset.symbol
+                    ? 'bg-sentinel-surfaceElevated border border-blue-500/40 text-white'
+                    : 'text-sentinel-textMuted hover:text-white'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full ${colors[idx % colors.length]}`} />
+                <span className="font-semibold">{asset.symbol}</span>
+                <span className="font-mono text-sentinel-textSubtle">
+                  {(asset.exposureBps / 100).toFixed(1)}%
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Asset Allocation Table & Safety Bars */}
-      <div className="bg-sentinel-card border border-sentinel-cardBorder rounded-xl p-6">
-        <div className="flex items-center justify-between mb-4">
+      {/* 4. Asset Holdings Table & Policy Boundaries */}
+      <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 mb-4 border-b border-sentinel-border">
           <div>
-            <h2 className="text-base font-semibold text-white">Portfolio Allocation & Policy Boundaries</h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Live balances vs on-chain postcondition bounds (Single equity max {(policy.maxSingleAssetBps / 100).toFixed(1)}%, Stablecoin floor {(policy.minStablecoinBps / 100).toFixed(1)}%)
+            <h3 className="text-base font-bold text-sentinel-text">Holdings & Policy Compliance</h3>
+            <p className="text-xs text-sentinel-textMuted mt-0.5">
+              Machine-verified against single equity ceiling (≤ {(policy.maxSingleAssetBps / 100).toFixed(1)}%) and stablecoin floor (≥ {(policy.minStablecoinBps / 100).toFixed(1)}%).
             </p>
           </div>
-          <span className="text-xs font-mono text-slate-400">
+          <span className="text-xs font-mono text-sentinel-textSubtle self-start sm:self-auto">
             {portfolio.assets.length} Active Positions
           </span>
         </div>
@@ -138,9 +177,8 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-sentinel-cardBorder text-slate-400 text-xs font-semibold">
+              <tr className="border-b border-sentinel-border text-sentinel-textSubtle text-xs font-semibold">
                 <th className="pb-3 font-medium">ASSET</th>
-                <th className="pb-3 font-medium">TYPE</th>
                 <th className="pb-3 font-medium">PRICE</th>
                 <th className="pb-3 font-medium">HOLDINGS</th>
                 <th className="pb-3 font-medium">VALUE</th>
@@ -148,173 +186,157 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
                 <th className="pb-3 font-medium">POLICY STATUS</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-sentinel-cardBorder/60">
+            <tbody className="divide-y divide-sentinel-border">
               {portfolio.assets.map((asset) => {
-                const exposurePct = (asset.exposureBps / 100);
-                const maxPct = asset.isStablecoin
-                  ? (policy.minStablecoinBps / 100)
-                  : asset.isIndex
-                  ? 50
-                  : (policy.maxSingleAssetBps / 100);
-
+                const exposurePct = asset.exposureBps / 100;
                 const isCompliant = asset.isStablecoin
                   ? asset.exposureBps >= policy.minStablecoinBps
                   : asset.isIndex
                   ? true
                   : asset.exposureBps <= policy.maxSingleAssetBps;
 
+                const isSelected = selectedAssetSymbol === asset.symbol;
+
                 return (
-                  <tr key={asset.symbol} className="hover:bg-slate-800/20 transition">
-                    <td className="py-3.5">
-                      <div className="flex items-center gap-2.5">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs ${
-                          asset.isStablecoin
-                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                            : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                        }`}>
-                          {asset.symbol.slice(0, 3)}
-                        </div>
-                        <div>
-                          <div className="font-semibold text-white">{asset.symbol}</div>
-                          <div className="text-[11px] text-slate-400">{asset.name}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3.5 text-xs text-slate-300">
-                      {asset.isStablecoin ? 'Stablecoin Reserve' : asset.isIndex ? 'Tokenized ETF' : 'Tokenized Equity'}
-                    </td>
-                    <td className="py-3.5 text-xs text-white font-mono">
-                      ${asset.priceUsd.toFixed(2)}
-                    </td>
-                    <td className="py-3.5 text-xs text-slate-300 font-mono">
-                      {asset.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                    </td>
-                    <td className="py-3.5 text-xs text-white font-mono font-semibold">
-                      ${asset.valueUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                    <td className="py-3.5 w-56">
-                      <div className="space-y-1">
-                        <div className="flex justify-between text-xs font-mono">
-                          <span className="text-white font-bold">{exposurePct.toFixed(2)}%</span>
-                          <span className="text-slate-400">
-                            {asset.isStablecoin ? `Floor: ${maxPct.toFixed(0)}%` : `Cap: ${maxPct.toFixed(0)}%`}
-                          </span>
-                        </div>
-                        <div className="h-2 rounded-full bg-slate-800 overflow-hidden relative">
+                  <React.Fragment key={asset.symbol}>
+                    <tr
+                      onClick={() => setSelectedAssetSymbol(isSelected ? null : asset.symbol)}
+                      className={`hover:bg-sentinel-surfaceElevated/60 transition cursor-pointer ${
+                        isSelected ? 'bg-sentinel-surfaceElevated/80' : ''
+                      }`}
+                    >
+                      {/* Asset & Name */}
+                      <td className="py-3.5">
+                        <div className="flex items-center gap-2.5">
                           <div
-                            className={`h-full rounded-full ${
-                              !isCompliant
-                                ? 'bg-red-500'
-                                : asset.isStablecoin
-                                ? 'bg-emerald-500'
-                                : 'bg-blue-500'
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs ${
+                              asset.isStablecoin
+                                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                                : 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
                             }`}
-                            style={{ width: `${Math.min(100, (exposurePct / 50) * 100)}%` }}
-                          />
+                          >
+                            {asset.symbol.slice(0, 3)}
+                          </div>
+                          <div>
+                            <div className="font-semibold text-white flex items-center gap-1.5">
+                              <span>{asset.symbol}</span>
+                              {asset.isStablecoin && (
+                                <Badge variant="success" size="sm">
+                                  RESERVE
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-sentinel-textMuted">{asset.name}</div>
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="py-3.5">
-                      {isCompliant ? (
-                        <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-500/30 font-medium">
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>Within Policy</span>
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded bg-red-950/60 text-red-400 border border-red-500/30 font-medium">
-                          <XCircle className="w-3.5 h-3.5" />
-                          <span>Violates Cap</span>
-                        </span>
-                      )}
-                    </td>
-                  </tr>
+                      </td>
+
+                      {/* Price */}
+                      <td className="py-3.5 font-mono text-white tabular-nums">
+                        {formatCurrency(asset.priceUsd)}
+                      </td>
+
+                      {/* Quantity */}
+                      <td className="py-3.5 font-mono text-sentinel-textMuted tabular-nums">
+                        {asset.amount.toLocaleString('en-US', {
+                          minimumFractionDigits: asset.isStablecoin ? 0 : 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </td>
+
+                      {/* Value */}
+                      <td className="py-3.5 font-mono font-semibold text-white tabular-nums">
+                        {formatCurrency(asset.valueUsd)}
+                      </td>
+
+                      {/* Allocation */}
+                      <td className="py-3.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs text-white tabular-nums font-semibold w-12">
+                            {formatPercent(exposurePct)}
+                          </span>
+                          <div className="w-16 sm:w-24 bg-sentinel-surfaceMuted h-1.5 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${
+                                isCompliant ? 'bg-blue-500' : 'bg-rose-500'
+                              }`}
+                              style={{ width: `${Math.min(100, exposurePct * 2)}%` }}
+                            />
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Policy Status */}
+                      <td className="py-3.5">
+                        {isCompliant ? (
+                          <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-semibold font-mono">
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span>
+                              {asset.isStablecoin
+                                ? `≥ ${(policy.minStablecoinBps / 100).toFixed(1)}%`
+                                : `≤ ${(policy.maxSingleAssetBps / 100).toFixed(1)}%`}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-xs text-rose-400 font-semibold font-mono">
+                            <XCircle className="w-4 h-4" />
+                            <span>BREACH</span>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+
+                    {/* Expandable Asset Detail */}
+                    {isSelected && (
+                      <tr className="bg-sentinel-surfaceElevated/40">
+                        <td colSpan={6} className="p-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-mono bg-sentinel-surfaceMuted p-3.5 rounded-lg border border-sentinel-border">
+                            <div>
+                              <span className="text-sentinel-textSubtle block">SOLANA TOKEN MINT</span>
+                              <a
+                                href={getExplorerAddressUrl(asset.mint)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-blue-400 hover:underline flex items-center gap-1 mt-0.5"
+                              >
+                                <span>{formatAddress(asset.mint, 8)}</span>
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            </div>
+
+                            <div>
+                              <span className="text-sentinel-textSubtle block">POLICY CEILING</span>
+                              <span className="text-white mt-0.5 block">
+                                {asset.isStablecoin
+                                  ? `Minimum Floor: ${(policy.minStablecoinBps / 100).toFixed(2)}%`
+                                  : `Maximum Cap: ${(policy.maxSingleAssetBps / 100).toFixed(2)}%`}
+                              </span>
+                            </div>
+
+                            <div>
+                              <span className="text-sentinel-textSubtle block">MAX TRADE CAPACITY</span>
+                              <span className="text-white mt-0.5 block font-semibold">
+                                {asset.isStablecoin
+                                  ? 'N/A (Liquid Reserve)'
+                                  : formatCurrency(
+                                      Math.max(
+                                        0,
+                                        portfolio.totalValueUsd * (policy.maxSingleAssetBps / 10000) -
+                                          asset.valueUsd
+                                      )
+                                    )}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })}
             </tbody>
           </table>
         </div>
-      </div>
-
-      {/* Recent Autonomous Agent Decisions Table */}
-      <div className="bg-sentinel-card border border-sentinel-cardBorder rounded-xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-base font-semibold text-white">Recent Autonomous Agent Activity</h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Decisions proposed by agent and evaluated by Sentinel PTA
-            </p>
-          </div>
-          <button
-            onClick={onNavigateToDecisions}
-            className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 font-medium"
-          >
-            <span>Open Decision Inspector</span>
-            <ArrowUpRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
-
-        {recentEvidence.length === 0 ? (
-          <div className="py-10 text-center text-slate-400 text-xs border border-dashed border-slate-800 rounded-lg">
-            No agent decisions evaluated yet. Click &quot;Run Autonomous Demo&quot; to see Sentinel enforce guarantees.
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-sentinel-cardBorder text-slate-400 text-xs font-semibold">
-                  <th className="pb-3 font-medium">TIMESTAMP</th>
-                  <th className="pb-3 font-medium">ACTION PROMISED</th>
-                  <th className="pb-3 font-medium">TRADE VALUE</th>
-                  <th className="pb-3 font-medium">SENTINEL RESULT</th>
-                  <th className="pb-3 font-medium">VERDICT / REASON</th>
-                  <th className="pb-3 font-medium">PROVN EVIDENCE</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-sentinel-cardBorder/60">
-                {recentEvidence.slice(0, 5).map((record) => {
-                  const isSettled = record.verificationResult === 'SETTLED';
-                  const dateStr = new Date(record.timestamp).toLocaleTimeString();
-
-                  return (
-                    <tr key={record.id} className="hover:bg-slate-800/20 transition">
-                      <td className="py-3 text-xs text-slate-400 font-mono">{dateStr}</td>
-                      <td className="py-3 text-xs text-white font-semibold">
-                        BUY NVDAx
-                      </td>
-                      <td className="py-3 text-xs text-slate-200 font-mono">
-                        {isSettled ? '$5,000.00' : '$15,000.00'}
-                      </td>
-                      <td className="py-3">
-                        {isSettled ? (
-                          <span className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-500/30 font-bold">
-                            <CheckCircle2 className="w-3 h-3" />
-                            <span>SETTLED</span>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded bg-red-950/60 text-red-400 border border-red-500/30 font-bold">
-                            <XCircle className="w-3 h-3" />
-                            <span>REJECTED</span>
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3 text-xs text-slate-300 max-w-xs truncate">
-                        {isSettled ? 'All 4 postconditions passed' : record.failureReason}
-                      </td>
-                      <td className="py-3 text-xs">
-                        <button
-                          onClick={() => onSelectEvidence(record)}
-                          className="text-blue-400 hover:text-blue-300 font-mono text-[11px] underline"
-                        >
-                          {record.id.slice(0, 16)}...
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
     </div>
   );

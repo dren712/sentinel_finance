@@ -3,41 +3,70 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 240, 244, 248;
-  --background-start-rgb: 9, 11, 16;
-  --background-end-rgb: 13, 16, 23;
+  --foreground-rgb: 241, 245, 249;
+  --background-rgb: 9, 11, 16;
 }
 
 body {
   color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  background-color: rgb(var(--background-rgb));
   min-height: 100vh;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Custom scrollbars */
+/* Tabular numbers for financial accuracy */
+.tabular-nums, .mono-num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Restrained institutional scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #0d1117;
+  background: #090b10;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1f293d;
+  background: #1e2638;
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #2e3d5b;
+  background: #2d3952;
 }
 
-.mono-num {
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum";
+/* Solana Wallet Adapter UI overrides for institutional polish */
+.wallet-adapter-button {
+  background-color: #111622 !important;
+  border: 1px solid #1e2638 !important;
+  color: #f1f5f9 !important;
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+  border-radius: 0.5rem !important;
+  height: 36px !important;
+  padding: 0 14px !important;
+  transition: all 0.15s ease-in-out !important;
+}
+
+.wallet-adapter-button:hover {
+  background-color: #161d2c !important;
+  border-color: #2d3952 !important;
+}
+
+.wallet-adapter-modal-wrapper {
+  background: #111622 !important;
+  border: 1px solid #1e2638 !important;
+  border-radius: 0.75rem !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5) !important;
+}
+
+.wallet-adapter-modal-button-close {
+  background: #161d2c !important;
+}
+
+.wallet-adapter-modal-title {
+  color: #f1f5f9 !important;
+  font-weight: 700 !important;
 }
