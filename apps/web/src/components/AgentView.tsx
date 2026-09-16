@@ -6,7 +6,7 @@ import {
   FinancialPolicy,
   NormalizedMarketPrice,
 } from '@sentinel/domain';
-import { AutonomousRoboAgent, ExecutionVenueType } from '@sentinel/sdk';
+import { AutonomousRoboAgent, ExecutionVenueType, AgentLoopState, AutonomousAdaptationResult } from '@sentinel/sdk';
 import {
   Bot,
   Key,
@@ -27,6 +27,8 @@ import {
   Building2,
   TrendingUp,
   FileText,
+  RefreshCw,
+  Target,
 } from 'lucide-react';
 import { Badge } from './ui/Badge';
 import { formatCurrency, formatPercent, formatAddress } from '@/lib/formatters';
@@ -40,6 +42,10 @@ interface AgentViewProps {
   onSelectVenue?: (venue: ExecutionVenueType) => void;
   onExecuteCustomTrade: (assetSymbol: string, direction: 'BUY' | 'SELL', amountUsd: number) => void;
   isRunningTrade: boolean;
+  adaptationResult?: AutonomousAdaptationResult | null;
+  loopState?: AgentLoopState | null;
+  onRunAdaptation?: () => void;
+  isRunningAdaptation?: boolean;
 }
 
 export const AgentView: React.FC<AgentViewProps> = ({
@@ -51,6 +57,10 @@ export const AgentView: React.FC<AgentViewProps> = ({
   onSelectVenue,
   onExecuteCustomTrade,
   isRunningTrade,
+  adaptationResult,
+  loopState,
+  onRunAdaptation,
+  isRunningAdaptation = false,
 }) => {
   const [internalVenue, setInternalVenue] = useState<ExecutionVenueType>('METEORA_DBC');
   const activeVenue = externalVenue ?? internalVenue;
@@ -227,6 +237,164 @@ export const AgentView: React.FC<AgentViewProps> = ({
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Phase 8: Autonomous Decision & Reactive Adaptation Hero Card */}
+      <div className="bg-gradient-to-br from-slate-950 via-blue-950/20 to-slate-950 border border-blue-500/30 rounded-xl overflow-hidden shadow-lg shadow-blue-500/5">
+        {/* Hero Header */}
+        <div className="p-6 border-b border-blue-500/20">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center">
+                <Target className="w-7 h-7 text-blue-400" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <h2 className="text-lg font-black tracking-wider text-white uppercase">SENTINEL ROBO</h2>
+                  <Badge variant="success" dot={true}>Autonomous</Badge>
+                </div>
+                <p className="text-xs text-blue-300/70 mt-0.5 font-mono">
+                  Strategy: <span className="text-blue-200 font-semibold">Balanced Growth</span>
+                </p>
+              </div>
+            </div>
+
+            {/* Run Adaptation Button */}
+            {onRunAdaptation && (
+              <button
+                type="button"
+                onClick={onRunAdaptation}
+                disabled={isRunningAdaptation}
+                className="px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-500/25 disabled:opacity-50 transition cursor-pointer"
+              >
+                <RefreshCw className={`w-4 h-4 ${isRunningAdaptation ? 'animate-spin' : ''}`} />
+                <span>{isRunningAdaptation ? 'Running Adaptation Loop...' : 'Run Autonomous Adaptation'}</span>
+              </button>
+            )}
+          </div>
+
+          {/* 10-Stage Visual Stepper */}
+          {loopState && (
+            <div className="mt-5 grid grid-cols-5 sm:grid-cols-10 gap-1">
+              {[
+                { label: 'OBSERVE', idx: 1 },
+                { label: 'FORMULATE', idx: 2 },
+                { label: 'PROPOSE', idx: 3 },
+                { label: 'CHECK', idx: 4 },
+                { label: 'REJECTED', idx: 5 },
+                { label: 'READ', idx: 6 },
+                { label: 'ADAPT', idx: 7 },
+                { label: 'REPROPOSE', idx: 8 },
+                { label: 'RECHECK', idx: 9 },
+                { label: 'SETTLE', idx: 10 },
+              ].map((step) => {
+                const isActive = loopState.stageIndex === step.idx;
+                const isComplete = loopState.stageIndex > step.idx;
+                return (
+                  <div
+                    key={step.idx}
+                    className={`text-center py-1.5 px-0.5 rounded-md text-[9px] font-bold font-mono transition-all ${
+                      isActive
+                        ? 'bg-blue-600/40 text-blue-200 border border-blue-500/60 ring-1 ring-blue-400/30'
+                        : isComplete
+                        ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                        : 'bg-slate-900/80 text-slate-500 border border-slate-800'
+                    }`}
+                  >
+                    {isComplete && <span className="mr-0.5">✓</span>}
+                    {step.label}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Current Decision & WHY Narrative */}
+        {loopState && loopState.status !== 'IDLE' && (
+          <div className="p-6 space-y-5">
+            {/* CURRENT DECISION */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-sentinel-textSubtle tracking-widest block font-sans">
+                  CURRENT DECISION
+                </span>
+                <div className="text-2xl sm:text-3xl font-black text-white mt-1 tracking-tight">
+                  BUY {loopState.targetAssetSymbol}{' '}
+                  <span className="text-blue-400">
+                    ${(loopState.adaptedProposedAmountUsd ?? loopState.initialProposedAmountUsd).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+              {loopState.latestDecision && (
+                <div className={`flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-sm font-bold border ${
+                  loopState.latestDecision.approved
+                    ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-400'
+                    : 'bg-rose-950/40 border-rose-500/50 text-rose-400'
+                }`}>
+                  {loopState.latestDecision.approved
+                    ? <ShieldCheck className="w-5 h-5" />
+                    : <ShieldAlert className="w-5 h-5" />}
+                  <span>SENTINEL: {loopState.latestDecision.approved ? '✓ APPROVED' : '✕ REJECTED'}</span>
+                </div>
+              )}
+            </div>
+
+            {/* WHY Section */}
+            {loopState.whyNarrative && (
+              <div className="bg-slate-900/60 rounded-xl border border-slate-800 p-5 space-y-4">
+                <span className="text-[10px] uppercase font-bold text-sentinel-textSubtle tracking-widest block font-sans">
+                  WHY
+                </span>
+
+                <p className="text-sm text-white font-sans">
+                  {loopState.whyNarrative.initialProposalText}
+                </p>
+
+                <div className="space-y-1">
+                  <p className="text-sm text-rose-300 font-semibold font-sans">
+                    {loopState.whyNarrative.rejectionSummary}
+                  </p>
+                  <div className="space-y-1.5 pl-1 pt-1">
+                    {loopState.whyNarrative.breachedInvariantsList.map((b, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs">
+                        <XCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                        <span className="text-white font-mono">
+                          <span className="font-semibold">{b.name}:</span>{' '}
+                          <span className="text-rose-300">{b.actual}</span>
+                          <span className="text-sentinel-textMuted mx-1">→</span>
+                          <span className="text-sentinel-textSubtle">{b.limit}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <p className="text-sm text-blue-200 font-sans">
+                  {loopState.whyNarrative.recalculationText}
+                </p>
+
+                <div className="flex items-center gap-2 pt-1 text-emerald-400 font-mono font-bold text-sm">
+                  <ShieldCheck className="w-4.5 h-4.5" />
+                  <span>{loopState.whyNarrative.sentinelStatusText}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Empty state when no adaptation has run yet */}
+        {(!loopState || loopState.status === 'IDLE') && (
+          <div className="p-8 text-center space-y-3">
+            <RefreshCw className="w-8 h-8 text-blue-500/40 mx-auto" />
+            <p className="text-sm text-sentinel-textMuted font-sans">
+              Click <span className="font-semibold text-blue-300">Run Autonomous Adaptation</span> to
+              observe the agent propose $15,000, get rejected by Sentinel, read the failure,
+              recalculate to $5,000, and settle — all autonomously.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* 2. Execution Venue Selector & Non-Bypass Architecture (Phase 4) */}

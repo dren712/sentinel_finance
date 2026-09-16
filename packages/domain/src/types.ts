@@ -615,6 +615,56 @@ export interface AgentProfile {
 }
 
 // -----------------------------------------------------------------------------
+// Financial Audit Receipt (Phase 9)
+// -----------------------------------------------------------------------------
+
+export interface SolanaVerificationMetadata {
+  programId: string;
+  pda: string;
+  slot: number;
+  cluster: string;
+  explorerUrl?: string;
+  isMainnetEquivalent: boolean;
+}
+
+export interface SentinelReceipt {
+  receiptNumber: string;         // e.g. "Decision #00421"
+  decisionId: string;            // e.g. "cycle_1789481213745"
+  intentSummary: string;         // e.g. "BUY NVDAx $5,000"
+  agentName: string;             // e.g. "Sentinel Robo-01"
+  policyName: string;            // e.g. "Balanced Growth v4"
+  marketDataSource: string;      // e.g. "Pyth Network"
+  preStateShortHash: string;     // e.g. "0x7f4a...9b12"
+  postStateShortHash: string;    // e.g. "0x3c2e...88ad"
+  decision: 'APPROVED' | 'REJECTED';
+  executionSignature: string;    // e.g. "0x5tZ...sim_tx"
+  evidenceHash: string;          // e.g. "0xa81c...2f09"
+  integrityVerified: boolean;    // true (✓ VERIFIED)
+  timestamp: number;
+  formattedTimestamp: string;
+  solanaVerification: SolanaVerificationMetadata;
+
+  // Technical drawer detail fields (Developer/Judge view)
+  technicalDetails: {
+    policyHash: string;
+    intentHash: string;
+    preStateHash: string;
+    postStateHash: string;
+    rationaleHash?: string;
+    evidenceHash: string;
+    transactionSignature: string;
+    swarmConsensus: {
+      passedCount: number;
+      totalCount: number;
+      consensus: boolean;
+    };
+    underlyingEquity?: string;
+    trackingErrorBps?: number;
+    oracleConfidenceUsd?: number;
+  };
+}
+
+// -----------------------------------------------------------------------------
 // Backwards-Compatible Type Aliases
 // -----------------------------------------------------------------------------
 
@@ -624,3 +674,4 @@ export type FinancialPolicy = Policy;
 export type TradeIntent = Intent;
 export type PromiseRecord = Promise;
 export type EvidenceRecord = Evidence;
+

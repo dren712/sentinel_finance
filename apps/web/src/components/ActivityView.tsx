@@ -26,6 +26,7 @@ import {
   ArrowUpRight,
 } from 'lucide-react';
 import { Badge } from './ui/Badge';
+import { SentinelReceiptCard } from './ui/SentinelReceiptCard';
 import { getExplorerTxUrl } from '@/lib/config';
 import {
   formatCurrency,
@@ -174,6 +175,14 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Phase 9: Formal SENTINEL RECEIPT for the latest decision */}
+      {latestReport && (
+        <SentinelReceiptCard
+          record={latestReport.evidenceRecord}
+          index={evidenceList.length - 1}
+        />
       )}
 
       {/* 3. Filter Search Bar */}

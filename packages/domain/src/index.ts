@@ -7,3 +7,4 @@ export * from './price-provider';
 export * from './price-adapter';
 export * from './valuation-engine';
 export * from './portfolio-reader';
+export * from './meteora-market';

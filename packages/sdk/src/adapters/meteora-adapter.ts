@@ -3,6 +3,8 @@ import {
   PortfolioSnapshot,
   SentinelAuthorizationTicket,
   hashTradeIntent,
+  MeteoraStockMarket,
+  MarketProtectionResult,
 } from '@sentinel/domain';
 import {
   ExecutionAdapter,
@@ -45,6 +47,7 @@ export interface MeteoraAdapterConfig {
  * 
  * Strict Invariant: Execution cannot bypass Sentinel. Requires a verified SentinelAuthorizationTicket.
  * Preflights pool reserve depth (>= $25k) and price divergence (<= 200 bps) before routing swaps.
+ * Protects both the Investor and the DBC Stock Market (Bidirectional Protection).
  */
 export class MeteoraExecutionAdapter implements ExecutionAdapter {
   public readonly venueType: ExecutionVenueType = 'METEORA_DBC';
@@ -53,6 +56,7 @@ export class MeteoraExecutionAdapter implements ExecutionAdapter {
   private connection?: Connection;
   private signerKeypair?: Keypair;
   private isLiveMode: boolean;
+  private markets: Map<string, MeteoraStockMarket> = new Map();
   private poolDepths: Map<string, number> = new Map();
   private poolPriceDivergences: Map<string, number> = new Map();
 
@@ -74,7 +78,64 @@ export class MeteoraExecutionAdapter implements ExecutionAdapter {
     this.poolDepths.set('NVDAx', 145_000); // $145,000 depth
     this.poolDepths.set('AAPLx', 210_000); // $210,000 depth
     this.poolDepths.set('SPYx', 500_000);  // $500,000 depth
+
+    // Initialize stock-specific markets
+    this.markets.set('NVDAx', new MeteoraStockMarket({
+      assetSymbol: 'NVDAx',
+      assetName: 'NVIDIA Tokenized Equity DBC Market',
+      poolAddress: METEORA_DBC_POOLS.NVDAx,
+      underlyingSymbol: 'NVDA',
+      virtualQuoteReserveUsd: 100_000,
+      virtualTokenReserve: 833.3333,
+      realQuoteReserveUsd: 72_500,
+      graduationThresholdUsd: 100_000,
+      minLiquidityFloorUsd: 25_000,
+      maxPriceDivergenceBps: 200,
+      maxAllowedPriceImpactBps: 600,
+    }));
+
+    this.markets.set('AAPLx', new MeteoraStockMarket({
+      assetSymbol: 'AAPLx',
+      assetName: 'Apple Tokenized Equity DBC Market',
+      poolAddress: METEORA_DBC_POOLS.AAPLx,
+      underlyingSymbol: 'AAPL',
+      virtualQuoteReserveUsd: 150_000,
+      virtualTokenReserve: 681.818,
+      realQuoteReserveUsd: 105_000,
+      graduationThresholdUsd: 120_000,
+      minLiquidityFloorUsd: 25_000,
+      maxPriceDivergenceBps: 200,
+      maxAllowedPriceImpactBps: 600,
+    }));
+
+    this.markets.set('SPYx', new MeteoraStockMarket({
+      assetSymbol: 'SPYx',
+      assetName: 'SPDR S&P 500 Tokenized ETF DBC Market',
+      poolAddress: METEORA_DBC_POOLS.SPYx,
+      underlyingSymbol: 'SPY',
+      virtualQuoteReserveUsd: 250_000,
+      virtualTokenReserve: 500.0,
+      realQuoteReserveUsd: 250_000,
+      graduationThresholdUsd: 250_000,
+      minLiquidityFloorUsd: 25_000,
+      maxPriceDivergenceBps: 200,
+      maxAllowedPriceImpactBps: 600,
+    }));
   }
+
+  getMarket(symbol: string): MeteoraStockMarket {
+    let market = this.markets.get(symbol);
+    if (!market) {
+      market = new MeteoraStockMarket({
+        assetSymbol: symbol,
+        assetName: `${symbol} Tokenized Equity DBC Market`,
+        poolAddress: this.getPoolAddress(symbol),
+      });
+      this.markets.set(symbol, market);
+    }
+    return market;
+  }
+
 
   getMode(): 'LIVE' | 'SIMULATION' {
     return this.isLiveMode && this.signerKeypair ? 'LIVE' : 'SIMULATION';
@@ -129,9 +190,9 @@ export class MeteoraExecutionAdapter implements ExecutionAdapter {
       );
     }
 
-    // 4. Preflight Meteora DBC Market Quality Verification
+    // 4. Preflight Meteora DBC Market Quality Verification & Bidirectional Protection
     const poolAddress = this.getPoolAddress(intent.assetSymbol);
-    const depthUsd = this.poolDepths.get(intent.assetSymbol) ?? 75_000;
+    const depthUsd = this.poolDepths.get(intent.assetSymbol) ?? 145_000;
     const divergenceBps = this.poolPriceDivergences.get(intent.assetSymbol) ?? 12; // 12 bps typical spread
     const currentPriceUsd = intent.referencePriceUsd * (1 + (divergenceBps / 10_000));
 
@@ -144,7 +205,7 @@ export class MeteoraExecutionAdapter implements ExecutionAdapter {
       isGraduated: true,
     };
 
-    const marketQuality: MeteoraVerificationResult = this.verifier.verifyMarketQuality(metrics);
+    let marketQuality: MeteoraVerificationResult = this.verifier.verifyMarketQuality(metrics);
 
     if (!marketQuality.passed) {
       throw new SecurityViolationError(
@@ -153,11 +214,37 @@ export class MeteoraExecutionAdapter implements ExecutionAdapter {
       );
     }
 
+    // Bidirectional protection & curve execution
     const isBuy = intent.direction === 'BUY';
+    const market = this.getMarket(intent.assetSymbol);
+    market.syncReservesToAnchorPrice(intent.referencePriceUsd, depthUsd);
+
+    const protection = market.evaluateProtection(intent.tradeAmountUsd, isBuy, intent.referencePriceUsd);
+
+    if (!protection.passed) {
+      throw new SecurityViolationError(
+        `Meteora DBC bidirectional protection rejected: ${protection.details}`,
+        'POLICY_BREACH'
+      );
+    }
+
+    // Apply trade along the bonding curve
+    const quote = market.applySettledTrade(intent.tradeAmountUsd, isBuy);
+
+    marketQuality = {
+      passed: protection.passed,
+      liquidityPassed: protection.liquidityPassed,
+      priceDeviationPassed: protection.priceIntegrityPassed,
+      actualDeviationBps: protection.spotPriceDivergenceBps,
+      details: protection.details,
+    };
+
+
     const inputAsset = isBuy ? 'USDC' : intent.assetSymbol;
     const outputAsset = isBuy ? intent.assetSymbol : 'USDC';
-    const inputAmount = isBuy ? intent.tradeAmountUsd : intent.tradeAmountUsd / intent.referencePriceUsd;
-    const outputAmount = isBuy ? intent.tradeAmountUsd / intent.referencePriceUsd : intent.tradeAmountUsd;
+    const inputAmount = intent.tradeAmountUsd;
+    const outputAmount = quote.outputAmount;
+    const executionPrice = quote.effectivePriceUsd;
 
     const route = isBuy
       ? `USDC ATA ➔ Meteora DBC Pool (${poolAddress.slice(0, 6)}..${poolAddress.slice(-4)}) ➔ ${intent.assetSymbol} ATA`
@@ -192,7 +279,7 @@ export class MeteoraExecutionAdapter implements ExecutionAdapter {
       outputAsset,
       inputAmount: Math.round(inputAmount * 100) / 100,
       outputAmount: Math.round(outputAmount * 10_000) / 10_000,
-      executionPrice: intent.referencePriceUsd,
+      executionPrice,
       isSimulation,
       timestamp: Date.now(),
       venueType: this.venueType,
@@ -202,5 +289,6 @@ export class MeteoraExecutionAdapter implements ExecutionAdapter {
       marketQuality,
       executionDurationMs: Math.max(1, Date.now() - startTime),
     };
+
   }
 }

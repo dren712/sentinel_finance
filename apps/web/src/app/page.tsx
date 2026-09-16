@@ -13,6 +13,8 @@ import {
   LiveExecutionAdapter,
   DecisionCycleReport,
   ExecutionVenueType,
+  AutonomousAdaptationResult,
+  AgentLoopState,
 } from '@sentinel/sdk';
 import { Header } from '@/components/Header';
 import { Navigation, NavTab } from '@/components/Navigation';
@@ -38,6 +40,9 @@ export default function Home() {
   const [selectedEvidenceId, setSelectedEvidenceId] = useState<string | undefined>(undefined);
   const [isRunningDemo, setIsRunningDemo] = useState(false);
   const [isRunningTrade, setIsRunningTrade] = useState(false);
+  const [adaptationResult, setAdaptationResult] = useState<AutonomousAdaptationResult | null>(null);
+  const [loopState, setLoopState] = useState<AgentLoopState | null>(null);
+  const [isRunningAdaptation, setIsRunningAdaptation] = useState(false);
 
   const handleSelectVenue = (venue: ExecutionVenueType) => {
     setSelectedVenue(venue);
@@ -185,6 +190,31 @@ export default function Home() {
     }
   };
 
+  // Phase 8: Run full 10-stage autonomous reactive adaptation loop
+  const handleRunAdaptation = async () => {
+    setIsRunningAdaptation(true);
+    try {
+      const result = await client.runAutonomousAdaptation(
+        portfolio,
+        policy,
+        'NVDAx',
+        15_000,
+        (state) => {
+          setLoopState({ ...state });
+        }
+      );
+
+      setAdaptationResult(result);
+      setLoopState(result.loopState);
+      setLatestReport(result.step2SettledDecision);
+      setPortfolio(result.step2SettledDecision.resultingPortfolio);
+      setEvidenceList(client.getEvidenceHistory());
+      setSelectedEvidenceId(result.step2SettledDecision.evidenceRecord.id);
+    } finally {
+      setIsRunningAdaptation(false);
+    }
+  };
+
   const handleSelectEvidenceRecord = (record: EvidenceRecord) => {
     setSelectedEvidenceId(record.id);
     setActiveTab('activity');
@@ -238,6 +268,10 @@ export default function Home() {
             onSelectVenue={handleSelectVenue}
             onExecuteCustomTrade={handleExecuteCustomTrade}
             isRunningTrade={isRunningTrade}
+            adaptationResult={adaptationResult}
+            loopState={loopState}
+            onRunAdaptation={handleRunAdaptation}
+            isRunningAdaptation={isRunningAdaptation}
           />
         )}
 

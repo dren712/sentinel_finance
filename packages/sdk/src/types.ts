@@ -74,6 +74,82 @@ export interface DemoScenarioResult {
   summary: string;
 }
 
+// -----------------------------------------------------------------------------
+// Autonomous Agent Reactive Adaptation Loop (Phase 8)
+// -----------------------------------------------------------------------------
+
+export type AgentLoopStage =
+  | 'IDLE'
+  | 'OBSERVE'
+  | 'FORMULATE'
+  | 'PROPOSE'
+  | 'SENTINEL_CHECK'
+  | 'REJECTED'
+  | 'READ_FAILURE'
+  | 'ADAPT'
+  | 'REPROPOSE'
+  | 'SENTINEL_RECHECK'
+  | 'SETTLED';
+
+export interface BreachedInvariant {
+  name: string;
+  actual: string;
+  limit: string;
+  rule: string;
+}
+
+export interface AdaptationDetails {
+  initialAmountUsd: number;
+  adaptedAmountUsd: number;
+  breachedInvariants: BreachedInvariant[];
+  explanationText: string;
+  calculations: {
+    limitByExposure: number;
+    limitByReserve: number;
+    limitByTradeSize: number;
+    appliedLimit: number;
+  };
+}
+
+export interface AgentLoopState {
+  stage: AgentLoopStage;
+  stageIndex: number;
+  totalStages: number;
+  strategyName: string;
+  targetAssetSymbol: string;
+  initialProposedAmountUsd: number;
+  adaptedProposedAmountUsd?: number;
+  status: 'IDLE' | 'RUNNING' | 'ADAPTED_AND_SETTLED' | 'BLOCKED';
+  breachedInvariants: BreachedInvariant[];
+  adaptationExplanation?: string;
+  latestDecision?: {
+    action: 'BUY' | 'SELL';
+    assetSymbol: string;
+    amountUsd: number;
+    status: 'APPROVED' | 'REJECTED';
+    approved: boolean;
+    reasons: string[];
+  };
+  whyNarrative?: {
+    initialProposalText: string;
+    rejectionSummary: string;
+    breachedInvariantsList: Array<{ name: string; actual: string; limit: string }>;
+    recalculationText: string;
+    sentinelStatusText: string;
+  };
+  updatedAt: number;
+}
+
+export interface AutonomousAdaptationResult {
+  cycleId: string;
+  agentId: string;
+  step1RejectedDecision: DecisionCycleReport;
+  step2SettledDecision: DecisionCycleReport;
+  loopState: AgentLoopState;
+  adaptationDetails: AdaptationDetails;
+  summary: string;
+}
+
 export interface MeteoraDBCMetrics {
   poolAddress: string;
   assetSymbol: string;
@@ -90,3 +166,4 @@ export interface MeteoraVerificationResult {
   actualDeviationBps: number;
   details: string;
 }
+
