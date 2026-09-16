@@ -141,3 +141,5 @@ export function createEvidenceRecord(params: {
     isSimulation: params.isSimulation ?? false,
   };
 }
+
+export const createEvidence = createEvidenceRecord;

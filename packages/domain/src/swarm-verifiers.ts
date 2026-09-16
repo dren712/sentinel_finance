@@ -4,6 +4,7 @@ import {
   TradeIntent,
   VerifierVerdict,
   SwarmVerificationSummary,
+  PriceSource,
 } from './types';
 import {
   checkMaxSingleAsset,
@@ -91,19 +92,65 @@ export function evaluatePolicyVerifier(
 }
 
 /**
+ * PythOracleVerifier: Independently inspects Pyth price feed confidence and basis tracking error.
+ */
+export function evaluatePythOracleVerifier(
+  priceSource: PriceSource,
+  policy: FinancialPolicy
+): VerifierVerdict {
+  const maxConfidenceBps = policy.maxOracleConfidenceBps ?? 150; // Default: 1.50%
+  const confidenceRatioBps = priceSource.price > 0
+    ? Math.round((priceSource.confidence * 10_000) / priceSource.price)
+    : 0;
+
+  if (confidenceRatioBps > maxConfidenceBps) {
+    return {
+      name: 'PythOracleVerifier',
+      passed: false,
+      message: `Pyth confidence interval ±$${priceSource.confidence} (${(confidenceRatioBps / 100).toFixed(2)}%) exceeds limit of ${(maxConfidenceBps / 100).toFixed(2)}%`,
+      timestamp: Date.now(),
+    };
+  }
+
+  if (priceSource.trackingErrorBps !== undefined) {
+    const maxTrackingBps = policy.maxTrackingErrorBps ?? 250; // Default: 2.50%
+    if (priceSource.trackingErrorBps > maxTrackingBps) {
+      return {
+        name: 'PythOracleVerifier',
+        passed: false,
+        message: `Tokenized vs underlying tracking error (${(priceSource.trackingErrorBps / 100).toFixed(2)}%) exceeds limit of ${(maxTrackingBps / 100).toFixed(2)}%`,
+        timestamp: Date.now(),
+      };
+    }
+  }
+
+  return {
+    name: 'PythOracleVerifier',
+    passed: true,
+    message: `Pyth oracle confidence (±$${priceSource.confidence}) and peg tracking verified within bounds`,
+    timestamp: Date.now(),
+  };
+}
+
+/**
  * Evaluates all independent SWARM-lite verifier modules
  */
 export function evaluateSwarm(
   postState: PortfolioSnapshot,
   intent: TradeIntent,
   policy: FinancialPolicy,
-  actualPrice?: number
+  actualPrice?: number,
+  priceSource?: PriceSource
 ): SwarmVerificationSummary {
   const verdicts: VerifierVerdict[] = [
     evaluateRiskVerifier(postState, policy, intent.assetSymbol),
     evaluateBalanceVerifier(postState, intent, policy),
     evaluatePolicyVerifier(policy, intent, actualPrice),
   ];
+
+  if (priceSource) {
+    verdicts.push(evaluatePythOracleVerifier(priceSource, policy));
+  }
 
   const passedCount = verdicts.filter(v => v.passed).length;
   const totalCount = verdicts.length;

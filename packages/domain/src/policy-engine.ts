@@ -7,6 +7,7 @@ import {
   EvaluationOutcome,
   FailureCode,
 } from './types';
+import { getAssetMetadata } from './asset-registry';
 
 /**
  * Calculates total portfolio value in USD, rounded to 2 decimal places
@@ -45,15 +46,18 @@ export function simulateStateTransition(
   // Find or initialize target asset
   let targetAssetIndex = newAssets.findIndex(a => a.symbol === intent.assetSymbol || a.mint === intent.assetMint);
   if (targetAssetIndex === -1 && isBuy) {
+    const meta = getAssetMetadata(intent.assetSymbol);
     newAssets.push({
       symbol: intent.assetSymbol,
-      name: `${intent.assetSymbol} Tokenized Stock`,
-      mint: intent.assetMint,
+      name: meta?.name ?? `${intent.assetSymbol} Tokenized Stock`,
+      mint: meta?.mint ?? intent.assetMint,
       amount: 0,
       priceUsd: price,
       valueUsd: 0,
       exposureBps: 0,
-      isStablecoin: false,
+      isStablecoin: meta?.isStablecoin ?? false,
+      isIndex: meta?.isIndex ?? false,
+      assetClass: meta?.assetClass,
     });
     targetAssetIndex = newAssets.length - 1;
   }
@@ -107,63 +111,46 @@ export function simulateStateTransition(
 
 /**
  * Checks Postcondition A: Maximum single-asset exposure
- * Per Section 10.1: post_trade_asset_value / post_trade_portfolio_value <= max_single_asset
- * Evaluates the traded asset's post-trade exposure and any other single equity positions.
+ * Per Section 10.1: single equity exposure <= max_single_asset_bps
+ * Index ETFs (e.g. SPYx) and stablecoins are exempt from individual equity ceiling.
  */
 export function checkMaxSingleAsset(
   postState: PortfolioSnapshot,
   maxSingleAssetBps: number,
   targetAssetSymbol?: string
 ): PostconditionCheckResult {
-  // If a target asset symbol is specified, focus evaluation on the target asset per Section 10.1
-  if (targetAssetSymbol) {
-    const targetAsset = postState.assets.find(a => a.symbol === targetAssetSymbol);
-    if (targetAsset && !targetAsset.isStablecoin && !targetAsset.isIndex) {
-      const passed = targetAsset.exposureBps <= maxSingleAssetBps;
-      return {
-        checkName: 'MAX_SINGLE_ASSET',
-        passed,
-        expectedBpsOrValue: maxSingleAssetBps,
-        actualBpsOrValue: targetAsset.exposureBps,
-        description: passed
-          ? `Single-asset exposure for ${targetAssetSymbol} is within limit (${(targetAsset.exposureBps / 100).toFixed(2)}% <= ${(maxSingleAssetBps / 100).toFixed(2)}%)`
-          : `Single-asset exposure exceeded: ${targetAssetSymbol} would reach ${(targetAsset.exposureBps / 100).toFixed(2)}%, exceeding ceiling of ${(maxSingleAssetBps / 100).toFixed(2)}%`,
-        failureCode: passed ? undefined : 'ERR_EXPOSURE_EXCEEDED',
-      };
+  const assetsToCheck = targetAssetSymbol
+    ? postState.assets.filter(a => a.symbol === targetAssetSymbol)
+    : postState.assets.filter(a => !a.isStablecoin && !a.isIndex);
+
+  let maxObservedBps = 0;
+  let offendingAsset: PortfolioAsset | undefined;
+
+  for (const asset of assetsToCheck) {
+    if (asset.isStablecoin || asset.isIndex) continue;
+    if (asset.exposureBps > maxObservedBps) {
+      maxObservedBps = asset.exposureBps;
+      offendingAsset = asset;
     }
   }
 
-  // Otherwise inspect all single non-index, non-stablecoin equities
-  let highestExposureAsset: PortfolioAsset | null = null;
-  let highestExposureBps = 0;
-
-  for (const asset of postState.assets) {
-    if (!asset.isStablecoin && !asset.isIndex) {
-      if (asset.exposureBps > highestExposureBps) {
-        highestExposureBps = asset.exposureBps;
-        highestExposureAsset = asset;
-      }
-    }
-  }
-
-  const passed = highestExposureBps <= maxSingleAssetBps;
-  const highestSymbol = highestExposureAsset ? highestExposureAsset.symbol : 'None';
+  const passed = maxObservedBps <= maxSingleAssetBps;
 
   return {
     checkName: 'MAX_SINGLE_ASSET',
     passed,
     expectedBpsOrValue: maxSingleAssetBps,
-    actualBpsOrValue: highestExposureBps,
+    actualBpsOrValue: maxObservedBps,
     description: passed
-      ? `All single equity exposures within policy limit (highest: ${highestSymbol} at ${(highestExposureBps / 100).toFixed(2)}% <= ${(maxSingleAssetBps / 100).toFixed(2)}%)`
-      : `Single-asset exposure exceeded: ${highestSymbol} would reach ${(highestExposureBps / 100).toFixed(2)}%, exceeding ceiling of ${(maxSingleAssetBps / 100).toFixed(2)}%`,
+      ? `Single-asset exposure is within authorized limit (${(maxObservedBps / 100).toFixed(2)}% <= ${(maxSingleAssetBps / 100).toFixed(2)}%)`
+      : `Single-asset exposure exceeded: ${offendingAsset?.symbol ?? 'Asset'} would reach ${(maxObservedBps / 100).toFixed(2)}%, exceeding ceiling of ${(maxSingleAssetBps / 100).toFixed(2)}%`,
     failureCode: passed ? undefined : 'ERR_EXPOSURE_EXCEEDED',
   };
 }
 
 /**
- * Checks Postcondition B: Minimum stablecoin reserve
- * Per Section 10.1: post_trade_stablecoin_value / post_trade_portfolio_value >= min_stablecoin
+ * Checks Postcondition B: Minimum stablecoin reserve floor
+ * Per Section 10.1: stablecoin_reserve / total_portfolio >= min_stablecoin_bps
  */
 export function checkMinStablecoin(
   postState: PortfolioSnapshot,
@@ -177,15 +164,15 @@ export function checkMinStablecoin(
     expectedBpsOrValue: minStablecoinBps,
     actualBpsOrValue: postState.stablecoinExposureBps,
     description: passed
-      ? `Stablecoin reserve satisfies minimum threshold (${(postState.stablecoinExposureBps / 100).toFixed(2)}% >= ${(minStablecoinBps / 100).toFixed(2)}%)`
-      : `Stablecoin reserve breached: reserve would fall to ${(postState.stablecoinExposureBps / 100).toFixed(2)}%, below required floor of ${(minStablecoinBps / 100).toFixed(2)}%`,
+      ? `Stablecoin reserve floor satisfied (${(postState.stablecoinExposureBps / 100).toFixed(2)}% >= ${(minStablecoinBps / 100).toFixed(2)}%)`
+      : `Stablecoin reserve floor breached: reserve would drop to ${(postState.stablecoinExposureBps / 100).toFixed(2)}%, breaching required floor of ${(minStablecoinBps / 100).toFixed(2)}%`,
     failureCode: passed ? undefined : 'ERR_STABLECOIN_RESERVE_BREACHED',
   };
 }
 
 /**
- * Checks Postcondition C: Maximum trade value
- * Per Section 10.1: trade_value <= max_trade_value
+ * Checks Postcondition C: Maximum trade size
+ * Per Section 10.1: trade_amount_usd <= max_trade_value_usd
  */
 export function checkMaxTradeSize(
   intent: TradeIntent,
@@ -240,6 +227,31 @@ export function checkSlippage(
 }
 
 /**
+ * Checks Pre-IPO aggregate exposure cap (if configured in policy)
+ */
+export function checkPreIpoExposure(
+  postState: PortfolioSnapshot,
+  maxPreIpoBps: number
+): PostconditionCheckResult {
+  const preIpoValue = postState.assets
+    .filter(a => a.assetClass === 'PRE_IPO' || a.symbol.includes('SPACEX') || a.symbol.includes('OPENAI') || a.symbol.includes('STRIPE'))
+    .reduce((sum, a) => sum + a.valueUsd, 0);
+  const preIpoExposureBps = calculateAssetExposureBps(preIpoValue, postState.totalValueUsd);
+  const passed = preIpoExposureBps <= maxPreIpoBps;
+
+  return {
+    checkName: 'MAX_SINGLE_ASSET',
+    passed,
+    expectedBpsOrValue: maxPreIpoBps,
+    actualBpsOrValue: preIpoExposureBps,
+    description: passed
+      ? `Pre-IPO aggregate exposure is within authorized limit (${(preIpoExposureBps / 100).toFixed(2)}% <= ${(maxPreIpoBps / 100).toFixed(2)}%)`
+      : `Pre-IPO exposure ceiling exceeded: ${(preIpoExposureBps / 100).toFixed(2)}% exceeds max ${(maxPreIpoBps / 100).toFixed(2)}%`,
+    failureCode: passed ? undefined : 'ERR_EXPOSURE_EXCEEDED',
+  };
+}
+
+/**
  * Evaluates all financial postconditions for a proposed state transition
  */
 export function evaluatePostconditions(
@@ -284,6 +296,10 @@ export function evaluatePostconditions(
 
   if (actualExecutionPrice !== undefined) {
     checks.push(checkSlippage(intent.referencePriceUsd, actualExecutionPrice, policy.maxSlippageBps));
+  }
+
+  if (policy.maxPreIpoExposureBps !== undefined) {
+    checks.push(checkPreIpoExposure(postState, policy.maxPreIpoExposureBps));
   }
 
   const failedChecks = checks.filter(c => !c.passed);

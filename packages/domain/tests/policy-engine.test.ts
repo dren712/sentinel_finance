@@ -17,6 +17,14 @@ import {
   hashFinancialPolicy,
   createEvidenceRecord,
   evaluateSwarm,
+  evaluatePythOracleVerifier,
+  calculateTrackingErrorBps,
+  PythBenchmarkPriceProvider,
+  getAssetById,
+  getAssetByMint,
+  getAssetsByClass,
+  getAssetMetadata,
+  PriceSource,
 } from '../src/index';
 
 describe('Sentinel Domain & Policy Engine Unit Tests', () => {
@@ -322,6 +330,124 @@ describe('Sentinel Domain & Policy Engine Unit Tests', () => {
       const balance = swarm.verdicts.find(v => v.name === 'BalanceVerifier');
       assert.strictEqual(risk?.passed, false);
       assert.strictEqual(balance?.passed, false);
+    });
+  });
+
+  describe('First-Class Domain Model & Pyth Oracle Foundation (Phase 1)', () => {
+    it('resolves tokenized equities and PreStocks pre-IPO assets from AssetRegistry', () => {
+      const nvda = getAssetMetadata('NVDAx');
+      assert.ok(nvda);
+      assert.strictEqual(nvda.symbol, 'NVDAx');
+      assert.strictEqual(nvda.underlyingAsset, 'NVDA');
+      assert.strictEqual(nvda.assetClass, 'TOKENIZED_EQUITY');
+      assert.strictEqual(nvda.decimals, 6);
+
+      // PreStocks pre-IPO lookups
+      const preIpoAssets = getAssetsByClass('PRE_IPO');
+      assert.strictEqual(preIpoAssets.length, 3);
+      assert.ok(preIpoAssets.some(a => a.symbol === 'SPACEXx'));
+      assert.ok(preIpoAssets.some(a => a.symbol === 'OPENAIx'));
+      assert.ok(preIpoAssets.some(a => a.symbol === 'STRIPEx'));
+
+      const spacex = getAssetById('asset_spacex');
+      assert.ok(spacex);
+      assert.strictEqual(spacex.issuer, 'PreStocks Protocol');
+    });
+
+    it('calculates basis tracking error between tokenized stock and underlying equity', () => {
+      // 1. Exactly pegged: $100 vs $100 -> 0 bps
+      assert.strictEqual(calculateTrackingErrorBps(100, 100), 0);
+
+      // 2. Tokenized trades at $102 vs underlying $100 -> 200 bps (2.00%)
+      assert.strictEqual(calculateTrackingErrorBps(102, 100), 200);
+
+      // 3. Tokenized trades at $98.50 vs underlying $100 -> 150 bps (1.50%)
+      assert.strictEqual(calculateTrackingErrorBps(98.50, 100), 150);
+    });
+
+    it('PythBenchmarkPriceProvider exposes dual-feed pricing and confidence intervals', async () => {
+      const provider = new PythBenchmarkPriceProvider();
+      provider.setPrice('AAPLx', 182.00, 180.00, 0.20);
+
+      const price = await provider.getPrice('AAPLx');
+      assert.strictEqual(price.symbol, 'AAPLx');
+      assert.strictEqual(price.priceUsd, 182.00);
+      assert.strictEqual(price.underlyingPrice, 180.00);
+      assert.strictEqual(price.confidence, 0.20);
+      assert.strictEqual(price.trackingErrorBps, 111); // |182 - 180| / 180 = 1.11% = 111 bps
+
+      const priceSource = await provider.getPriceSource('AAPLx');
+      assert.strictEqual(priceSource.source, 'PYTH_PRICE_FEED');
+      assert.strictEqual(priceSource.symbol, 'AAPLx');
+      assert.ok(priceSource.feedId.startsWith('0x'));
+    });
+
+    it('PythOracleVerifier checks oracle confidence ratio and tracking error bounds', () => {
+      // Test A: Clean feed within 1.5% confidence and 2.5% tracking error -> PASS
+      const cleanSource: PriceSource = {
+        source: 'PYTH_PRICE_FEED',
+        feedId: '0x123',
+        symbol: 'NVDAx',
+        price: 120.00,
+        confidence: 0.50, // 50 cents on $120 = ~0.42% < 1.5%
+        publishTime: Date.now(),
+        exponent: -8,
+        status: 'LIVE',
+        underlyingPrice: 121.00,
+        trackingErrorBps: 83, // 0.83% < 2.5%
+      };
+      const cleanVerdict = evaluatePythOracleVerifier(cleanSource, initialPolicy);
+      assert.strictEqual(cleanVerdict.passed, true);
+
+      // Test B: Excessive confidence interval (±$3.00 on $120 = 2.5% > 1.5%) -> FAIL
+      const wideConfidenceSource: PriceSource = {
+        ...cleanSource,
+        confidence: 3.00,
+      };
+      const wideVerdict = evaluatePythOracleVerifier(wideConfidenceSource, initialPolicy);
+      assert.strictEqual(wideVerdict.passed, false);
+      assert.ok(wideVerdict.message.includes('exceeds limit'));
+
+      // Test C: Excessive basis tracking error (e.g. 350 bps > 250 bps) -> FAIL
+      const depeggedSource: PriceSource = {
+        ...cleanSource,
+        trackingErrorBps: 350,
+      };
+      const depeggedVerdict = evaluatePythOracleVerifier(depeggedSource, initialPolicy);
+      assert.strictEqual(depeggedVerdict.passed, false);
+      assert.ok(depeggedVerdict.message.includes('tracking error'));
+    });
+
+    it('includes PythOracleVerifier in SWARM consensus when priceSource is supplied', () => {
+      const intent: TradeIntent = {
+        intentId: 'intent_pyth_swarm',
+        agentId: 'agent_1',
+        assetSymbol: 'NVDAx',
+        assetMint: 'NVDA111111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 5000,
+        referencePriceUsd: 120,
+        timestamp: Date.now(),
+      };
+      const outcome = evaluatePostconditions(initialPortfolio, intent, initialPolicy);
+
+      const priceSource: PriceSource = {
+        source: 'PYTH_PRICE_FEED',
+        feedId: '0x123',
+        symbol: 'NVDAx',
+        price: 120.00,
+        confidence: 0.10,
+        publishTime: Date.now(),
+        exponent: -8,
+        status: 'LIVE',
+        trackingErrorBps: 50,
+      };
+
+      const swarm = evaluateSwarm(outcome.postState, intent, initialPolicy, 120, priceSource);
+      assert.strictEqual(swarm.totalCount, 4); // Risk, Balance, Policy, PythOracle
+      assert.strictEqual(swarm.passedCount, 4);
+      assert.strictEqual(swarm.consensus, true);
+      assert.ok(swarm.verdicts.some(v => v.name === 'PythOracleVerifier'));
     });
   });
 });
