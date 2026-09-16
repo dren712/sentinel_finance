@@ -707,4 +707,23 @@ mod tests {
         let res = verify_vault_postconditions(&policy, 500_000, 12_000_000, 10_000_000, 2_000_000, 0, 0);
         assert_eq!(res.unwrap_err(), error!(SentinelError::MathOverflow));
     }
+
+    #[test]
+    fn test_phase3_projected_portfolio_invariants() {
+        let policy = mock_policy();
+        // Projected token holdings:
+        // - USDC: 20,000 tokens * 100 cents = 2,000,000 cents (20.00% floor met)
+        // - NVDAx: 208.333333 tokens * 12,000 cents ($120) = 2,500,000 cents (25.00% cap met)
+        // - Total projected portfolio: 10,000,000 cents ($100,000)
+        let res = verify_vault_postconditions(
+            &policy,
+            500_000,      // $5,000 trade amount
+            2_500_000,    // $25,000 post target value
+            10_000_000,   // $100,000 post total value
+            2_000_000,    // $20,000 post stablecoin reserve
+            12_000,       // Quoted price $120.00
+            12_000,       // Executed price $120.00
+        );
+        assert!(res.is_ok());
+    }
 }

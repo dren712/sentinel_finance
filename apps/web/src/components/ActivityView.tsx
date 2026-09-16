@@ -374,6 +374,37 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
                       </div>
                     </div>
 
+                    {/* Token Account Transition Projection (Phase 3) */}
+                    {record.verificationResult === 'SETTLED' && (
+                      <div className="bg-sentinel-surface p-3.5 rounded-lg border border-emerald-500/30 space-y-2 font-mono text-xs">
+                        <div className="flex items-center justify-between border-b border-sentinel-border/50 pb-2">
+                          <span className="font-bold text-white uppercase text-[11px] flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                            SPL Token Account Transition
+                          </span>
+                          <span className="text-emerald-400 text-[11px] font-semibold">
+                            Non-Custodial Settlement
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px]">
+                          <div>
+                            <span className="text-sentinel-textSubtle block text-[10px]">DEBIT ACCOUNT</span>
+                            <span className="text-rose-400 font-bold">
+                              USDC ATA (Liquid Reserve Floor Protected)
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-sentinel-textSubtle block text-[10px]">CREDIT ACCOUNT</span>
+                            <span className="text-emerald-400 font-bold">
+                              {record.oracleProvenance?.feedDisplayId
+                                ? `${record.oracleProvenance.feedDisplayId.replace('Crypto.', '').replace('/USD', '')} ATA`
+                                : 'Target Asset ATA'} (SPL Token Account)
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Cryptographic Hashes & Signatures */}
                     <div>
                       <h4 className="font-semibold text-white text-xs uppercase tracking-wider mb-2.5">

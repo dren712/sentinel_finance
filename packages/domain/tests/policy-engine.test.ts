@@ -28,6 +28,14 @@ import {
   PythPriceAdapter,
   SentinelValuationEngine,
   formatPublishTimeUtc,
+  deriveDeterministicAta,
+  deriveSentinelPda,
+  createTokenHolding,
+  createCanonicalTokenHoldings,
+  projectPortfolioFromHoldings,
+  verifyPortfolioProjection,
+  getSentinelPdaConfig,
+  hashPortfolioProjection,
 } from '../src/index';
 
 describe('Sentinel Domain & Policy Engine Unit Tests', () => {
@@ -547,6 +555,109 @@ describe('Sentinel Domain & Policy Engine Unit Tests', () => {
       const wideOutcome = evaluatePostconditions(initialPortfolio, intent, initialPolicy, undefined, widePrice);
       assert.strictEqual(wideOutcome.allPassed, false);
       assert.strictEqual(wideOutcome.failureCode, 'ERR_ORACLE_CONFIDENCE_TOO_WIDE');
+    });
+  });
+
+  describe('Real Portfolio State Projection & Sentinel PDA (Phase 3)', () => {
+    const owner = 'GR9CtiUswZtay68U2fGqcDeB1dg8sHtpVi9kk2nCEwzw';
+
+    it('derives deterministic Associated Token Account (ATA) addresses', () => {
+      const usdcMint = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+      const nvdaMint = 'NVDA111111111111111111111111111111111111111';
+
+      const usdcAta = deriveDeterministicAta(owner, usdcMint);
+      const nvdaAta = deriveDeterministicAta(owner, nvdaMint);
+
+      assert.ok(usdcAta.length >= 32);
+      assert.ok(nvdaAta.length >= 32);
+      assert.notStrictEqual(usdcAta, nvdaAta);
+
+      // Determinism: same owner and mint produces exact same ATA
+      const usdcAtaRepeat = deriveDeterministicAta(owner, usdcMint);
+      assert.strictEqual(usdcAta, usdcAtaRepeat);
+    });
+
+    it('generates canonical TokenHolding records with raw atomic integer balances', () => {
+      const holdings = createCanonicalTokenHoldings(owner);
+      assert.strictEqual(holdings.length, 4);
+
+      const usdcHolding = holdings.find(h => h.symbol === 'USDC');
+      assert.ok(usdcHolding);
+      assert.strictEqual(usdcHolding.balanceUi, 25000);
+      assert.strictEqual(usdcHolding.balanceRaw, '25000000000'); // 25,000 * 10^6
+      assert.strictEqual(usdcHolding.decimals, 6);
+      assert.ok(usdcHolding.ataAddress.length >= 32);
+    });
+
+    it('projects a normalized Portfolio from token holdings and verified Pyth prices', async () => {
+      const adapter = new PythPriceAdapter();
+      const prices = await adapter.getAllNormalizedMarketPrices();
+      const holdings = createCanonicalTokenHoldings(owner);
+
+      const projection = projectPortfolioFromHoldings({
+        walletAddress: owner,
+        holdings,
+        marketPrices: prices,
+      });
+
+      assert.strictEqual(projection.walletAddress, owner);
+      assert.ok(projection.sentinelPda.length >= 32);
+      assert.strictEqual(projection.normalizedPortfolio.source, 'ON_CHAIN_PROJECTION');
+      assert.strictEqual(projection.normalizedPortfolio.assets.length, 4);
+      assert.strictEqual(projection.normalizedPortfolio.totalValueUsd, 100000);
+      assert.strictEqual(projection.normalizedPortfolio.stablecoinValueUsd, 25000);
+      assert.strictEqual(projection.normalizedPortfolio.stablecoinExposureBps, 2500);
+
+      // Validate every position has its associated ATA address and raw balance
+      for (const pos of projection.normalizedPortfolio.assets) {
+        assert.ok(pos.ata, `Asset ${pos.symbol} must have an ATA address`);
+        assert.ok(pos.rawAmount, `Asset ${pos.symbol} must have a rawAmount`);
+        assert.strictEqual(pos.decimals, 6);
+        assert.ok(pos.verifiedPriceSource?.includes('Pyth'));
+      }
+
+      // Validate projection hash
+      assert.strictEqual(projection.projectionHash.length, 64);
+      assert.strictEqual(projection.normalizedPortfolio.projectionHash, projection.projectionHash);
+    });
+
+    it('verifyPortfolioProjection confirms state integrity and detects mismatches', async () => {
+      const adapter = new PythPriceAdapter();
+      const prices = await adapter.getAllNormalizedMarketPrices();
+      const holdings = createCanonicalTokenHoldings(owner);
+
+      const projection = projectPortfolioFromHoldings({
+        walletAddress: owner,
+        holdings,
+        marketPrices: prices,
+      });
+
+      // Verification of valid projection passes
+      const validCheck = verifyPortfolioProjection(projection.normalizedPortfolio, holdings, prices);
+      assert.strictEqual(validCheck.isValid, true);
+      assert.strictEqual(validCheck.errors.length, 0);
+
+      // Tampered holding balance is detected
+      const tamperedHoldings = [...holdings];
+      tamperedHoldings[0] = { ...tamperedHoldings[0], balanceUi: 99999 };
+      const invalidCheck = verifyPortfolioProjection(projection.normalizedPortfolio, tamperedHoldings, prices);
+      assert.strictEqual(invalidCheck.isValid, false);
+      assert.ok(invalidCheck.errors.some(e => e.includes('Balance mismatch')));
+    });
+
+    it('getSentinelPdaConfig exposes the 5 institutional roles of the Sentinel PDA', () => {
+      const config = getSentinelPdaConfig(owner);
+      assert.strictEqual(config.owner, owner);
+      assert.ok(config.pdaAddress.length >= 32);
+      assert.ok(config.bump >= 0 && config.bump <= 255);
+      assert.ok(config.trackedMints.length >= 4);
+
+      // Verify the 5 authoritative roles
+      assert.strictEqual(config.roles.isPolicyAuthority, true);
+      assert.strictEqual(config.roles.isPortfolioConfiguration, true);
+      assert.strictEqual(config.roles.isExecutionAuthority, true);
+      assert.strictEqual(config.roles.isPromiseRegistry, true);
+      assert.strictEqual(config.roles.isEvidenceAnchor, true);
     });
   });
 });

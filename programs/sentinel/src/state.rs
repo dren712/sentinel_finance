@@ -56,6 +56,15 @@ pub struct AssetPosition {
     pub is_index: bool,         // broad ETF exemption
 }
 
+/// PortfolioVault:
+/// The Sentinel PDA representing the on-chain Portfolio Configuration and Execution Authority.
+/// Under Phase 3 (Real Portfolio State Architecture):
+/// - Policy Authority: bound to `policy` account enforcing mathematical invariants
+/// - Portfolio Configuration: tracks owner, tracked mints, and projected total valuation
+/// - Execution Authority: governs guarded trade execution via PDA seeds [b"vault", owner.key()]
+/// - Promise Registry: bound to PromiseAccount state transition locks
+/// - Evidence Anchor: bound to EvidenceAccount immutable PROVN records
+/// While actual assets remain native Solana SPL tokens held in user-owned ATAs.
 #[account]
 pub struct PortfolioVault {
     pub owner: Pubkey,

@@ -172,4 +172,75 @@ describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
       assert.ok(metrics.portfolioConfidenceBps >= 0);
     });
   });
+
+  describe('Real Portfolio State Projection & Sentinel PDA (Phase 3)', () => {
+    const p3Client = new SentinelClient();
+    const p3Owner = 'GR9CtiUswZtay68U2fGqcDeB1dg8sHtpVi9kk2nCEwzw';
+    const p3Portfolio = p3Client.createDefaultPortfolio(p3Owner);
+    const p3Policy = p3Client.createDefaultPolicy(p3Owner);
+
+    it('createDefaultPortfolio populates real Associated Token Accounts (ATAs) and projection hash', () => {
+      const defaultPort = p3Client.createDefaultPortfolio(p3Owner);
+      assert.strictEqual(defaultPort.source, 'ON_CHAIN_PROJECTION');
+      assert.strictEqual(defaultPort.walletAddress, p3Owner);
+      assert.ok(defaultPort.sentinelPda);
+      assert.ok(defaultPort.projectionHash);
+      assert.strictEqual(defaultPort.projectionHash.length, 64);
+
+      for (const asset of defaultPort.assets) {
+        assert.ok(asset.ata, `Asset ${asset.symbol} must have an ATA address`);
+        assert.ok(asset.rawAmount, `Asset ${asset.symbol} must have a rawAmount`);
+        assert.strictEqual(asset.decimals, 6);
+        assert.ok(asset.verifiedPriceSource?.includes('Pyth'));
+      }
+    });
+
+    it('PortfolioIndexer reads wallet token holdings and projects verified portfolio', async () => {
+      const indexer = p3Client.getPortfolioIndexer();
+      const holdings = await indexer.fetchWalletTokenHoldings(p3Owner);
+      assert.strictEqual(holdings.length, 4);
+
+      const usdcHolding = holdings.find(h => h.symbol === 'USDC');
+      assert.ok(usdcHolding);
+      assert.strictEqual(usdcHolding.balanceUi, 25000);
+      assert.ok(usdcHolding.ataAddress.length >= 32);
+
+      const projection = await p3Client.indexWalletPortfolio(p3Owner);
+      assert.strictEqual(projection.walletAddress, p3Owner);
+      assert.strictEqual(projection.normalizedPortfolio.totalValueUsd, 100000);
+      assert.strictEqual(projection.normalizedPortfolio.assets.length, 4);
+    });
+
+    it('getSentinelPdaConfig exposes the 5 institutional roles of the Sentinel PDA', () => {
+      const pdaConfig = p3Client.getSentinelPdaConfig(p3Owner);
+      assert.strictEqual(pdaConfig.owner, p3Owner);
+      assert.ok(pdaConfig.pdaAddress.length >= 32);
+      assert.strictEqual(pdaConfig.roles.isPolicyAuthority, true);
+      assert.strictEqual(pdaConfig.roles.isPortfolioConfiguration, true);
+      assert.strictEqual(pdaConfig.roles.isExecutionAuthority, true);
+      assert.strictEqual(pdaConfig.roles.isPromiseRegistry, true);
+      assert.strictEqual(pdaConfig.roles.isEvidenceAnchor, true);
+    });
+
+    it('settling a trade synchronizes real token holdings in PortfolioIndexer', async () => {
+      const initialHoldings = await p3Client.getWalletHoldings(p3Owner);
+      const initialUsdc = initialHoldings.find(h => h.symbol === 'USDC')!.balanceUi;
+
+      const intent = p3Client.getAgent().proposeIntent({
+        assetSymbol: 'NVDAx',
+        assetMint: 'NVDA111111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 5000,
+        referencePriceUsd: 120,
+        strategyRationale: 'Phase 3 sync test',
+      });
+
+      const report = await p3Client.executeDecisionCycle(p3Portfolio, p3Policy, intent);
+      assert.strictEqual(report.status, 'SETTLED');
+
+      const updatedHoldings = await p3Client.getWalletHoldings(p3Owner);
+      const updatedUsdc = updatedHoldings.find(h => h.symbol === 'USDC')!.balanceUi;
+      assert.strictEqual(updatedUsdc, initialUsdc - 5000);
+    });
+  });
 });

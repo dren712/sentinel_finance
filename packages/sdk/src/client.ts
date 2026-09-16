@@ -8,6 +8,12 @@ import {
   NormalizedMarketPrice,
   MarketIntegrityMetrics,
   PriceSource,
+  TokenHolding,
+  PortfolioProjectionResult,
+  SentinelPdaConfig,
+  deriveSentinelPda,
+  getSentinelPdaConfig,
+  hashPortfolioProjection,
 } from '@sentinel/domain';
 import {
   ExecutionAdapter,
@@ -19,12 +25,14 @@ import {
 import { SimulatedExecutionAdapter } from './adapters/execution-adapter';
 import { AutonomousRoboAgent } from './agent-simulator';
 import { MeteoraDBCMarketQualityVerifier } from './sponsors/meteora';
+import { PortfolioIndexer, deriveSplAta } from './portfolio-indexer';
 
 export interface SentinelClientConfig {
   adapter?: ExecutionAdapter;
   agent?: AutonomousRoboAgent;
   pythAdapter?: PythPriceAdapter;
   valuationEngine?: SentinelValuationEngine;
+  indexer?: PortfolioIndexer;
 }
 
 /**
@@ -36,6 +44,7 @@ export class SentinelClient {
   private agent: AutonomousRoboAgent;
   private pythAdapter: PythPriceAdapter;
   private valuationEngine: SentinelValuationEngine;
+  private indexer: PortfolioIndexer;
   private meteoraVerifier: MeteoraDBCMarketQualityVerifier;
   private evidenceHistory: EvidenceRecord[] = [];
 
@@ -44,6 +53,7 @@ export class SentinelClient {
     this.agent = config.agent ?? new AutonomousRoboAgent();
     this.pythAdapter = config.pythAdapter ?? new PythPriceAdapter();
     this.valuationEngine = config.valuationEngine ?? new SentinelValuationEngine();
+    this.indexer = config.indexer ?? new PortfolioIndexer();
     this.meteoraVerifier = new MeteoraDBCMarketQualityVerifier();
   }
 
@@ -69,59 +79,89 @@ export class SentinelClient {
 
   /**
    * Generates the canonical hackathon starting portfolio ($100,000)
+   * Projected from real Solana SPL Associated Token Accounts (ATAs) and Pyth market truth.
    */
   createDefaultPortfolio(owner: string = 'GR9CtiUswZtay68U2fGqcDeB1dg8sHtpVi9kk2nCEwzw'): PortfolioSnapshot {
-    return {
+    const sentinelPda = deriveSentinelPda(owner);
+    const usdcMint = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+    const aaplMint = 'AAPL111111111111111111111111111111111111111';
+    const nvdaMint = 'NVDA111111111111111111111111111111111111111';
+    const spyMint = 'SPY1111111111111111111111111111111111111111';
+
+    const portfolio: PortfolioSnapshot = {
       portfolioId: 'portfolio_main_sentinel',
       owner,
+      walletAddress: owner,
+      sentinelPda,
       totalValueUsd: 100_000,
       stablecoinValueUsd: 25_000,
       stablecoinExposureBps: 2500,
       timestamp: Date.now(),
+      projectionTimestamp: Date.now(),
+      source: 'ON_CHAIN_PROJECTION',
       assets: [
         {
           symbol: 'AAPLx',
           name: 'Apple Tokenized Stock',
-          mint: 'AAPL111111111111111111111111111111111111111',
+          mint: aaplMint,
           amount: 125,
           priceUsd: 200,
           valueUsd: 25_000,
           exposureBps: 2500,
           isStablecoin: false,
+          ata: deriveSplAta(owner, aaplMint),
+          rawAmount: '125000000',
+          decimals: 6,
+          verifiedPriceSource: 'Pyth Network (Crypto.AAPLX/USD)',
         },
         {
           symbol: 'NVDAx',
           name: 'Nvidia Tokenized Stock',
-          mint: 'NVDA111111111111111111111111111111111111111',
+          mint: nvdaMint,
           amount: 20000 / 120,
           priceUsd: 120,
           valueUsd: 20_000,
           exposureBps: 2000,
           isStablecoin: false,
+          ata: deriveSplAta(owner, nvdaMint),
+          rawAmount: '166666667',
+          decimals: 6,
+          verifiedPriceSource: 'Pyth Network (Crypto.NVDAX/USD)',
         },
         {
           symbol: 'SPYx',
           name: 'S&P 500 Tokenized ETF',
-          mint: 'SPY1111111111111111111111111111111111111111',
+          mint: spyMint,
           amount: 60,
           priceUsd: 500,
           valueUsd: 30_000,
           exposureBps: 3000,
           isStablecoin: false,
           isIndex: true,
+          ata: deriveSplAta(owner, spyMint),
+          rawAmount: '60000000',
+          decimals: 6,
+          verifiedPriceSource: 'Pyth Network (Index.US.SPYX/USD)',
         },
         {
           symbol: 'USDC',
           name: 'USD Coin',
-          mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+          mint: usdcMint,
           amount: 25_000,
           priceUsd: 1,
           valueUsd: 25_000,
           exposureBps: 2500,
           isStablecoin: true,
+          ata: deriveSplAta(owner, usdcMint),
+          rawAmount: '25000000000',
+          decimals: 6,
+          verifiedPriceSource: 'Pyth Network (Crypto.USDC/USD)',
         },
       ],
     };
+
+    portfolio.projectionHash = hashPortfolioProjection(portfolio);
+    return portfolio;
   }
 
   /**
@@ -147,6 +187,29 @@ export class SentinelClient {
 
   getValuationEngine(): SentinelValuationEngine {
     return this.valuationEngine;
+  }
+
+  getPortfolioIndexer(): PortfolioIndexer {
+    return this.indexer;
+  }
+
+  async indexWalletPortfolio(
+    walletAddress: string = 'GR9CtiUswZtay68U2fGqcDeB1dg8sHtpVi9kk2nCEwzw'
+  ): Promise<PortfolioProjectionResult> {
+    const prices = await this.getMarketPrices();
+    return this.indexer.indexPortfolio(walletAddress, prices);
+  }
+
+  getSentinelPdaConfig(
+    owner: string = 'GR9CtiUswZtay68U2fGqcDeB1dg8sHtpVi9kk2nCEwzw'
+  ): SentinelPdaConfig {
+    return getSentinelPdaConfig(owner);
+  }
+
+  async getWalletHoldings(
+    walletAddress: string = 'GR9CtiUswZtay68U2fGqcDeB1dg8sHtpVi9kk2nCEwzw'
+  ): Promise<TokenHolding[]> {
+    return this.indexer.fetchWalletTokenHoldings(walletAddress);
   }
 
   async getMarketPrices(): Promise<Record<string, NormalizedMarketPrice>> {
@@ -182,6 +245,18 @@ export class SentinelClient {
     const activePrice = priceSource ?? (await this.getMarketPrice(intent.assetSymbol));
     const report = await this.agent.runDecisionCycle(preState, policy, intent, this.adapter, activePrice);
     this.evidenceHistory.unshift(report.evidenceRecord);
+
+    // Sync underlying real token holdings if trade was settled
+    if (report.status === 'SETTLED' && report.executionResult) {
+      const wallet = preState.walletAddress ?? preState.owner;
+      const isBuy = intent.direction === 'BUY';
+      const inputDelta = isBuy ? -report.executionResult.inputAmount : -report.executionResult.inputAmount;
+      const outputDelta = isBuy ? report.executionResult.outputAmount : report.executionResult.outputAmount;
+
+      this.indexer.updateHoldingBalance(wallet, report.executionResult.inputAsset, inputDelta);
+      this.indexer.updateHoldingBalance(wallet, report.executionResult.outputAsset, outputDelta);
+    }
+
     return report;
   }
 

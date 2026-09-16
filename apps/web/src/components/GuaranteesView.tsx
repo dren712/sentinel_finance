@@ -307,6 +307,55 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
             Mathematically guarantees that tokenized equities trade in alignment with underlying US equity markets. If a secondary liquidity pool depegs by &gt; 2.50% or oracle spread widens past 1.50%, Sentinel halts autonomous execution and records a cryptographic evidence rejection.
           </p>
         </div>
+
+        {/* Invariant F: Non-Custodial Real Asset Architecture (Phase 3) */}
+        <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-6 space-y-4 md:col-span-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold text-xs">
+                F
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-white">Non-Custodial Real Asset Guarantee</h3>
+                <span className="text-[11px] text-sentinel-textSubtle font-mono">
+                  Standard SPL Associated Token Accounts · Zero Smart Contract Lock-in
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 text-right">
+              <div>
+                <div className="text-xs text-sentinel-textSubtle uppercase">Asset Custody</div>
+                <div className="text-base font-bold text-emerald-400 font-mono">100% User ATAs</div>
+              </div>
+              <div>
+                <div className="text-xs text-sentinel-textSubtle uppercase">PDA Authority</div>
+                <div className="text-base font-bold text-blue-400 font-mono">Guarded Projection</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-sentinel-surfaceMuted p-3 rounded-lg border border-sentinel-border/60 text-xs font-mono">
+            <div>
+              <span className="text-sentinel-textSubtle block text-[10px]">SPL TOKEN STANDARD</span>
+              <span className="text-white font-bold">Standard SPL ATAs</span>
+            </div>
+            <div>
+              <span className="text-sentinel-textSubtle block text-[10px]">INDEXER PROJECTION</span>
+              <span className="text-emerald-400 font-bold flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                Live Balance + Pyth
+              </span>
+            </div>
+            <div>
+              <span className="text-sentinel-textSubtle block text-[10px]">SENTINEL PDA ROLE</span>
+              <span className="text-purple-400 font-bold">5-Fold Authority Guard</span>
+            </div>
+          </div>
+
+          <p className="text-xs text-sentinel-textMuted pt-1">
+            User assets are never locked into custom proprietary contract balances. All holdings remain standard Solana SPL tokens in the user&apos;s Associated Token Accounts. The Sentinel PDA operates strictly as the policy authority, portfolio configuration, execution guard, promise registry, and evidence anchor.
+          </p>
+        </div>
       </div>
 
       {/* 3. On-Chain Solana Anchor Details */}

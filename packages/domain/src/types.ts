@@ -122,7 +122,7 @@ export interface Position {
   symbol: string;                // e.g. "AAPLx", "NVDAx", "SPYx", "USDC"
   name: string;                  // e.g. "Apple Tokenized Stock"
   mint: string;                  // Solana SPL Mint address
-  amount: number;                // Quantity of tokens
+  amount: number;                // Quantity of tokens (UI units)
   priceUsd: number;              // Current price in USD
   valueUsd: number;              // amount * priceUsd
   exposureBps: number;           // valueUsd / totalValueUsd * 10000
@@ -132,6 +132,12 @@ export interface Position {
   assetClass?: AssetClass;
   costBasisUsd?: number;
   unrealizedPnlUsd?: number;
+
+  // Real Token Account & ATA Projection (Phase 3)
+  ata?: string;                  // Associated Token Account (ATA) address on Solana
+  rawAmount?: string;            // Raw integer units in base atomic units (e.g. 125000000)
+  decimals?: number;             // Standard SPL decimals (typically 6)
+  verifiedPriceSource?: string;  // e.g. "Pyth Network (Crypto.AAPLX/USD)"
 }
 
 export interface Portfolio {
@@ -142,6 +148,58 @@ export interface Portfolio {
   stablecoinExposureBps: number;
   assets: Position[];            // Named `assets` for seamless backwards compatibility
   timestamp: number;
+
+  // Real Portfolio State Projection (Phase 3)
+  walletAddress?: string;        // Solana wallet holding the actual SPL ATAs
+  sentinelPda?: string;          // Sentinel PDA acting as policy authority & execution guard
+  projectionHash?: string;       // SHA-256 hash binding real token balances and Pyth oracle prices
+  projectionTimestamp?: number;  // Timestamp of the verified on-chain projection
+  source?: 'ON_CHAIN_PROJECTION' | 'SIMULATED_PROJECTION';
+}
+
+/**
+ * Raw on-chain Solana SPL Token Holding
+ */
+export interface TokenHolding {
+  mint: string;
+  symbol: string;
+  name: string;
+  decimals: number;
+  ataAddress: string;
+  balanceRaw: string;            // Stringified BigInt to safely cross JSON boundaries
+  balanceUi: number;             // Human-readable balance (balanceRaw / 10^decimals)
+  owner: string;
+}
+
+/**
+ * Verified Portfolio Projection Result
+ */
+export interface PortfolioProjectionResult {
+  walletAddress: string;
+  sentinelPda: string;
+  holdings: TokenHolding[];
+  normalizedPortfolio: Portfolio;
+  projectionHash: string;
+  verifiedAt: number;
+}
+
+/**
+ * Institutional Sentinel PDA Authority Configuration
+ */
+export interface SentinelPdaConfig {
+  pdaAddress: string;
+  bump: number;
+  owner: string;
+  policyPda: string;
+  agentPda: string;
+  trackedMints: string[];
+  roles: {
+    isPolicyAuthority: boolean;
+    isPortfolioConfiguration: boolean;
+    isExecutionAuthority: boolean;
+    isPromiseRegistry: boolean;
+    isEvidenceAnchor: boolean;
+  };
 }
 
 // -----------------------------------------------------------------------------

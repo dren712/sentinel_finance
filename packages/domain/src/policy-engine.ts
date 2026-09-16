@@ -10,6 +10,7 @@ import {
   NormalizedMarketPrice,
 } from './types';
 import { getAssetMetadata } from './asset-registry';
+import { hashPortfolioProjection } from './portfolio-reader';
 
 /**
  * Calculates total portfolio value in USD, rounded to 2 decimal places
@@ -77,18 +78,22 @@ export function simulateStateTransition(
     // BUY: spend USDC, acquire target equity
     usdcAsset.amount = Math.max(0, usdcAsset.amount - tradeValue);
     usdcAsset.valueUsd = Math.round(usdcAsset.amount * usdcAsset.priceUsd * 100) / 100;
+    usdcAsset.rawAmount = BigInt(Math.round(usdcAsset.amount * Math.pow(10, usdcAsset.decimals ?? 6))).toString();
 
     targetAsset.amount += tokenQuantity;
     targetAsset.priceUsd = price;
     targetAsset.valueUsd = Math.round(targetAsset.amount * price * 100) / 100;
+    targetAsset.rawAmount = BigInt(Math.round(targetAsset.amount * Math.pow(10, targetAsset.decimals ?? 6))).toString();
   } else {
     // SELL: liquidate target equity, receive USDC
     targetAsset.amount = Math.max(0, targetAsset.amount - tokenQuantity);
     targetAsset.priceUsd = price;
     targetAsset.valueUsd = Math.round(targetAsset.amount * price * 100) / 100;
+    targetAsset.rawAmount = BigInt(Math.round(targetAsset.amount * Math.pow(10, targetAsset.decimals ?? 6))).toString();
 
     usdcAsset.amount += tradeValue;
     usdcAsset.valueUsd = Math.round(usdcAsset.amount * usdcAsset.priceUsd * 100) / 100;
+    usdcAsset.rawAmount = BigInt(Math.round(usdcAsset.amount * Math.pow(10, usdcAsset.decimals ?? 6))).toString();
   }
 
   const totalValueUsd = calculatePortfolioValue(newAssets);
@@ -100,7 +105,7 @@ export function simulateStateTransition(
 
   const stablecoinExposureBps = calculateAssetExposureBps(usdcAsset.valueUsd, totalValueUsd);
 
-  return {
+  const postPortfolio: PortfolioSnapshot = {
     portfolioId: preState.portfolioId,
     owner: preState.owner,
     totalValueUsd,
@@ -108,7 +113,17 @@ export function simulateStateTransition(
     stablecoinExposureBps,
     assets: newAssets,
     timestamp: Date.now(),
+    walletAddress: preState.walletAddress,
+    sentinelPda: preState.sentinelPda,
+    source: preState.source,
+    projectionTimestamp: Date.now(),
   };
+
+  if (postPortfolio.walletAddress || postPortfolio.sentinelPda) {
+    postPortfolio.projectionHash = hashPortfolioProjection(postPortfolio);
+  }
+
+  return postPortfolio;
 }
 
 /**
