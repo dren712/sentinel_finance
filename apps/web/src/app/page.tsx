@@ -12,6 +12,7 @@ import {
   SimulatedExecutionAdapter,
   LiveExecutionAdapter,
   DecisionCycleReport,
+  ExecutionVenueType,
 } from '@sentinel/sdk';
 import { Header } from '@/components/Header';
 import { Navigation, NavTab } from '@/components/Navigation';
@@ -27,6 +28,7 @@ export default function Home() {
   const client = useMemo(() => new SentinelClient(), []);
 
   const [mode, setMode] = useState<'SIMULATION' | 'LIVE'>('SIMULATION');
+  const [selectedVenue, setSelectedVenue] = useState<ExecutionVenueType>('METEORA_DBC');
   const [activeTab, setActiveTab] = useState<NavTab>('portfolio');
   const [portfolio, setPortfolio] = useState<PortfolioSnapshot>(() => client.createDefaultPortfolio());
   const [policy, setPolicy] = useState<FinancialPolicy>(() => client.createDefaultPolicy());
@@ -36,6 +38,11 @@ export default function Home() {
   const [selectedEvidenceId, setSelectedEvidenceId] = useState<string | undefined>(undefined);
   const [isRunningDemo, setIsRunningDemo] = useState(false);
   const [isRunningTrade, setIsRunningTrade] = useState(false);
+
+  const handleSelectVenue = (venue: ExecutionVenueType) => {
+    setSelectedVenue(venue);
+    client.setExecutionVenue(venue);
+  };
 
   // Poll Pyth market truth prices periodically
   useEffect(() => {
@@ -227,6 +234,8 @@ export default function Home() {
             portfolio={portfolio}
             policy={policy}
             marketPrices={marketPrices}
+            selectedVenue={selectedVenue}
+            onSelectVenue={handleSelectVenue}
             onExecuteCustomTrade={handleExecuteCustomTrade}
             isRunningTrade={isRunningTrade}
           />

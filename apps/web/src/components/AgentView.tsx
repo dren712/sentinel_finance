@@ -6,7 +6,7 @@ import {
   FinancialPolicy,
   NormalizedMarketPrice,
 } from '@sentinel/domain';
-import { AutonomousRoboAgent } from '@sentinel/sdk';
+import { AutonomousRoboAgent, ExecutionVenueType } from '@sentinel/sdk';
 import {
   Bot,
   Key,
@@ -20,6 +20,12 @@ import {
   XCircle,
   Clock,
   ArrowRight,
+  Lock,
+  ExternalLink,
+  Layers,
+  Cpu,
+  Building2,
+  TrendingUp,
 } from 'lucide-react';
 import { Badge } from './ui/Badge';
 import { formatCurrency, formatPercent, formatAddress } from '@/lib/formatters';
@@ -29,6 +35,8 @@ interface AgentViewProps {
   portfolio: PortfolioSnapshot;
   policy: FinancialPolicy;
   marketPrices?: Record<string, NormalizedMarketPrice>;
+  selectedVenue?: ExecutionVenueType;
+  onSelectVenue?: (venue: ExecutionVenueType) => void;
   onExecuteCustomTrade: (assetSymbol: string, direction: 'BUY' | 'SELL', amountUsd: number) => void;
   isRunningTrade: boolean;
 }
@@ -38,9 +46,19 @@ export const AgentView: React.FC<AgentViewProps> = ({
   portfolio,
   policy,
   marketPrices,
+  selectedVenue: externalVenue,
+  onSelectVenue,
   onExecuteCustomTrade,
   isRunningTrade,
 }) => {
+  const [internalVenue, setInternalVenue] = useState<ExecutionVenueType>('METEORA_DBC');
+  const activeVenue = externalVenue ?? internalVenue;
+
+  const handleVenueChange = (venue: ExecutionVenueType) => {
+    setInternalVenue(venue);
+    onSelectVenue?.(venue);
+  };
+
   const [copied, setCopied] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState('NVDAx');
   const [direction, setDirection] = useState<'BUY' | 'SELL'>('BUY');
@@ -59,6 +77,33 @@ export const AgentView: React.FC<AgentViewProps> = ({
     if (isNaN(amount) || amount <= 0) return;
     onExecuteCustomTrade(selectedAsset, direction, amount);
   };
+
+  // Asset universe covering public stocks and PreStocks pre-IPO equities
+  const availableAssets = [
+    ...portfolio.assets.filter((a) => !a.isStablecoin && a.symbol !== 'USDC'),
+    { symbol: 'SPACEXx', name: 'SpaceX Pre-IPO Equity', priceUsd: 220, isPreIpo: true },
+    { symbol: 'OPENAIx', name: 'OpenAI Pre-IPO Equity', priceUsd: 150, isPreIpo: true },
+    { symbol: 'STRIPEx', name: 'Stripe Pre-IPO Equity', priceUsd: 85, isPreIpo: true },
+  ];
+
+  const isPreIpoSelected = ['SPACEXx', 'OPENAIx', 'STRIPEx'].includes(selectedAsset);
+
+  // Derive target venue and routing preview
+  let targetVenueName = 'Meteora Dynamic Bonding Curve';
+  let targetVenueType: ExecutionVenueType = activeVenue;
+  let targetPoolAddress = 'Eo7WjKq67rjJQSZxS6z3YKapzY3eMj6Xy8DD5EkViQn7';
+  let targetRoute = `USDC ATA ➔ Meteora DBC Pool ➔ ${selectedAsset} ATA`;
+
+  if (activeVenue === 'DEMO_SIMULATION') {
+    targetVenueName = 'Sentinel Local Simulator (Offline Demo)';
+    targetPoolAddress = 'SimulatedLocalEngine111111111111111111111111111';
+    targetRoute = `USDC ATA ➔ Local Simulator ➔ ${selectedAsset} ATA`;
+  } else if (isPreIpoSelected || activeVenue === 'PRESTOCKS_SECONDARY') {
+    targetVenueName = 'PreStocks Secondary Market';
+    targetVenueType = 'PRESTOCKS_SECONDARY';
+    targetPoolAddress = `PreStk${selectedAsset.replace('x', '')}Vault11111111111111111111111`;
+    targetRoute = `USDC ATA ➔ PreStocks Secondary Vault ➔ ${selectedAsset} ATA`;
+  }
 
   // Calculate pre-flight estimation
   const [simulateDepeg, setSimulateDepeg] = useState(false);
@@ -165,7 +210,169 @@ export const AgentView: React.FC<AgentViewProps> = ({
         </div>
       </div>
 
-      {/* 2. Autonomous Intent Proposer & Invariant Pre-Flight */}
+      {/* 2. Execution Venue Selector & Non-Bypass Architecture (Phase 4) */}
+      <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-6 space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-sentinel-border pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <Layers className="w-5 h-5 text-blue-400" />
+              <h3 className="text-base font-bold text-white">Polymorphic Execution Venues</h3>
+              <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-mono font-semibold border border-emerald-500/30">
+                PHASE 4 ACTIVE
+              </span>
+            </div>
+            <p className="text-xs text-sentinel-textMuted mt-0.5">
+              Select the liquidity venue targeted by the execution adapter. Sentinel guarantees no venue executes without pre-flight invariant authorization.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs font-mono">
+            <span className="text-sentinel-textSubtle">Active Venue:</span>
+            <span className="px-2.5 py-1 rounded bg-blue-500/20 text-blue-300 font-bold border border-blue-500/30">
+              {activeVenue}
+            </span>
+          </div>
+        </div>
+
+        {/* 3 Venue Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Venue 1: Meteora DBC */}
+          <button
+            type="button"
+            onClick={() => handleVenueChange('METEORA_DBC')}
+            className={`text-left p-4 rounded-xl border transition cursor-pointer flex flex-col justify-between ${
+              activeVenue === 'METEORA_DBC'
+                ? 'bg-blue-950/20 border-blue-500 shadow-lg shadow-blue-500/10'
+                : 'bg-sentinel-surfaceMuted/60 border-sentinel-border hover:border-slate-600'
+            }`}
+          >
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 font-mono text-[10px] font-bold border border-blue-500/30">
+                  PUBLIC EQUITIES
+                </span>
+                <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+              </div>
+              <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
+                <TrendingUp className="w-4 h-4 text-blue-400" />
+                Meteora Dynamic Bonding Curve
+              </h4>
+              <p className="text-xs text-sentinel-textMuted mt-1 leading-relaxed">
+                Dynamic bonding curve AMM for tokenized stocks (NVDAx, AAPLx, SPYx).
+              </p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-sentinel-border/50 text-[11px] font-mono text-sentinel-textSubtle space-y-1">
+              <div>• Min Depth: <span className="text-white font-bold">$25,000</span></div>
+              <div>• Max Deviation: <span className="text-white font-bold">200 bps (2.00%)</span></div>
+              <div className="text-[10px] text-blue-400 truncate">Pool: Eo7WjK..ViQn7</div>
+            </div>
+          </button>
+
+          {/* Venue 2: PreStocks Secondary */}
+          <button
+            type="button"
+            onClick={() => handleVenueChange('PRESTOCKS_SECONDARY')}
+            className={`text-left p-4 rounded-xl border transition cursor-pointer flex flex-col justify-between ${
+              activeVenue === 'PRESTOCKS_SECONDARY'
+                ? 'bg-purple-950/20 border-purple-500 shadow-lg shadow-purple-500/10'
+                : 'bg-sentinel-surfaceMuted/60 border-sentinel-border hover:border-slate-600'
+            }`}
+          >
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-400 font-mono text-[10px] font-bold border border-purple-500/30">
+                  PRE-IPO ASSET UNIVERSE
+                </span>
+                <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
+              </div>
+              <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
+                <Building2 className="w-4 h-4 text-purple-400" />
+                PreStocks Secondary Market
+              </h4>
+              <p className="text-xs text-sentinel-textMuted mt-1 leading-relaxed">
+                Secondary order matching vault for private tech giants (SpaceX, OpenAI, Stripe).
+              </p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-sentinel-border/50 text-[11px] font-mono text-sentinel-textSubtle space-y-1">
+              <div>• Transfer Restriction Check: <span className="text-white font-bold">Verified</span></div>
+              <div>• Order Match Vault: <span className="text-white font-bold">Secondary Pool</span></div>
+              <div className="text-[10px] text-purple-400 truncate">Pool: PreStkSecondaryVault</div>
+            </div>
+          </button>
+
+          {/* Venue 3: Demo Simulator */}
+          <button
+            type="button"
+            onClick={() => handleVenueChange('DEMO_SIMULATION')}
+            className={`text-left p-4 rounded-xl border transition cursor-pointer flex flex-col justify-between ${
+              activeVenue === 'DEMO_SIMULATION'
+                ? 'bg-amber-950/20 border-amber-500 shadow-lg shadow-amber-500/10'
+                : 'bg-sentinel-surfaceMuted/60 border-sentinel-border hover:border-slate-600'
+            }`}
+          >
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-mono text-[10px] font-bold border border-amber-500/30">
+                  OFFLINE EVALUATION
+                </span>
+                <span className="w-2 h-2 rounded-full bg-amber-400" />
+              </div>
+              <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
+                <Cpu className="w-4 h-4 text-amber-400" />
+                Deterministic Local Simulator
+              </h4>
+              <p className="text-xs text-sentinel-textMuted mt-1 leading-relaxed">
+                Isolated in-memory state engine for sandboxed CI runs and deterministic demonstrations.
+              </p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-sentinel-border/50 text-[11px] font-mono text-sentinel-textSubtle space-y-1">
+              <div>• Signatures: <span className="text-amber-400 font-bold">sim_tx_* (Labeled)</span></div>
+              <div>• Network Dependency: <span className="text-white font-bold">None (Air-gapped)</span></div>
+              <div className="text-[10px] text-amber-400 truncate">Engine: SimulatedLocalEngine</div>
+            </div>
+          </button>
+        </div>
+
+        {/* Non-Bypass Security Lifecycle Banner */}
+        <div className="bg-gradient-to-r from-blue-950/40 via-purple-950/30 to-slate-900/60 border border-blue-500/30 rounded-xl p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-blue-500/20 pb-2.5 mb-3">
+            <div className="flex items-center gap-2">
+              <Lock className="w-4 h-4 text-blue-400" />
+              <span className="font-bold text-xs uppercase tracking-wider text-blue-200">
+                Non-Bypass Execution Security Lifecycle (Strict Protocol Invariant)
+              </span>
+            </div>
+            <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono font-semibold border border-blue-500/30">
+              Direct Agent ↛ DEX Prohibited
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5 text-center text-xs font-mono">
+            <div className="bg-sentinel-surface/80 p-2.5 rounded-lg border border-sentinel-border">
+              <span className="text-sentinel-textMuted text-[10px] block font-sans">PHASE 1</span>
+              <span className="font-bold text-white">Agent Proposes Intent</span>
+              <span className="text-[10px] text-sentinel-textSubtle block mt-0.5">Detached Ed25519</span>
+            </div>
+            <div className="bg-sentinel-surface/80 p-2.5 rounded-lg border border-purple-500/30">
+              <span className="text-purple-400 text-[10px] block font-sans">PHASE 2</span>
+              <span className="font-bold text-purple-200">Sentinel Verification</span>
+              <span className="text-[10px] text-sentinel-textSubtle block mt-0.5">Pyth Truth &amp; Reserves</span>
+            </div>
+            <div className="bg-sentinel-surface/80 p-2.5 rounded-lg border border-blue-500/30">
+              <span className="text-blue-400 text-[10px] block font-sans">PHASE 3</span>
+              <span className="font-bold text-blue-200">Promise Lock &amp; Ticket</span>
+              <span className="text-[10px] text-sentinel-textSubtle block mt-0.5">Auth Ticket Issued</span>
+            </div>
+            <div className="bg-sentinel-surface/80 p-2.5 rounded-lg border border-emerald-500/30">
+              <span className="text-emerald-400 text-[10px] block font-sans">PHASE 4</span>
+              <span className="font-bold text-emerald-200">Venue Swap &amp; Settle</span>
+              <span className="text-[10px] text-sentinel-textSubtle block mt-0.5">{targetVenueName.split(' ')[0]}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Autonomous Intent Proposer & Invariant Pre-Flight */}
       <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-6">
         <div className="border-b border-sentinel-border pb-4 mb-6">
           <h3 className="text-base font-bold text-sentinel-text">Autonomous Trade Intent Proposer</h3>
@@ -186,13 +393,24 @@ export const AgentView: React.FC<AgentViewProps> = ({
                 onChange={(e) => setSelectedAsset(e.target.value)}
                 className="w-full bg-sentinel-surfaceMuted border border-sentinel-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 font-mono"
               >
-                {portfolio.assets
-                  .filter((a) => !a.isStablecoin && a.symbol !== 'USDC')
-                  .map((a) => (
-                    <option key={a.symbol} value={a.symbol}>
-                      {a.symbol} (${a.priceUsd.toFixed(2)})
-                    </option>
-                  ))}
+                <optgroup label="Tokenized Public Equities (Meteora DBC)">
+                  {availableAssets
+                    .filter((a) => !('isPreIpo' in a))
+                    .map((a) => (
+                      <option key={a.symbol} value={a.symbol}>
+                        {a.symbol} (${a.priceUsd.toFixed(2)})
+                      </option>
+                    ))}
+                </optgroup>
+                <optgroup label="Pre-IPO Unicorn Equities (PreStocks Secondary)">
+                  {availableAssets
+                    .filter((a) => 'isPreIpo' in a)
+                    .map((a) => (
+                      <option key={a.symbol} value={a.symbol}>
+                        {a.symbol} (${a.priceUsd.toFixed(2)}) • Pre-IPO
+                      </option>
+                    ))}
+                </optgroup>
               </select>
             </div>
 
@@ -205,7 +423,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setDirection('BUY')}
-                  className={`py-2 text-xs font-bold rounded-lg border transition ${
+                  className={`py-2 text-xs font-bold rounded-lg border transition cursor-pointer ${
                     direction === 'BUY'
                       ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
                       : 'bg-sentinel-surfaceMuted text-sentinel-textMuted border-sentinel-border hover:text-white'
@@ -216,7 +434,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setDirection('SELL')}
-                  className={`py-2 text-xs font-bold rounded-lg border transition ${
+                  className={`py-2 text-xs font-bold rounded-lg border transition cursor-pointer ${
                     direction === 'SELL'
                       ? 'bg-rose-500/20 text-rose-400 border-rose-500/40'
                       : 'bg-sentinel-surfaceMuted text-sentinel-textMuted border-sentinel-border hover:text-white'
@@ -243,6 +461,19 @@ export const AgentView: React.FC<AgentViewProps> = ({
                   className="w-full bg-sentinel-surfaceMuted border border-sentinel-border rounded-lg pl-7 pr-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-blue-500"
                 />
               </div>
+            </div>
+          </div>
+
+          {/* Dynamic Target Routing Badge */}
+          <div className="bg-sentinel-surfaceMuted/60 border border-sentinel-border rounded-lg p-3 text-xs font-mono flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sentinel-textSubtle">TARGET VENUE:</span>
+              <span className="px-2 py-0.5 rounded bg-blue-500/15 text-blue-300 font-bold border border-blue-500/30">
+                {targetVenueName}
+              </span>
+            </div>
+            <div className="text-sentinel-textMuted text-[11px] truncate">
+              Route: <span className="text-white font-semibold">{targetRoute}</span>
             </div>
           </div>
 
@@ -366,7 +597,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
                   setDirection('BUY');
                   setTradeAmount('15000');
                 }}
-                className="px-2.5 py-1 rounded bg-rose-950/40 text-rose-300 border border-rose-800/40 text-xs font-mono hover:bg-rose-900/40"
+                className="px-2.5 py-1 rounded bg-rose-950/40 text-rose-300 border border-rose-800/40 text-xs font-mono hover:bg-rose-900/40 cursor-pointer"
               >
                 $15,000 NVDA (Non-Compliant)
               </button>
@@ -377,7 +608,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
                   setDirection('BUY');
                   setTradeAmount('5000');
                 }}
-                className="px-2.5 py-1 rounded bg-emerald-950/40 text-emerald-300 border border-emerald-800/40 text-xs font-mono hover:bg-emerald-900/40"
+                className="px-2.5 py-1 rounded bg-emerald-950/40 text-emerald-300 border border-emerald-800/40 text-xs font-mono hover:bg-emerald-900/40 cursor-pointer"
               >
                 $5,000 NVDA (Compliant)
               </button>
@@ -395,7 +626,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
         </form>
       </div>
 
-      {/* 3. Narrative Decision Lifecycle Diagram */}
+      {/* 4. Narrative Decision Lifecycle Diagram */}
       <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-6 space-y-4">
         <h3 className="text-base font-bold text-sentinel-text">Autonomous Decision Flow</h3>
         <p className="text-xs text-sentinel-textMuted">

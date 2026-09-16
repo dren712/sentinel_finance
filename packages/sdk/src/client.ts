@@ -17,12 +17,18 @@ import {
 } from '@sentinel/domain';
 import {
   ExecutionAdapter,
+  ExecutionVenueType,
   DecisionCycleReport,
   DemoScenarioResult,
   MeteoraDBCMetrics,
   MeteoraVerificationResult,
 } from './types';
-import { SimulatedExecutionAdapter } from './adapters/execution-adapter';
+import {
+  DemoExecutionAdapter,
+  MeteoraExecutionAdapter,
+  PreStocksExecutionAdapter,
+  SimulatedExecutionAdapter,
+} from './adapters/execution-adapter';
 import { AutonomousRoboAgent } from './agent-simulator';
 import { MeteoraDBCMarketQualityVerifier } from './sponsors/meteora';
 import { PortfolioIndexer, deriveSplAta } from './portfolio-indexer';
@@ -33,14 +39,21 @@ export interface SentinelClientConfig {
   pythAdapter?: PythPriceAdapter;
   valuationEngine?: SentinelValuationEngine;
   indexer?: PortfolioIndexer;
+  defaultVenue?: ExecutionVenueType;
 }
 
 /**
  * SentinelClient:
  * Unified client facade for Sentinel Finance applications and agents.
+ * Connects AutonomousRoboAgent, Pyth Market Truth, SPL Portfolio Indexing,
+ * and polymorphic Execution Adapters (Meteora DBC, PreStocks Secondary, Demo Simulator).
  */
 export class SentinelClient {
   private adapter: ExecutionAdapter;
+  private selectedVenue: ExecutionVenueType;
+  private meteoraAdapter: MeteoraExecutionAdapter;
+  private preStocksAdapter: PreStocksExecutionAdapter;
+  private demoAdapter: DemoExecutionAdapter;
   private agent: AutonomousRoboAgent;
   private pythAdapter: PythPriceAdapter;
   private valuationEngine: SentinelValuationEngine;
@@ -49,7 +62,17 @@ export class SentinelClient {
   private evidenceHistory: EvidenceRecord[] = [];
 
   constructor(config: SentinelClientConfig = {}) {
-    this.adapter = config.adapter ?? new SimulatedExecutionAdapter(200);
+    this.demoAdapter = new DemoExecutionAdapter(200);
+    this.meteoraAdapter = new MeteoraExecutionAdapter();
+    this.preStocksAdapter = new PreStocksExecutionAdapter();
+
+    this.selectedVenue = config.defaultVenue ?? (config.adapter?.venueType ?? 'METEORA_DBC');
+    this.adapter = config.adapter ?? (this.selectedVenue === 'PRESTOCKS_SECONDARY'
+      ? this.preStocksAdapter
+      : this.selectedVenue === 'DEMO_SIMULATION'
+      ? this.demoAdapter
+      : this.meteoraAdapter);
+
     this.agent = config.agent ?? new AutonomousRoboAgent();
     this.pythAdapter = config.pythAdapter ?? new PythPriceAdapter();
     this.valuationEngine = config.valuationEngine ?? new SentinelValuationEngine();
@@ -63,10 +86,52 @@ export class SentinelClient {
 
   setAdapter(adapter: ExecutionAdapter): void {
     this.adapter = adapter;
+    this.selectedVenue = adapter.venueType;
   }
 
   getAdapter(): ExecutionAdapter {
     return this.adapter;
+  }
+
+  setExecutionVenue(venueType: ExecutionVenueType): void {
+    this.selectedVenue = venueType;
+    if (venueType === 'METEORA_DBC') {
+      this.adapter = this.meteoraAdapter;
+    } else if (venueType === 'PRESTOCKS_SECONDARY') {
+      this.adapter = this.preStocksAdapter;
+    } else if (venueType === 'DEMO_SIMULATION') {
+      this.adapter = this.demoAdapter;
+    }
+  }
+
+  getExecutionVenue(): ExecutionVenueType {
+    return this.selectedVenue;
+  }
+
+  getMeteoraAdapter(): MeteoraExecutionAdapter {
+    return this.meteoraAdapter;
+  }
+
+  getPreStocksAdapter(): PreStocksExecutionAdapter {
+    return this.preStocksAdapter;
+  }
+
+  getDemoAdapter(): DemoExecutionAdapter {
+    return this.demoAdapter;
+  }
+
+  resolveAdapterForIntent(intent: TradeIntent): ExecutionAdapter {
+    if (this.selectedVenue === 'DEMO_SIMULATION') {
+      return this.demoAdapter;
+    }
+    const preIpoSymbols = ['SPACEXx', 'OPENAIx', 'STRIPEx'];
+    if (preIpoSymbols.includes(intent.assetSymbol)) {
+      return this.preStocksAdapter;
+    }
+    if (this.selectedVenue === 'PRESTOCKS_SECONDARY') {
+      return this.preStocksAdapter;
+    }
+    return this.meteoraAdapter;
   }
 
   getAgent(): AutonomousRoboAgent {
@@ -243,7 +308,8 @@ export class SentinelClient {
     priceSource?: PriceSource | NormalizedMarketPrice
   ): Promise<DecisionCycleReport> {
     const activePrice = priceSource ?? (await this.getMarketPrice(intent.assetSymbol));
-    const report = await this.agent.runDecisionCycle(preState, policy, intent, this.adapter, activePrice);
+    const adapterToUse = this.resolveAdapterForIntent(intent);
+    const report = await this.agent.runDecisionCycle(preState, policy, intent, adapterToUse, activePrice);
     this.evidenceHistory.unshift(report.evidenceRecord);
 
     // Sync underlying real token holdings if trade was settled

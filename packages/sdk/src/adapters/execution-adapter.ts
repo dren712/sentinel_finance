@@ -1,9 +1,16 @@
 import {
   TradeIntent,
   PortfolioSnapshot,
+  SentinelAuthorizationTicket,
+  hashTradeIntent,
 } from '@sentinel/domain';
 import { createHash } from 'crypto';
-import { ExecutionAdapter, ExecutionResult } from '../types';
+import {
+  ExecutionAdapter,
+  ExecutionResult,
+  ExecutionVenueType,
+  SecurityViolationError,
+} from '../types';
 import {
   Connection,
   PublicKey,
@@ -13,58 +20,19 @@ import {
   sendAndConfirmTransaction,
 } from '@solana/web3.js';
 
-/**
- * SimulatedExecutionAdapter:
- * Explicit, deterministic simulation adapter for reproducible testing and offline demonstrations.
- * In accordance with Rule 4: all signatures and results are explicitly labeled as simulation.
- */
-export class SimulatedExecutionAdapter implements ExecutionAdapter {
-  private executionDelayMs: number;
-
-  constructor(executionDelayMs: number = 0) {
-    this.executionDelayMs = executionDelayMs;
-  }
-
-  getMode(): 'SIMULATION' {
-    return 'SIMULATION';
-  }
-
-  async executeTrade(intent: TradeIntent, _preState: PortfolioSnapshot): Promise<ExecutionResult> {
-    if (this.executionDelayMs > 0) {
-      await new Promise(resolve => setTimeout(resolve, this.executionDelayMs));
-    }
-
-    const isBuy = intent.direction === 'BUY';
-    const inputAsset = isBuy ? 'USDC' : intent.assetSymbol;
-    const outputAsset = isBuy ? intent.assetSymbol : 'USDC';
-    const inputAmount = isBuy ? intent.tradeAmountUsd : intent.tradeAmountUsd / intent.referencePriceUsd;
-    const outputAmount = isBuy ? intent.tradeAmountUsd / intent.referencePriceUsd : intent.tradeAmountUsd;
-
-    // Explicitly labeled simulation signature
-    const simRandom = Math.random().toString(36).substring(2, 10);
-    const transactionSignature = `sim_tx_${Date.now()}_${simRandom}`;
-
-    return {
-      success: true,
-      transactionSignature,
-      inputAsset,
-      outputAsset,
-      inputAmount: Math.round(inputAmount * 100) / 100,
-      outputAmount: Math.round(outputAmount * 10_000) / 10_000,
-      executionPrice: intent.referencePriceUsd,
-      isSimulation: true,
-      timestamp: Date.now(),
-    };
-  }
-}
+export { DemoExecutionAdapter, SimulatedExecutionAdapter } from './demo-adapter';
+export { MeteoraExecutionAdapter, METEORA_DBC_POOLS } from './meteora-adapter';
+export { PreStocksExecutionAdapter, PRESTOCKS_SECONDARY_POOLS } from './prestocks-adapter';
 
 /**
  * LiveExecutionAdapter:
  * Connects to Solana RPC and builds on-chain transactions targeting the Sentinel Anchor program.
- * In accordance with Rule 3: Requires a genuine wallet or keypair signer and returns only real,
- * confirmed transaction signatures. Never fabricates signatures.
+ * In accordance with Phase 4 security invariants: Requires a genuine wallet or keypair signer
+ * and strictly verifies Sentinel authorization tickets before on-chain execution.
  */
 export class LiveExecutionAdapter implements ExecutionAdapter {
+  public readonly venueType: ExecutionVenueType = 'SOLANA_MAINNET';
+  public readonly venueName: string = 'Solana On-Chain Anchor Program';
   private connection: Connection;
   public readonly programId: PublicKey;
   private signerKeypair?: Keypair;
@@ -93,7 +61,38 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
   /**
    * Builds and submits a real on-chain transaction to execute a guarded trade
    */
-  async executeTrade(intent: TradeIntent, preState: PortfolioSnapshot): Promise<ExecutionResult> {
+  async executeTrade(
+    intent: TradeIntent,
+    _preState: PortfolioSnapshot,
+    authorization?: SentinelAuthorizationTicket
+  ): Promise<ExecutionResult> {
+    const startTime = Date.now();
+
+    // 1. Non-Bypass Invariant: Direct Agent -> DEX is prohibited!
+    if (!authorization) {
+      throw new SecurityViolationError(
+        'Direct Agent->DEX execution prohibited: LiveExecutionAdapter requires an authorized SentinelAuthorizationTicket. Direct execution bypasses Sentinel risk governance.',
+        'BYPASS_ATTEMPT'
+      );
+    }
+
+    // 2. Ticket expiration check
+    if (authorization.expiresAt < Date.now()) {
+      throw new SecurityViolationError(
+        `Authorization ticket expired at ${new Date(authorization.expiresAt).toISOString()} (current time: ${new Date().toISOString()})`,
+        'EXPIRED_TICKET'
+      );
+    }
+
+    // 3. Intent hash binding check
+    const currentIntentHash = hashTradeIntent(intent);
+    if (authorization.intentHash !== currentIntentHash) {
+      throw new SecurityViolationError(
+        `Authorization ticket intent hash mismatch. Expected ${authorization.intentHash}, got ${currentIntentHash}`,
+        'INVALID_TICKET'
+      );
+    }
+
     if (!this.signerKeypair) {
       throw new Error(
         'Live execution requires an authorized Solana signer keypair or connected wallet. ' +
@@ -112,13 +111,11 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
       const outputAmount = isBuy ? intent.tradeAmountUsd / intent.referencePriceUsd : intent.tradeAmountUsd;
 
       // Construct Anchor instruction data for execute_guarded_trade
-      // Instruction discriminator: sha256("global:execute_guarded_trade").slice(0, 8)
       const discriminator = createHash('sha256')
         .update('global:execute_guarded_trade')
         .digest()
         .subarray(0, 8);
 
-      // Data payload: 8-byte discriminator + trade_amount_cents (u64) + execution_price_cents (u64) + quoted_price_cents (u64)
       const instructionData = Buffer.alloc(32);
       discriminator.copy(instructionData, 0);
 
@@ -154,12 +151,6 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
         this.programId
       );
 
-      // Pass all 5 accounts required by ExecuteGuardedTrade in exact Anchor order:
-      // 1. promise (mut)
-      // 2. vault (mut)
-      // 3. agent (non-mut)
-      // 4. policy (non-mut)
-      // 5. authority (signer, mut)
       const tx = new Transaction().add(
         new TransactionInstruction({
           programId: this.programId,
@@ -180,6 +171,10 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
         [this.signerKeypair]
       );
 
+      const route = isBuy
+        ? `USDC ATA ➔ Sentinel Program ➔ ${intent.assetSymbol} ATA`
+        : `${intent.assetSymbol} ATA ➔ Sentinel Program ➔ USDC ATA`;
+
       return {
         success: true,
         transactionSignature: txSignature,
@@ -190,6 +185,11 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
         executionPrice: intent.referencePriceUsd,
         isSimulation: false,
         timestamp: Date.now(),
+        venueType: this.venueType,
+        venueName: this.venueName,
+        poolAddress: vaultPda.toBase58(),
+        route,
+        executionDurationMs: Math.max(1, Date.now() - startTime),
       };
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);

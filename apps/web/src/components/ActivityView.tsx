@@ -245,6 +245,17 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
                         <Badge variant={isSettled ? 'success' : 'danger'} size="sm">
                           {isSettled ? 'SETTLED' : 'REJECTED'}
                         </Badge>
+                        {record.executionVenue?.venueType && (
+                          <span className="px-2 py-0.5 rounded bg-blue-500/15 text-blue-300 font-mono text-[10px] font-semibold border border-blue-500/30">
+                            {record.executionVenue.venueType === 'METEORA_DBC'
+                              ? 'METEORA DBC'
+                              : record.executionVenue.venueType === 'PRESTOCKS_SECONDARY'
+                              ? 'PRESTOCKS'
+                              : record.executionVenue.venueType === 'DEMO_SIMULATION'
+                              ? 'LOCAL SIM'
+                              : 'MAINNET'}
+                          </span>
+                        )}
                         {record.isSimulation && (
                           <span className="px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-400 font-mono text-[10px] border border-amber-500/30">
                             SIMULATED
@@ -402,6 +413,60 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
                             </span>
                           </div>
                         </div>
+                      </div>
+                    )}
+
+                    {/* Execution Venue & Non-Bypass Routing (Phase 4) */}
+                    {record.executionVenue && (
+                      <div className="bg-sentinel-surfaceMuted/80 border border-blue-500/20 rounded-lg p-3.5 space-y-2 font-mono text-xs">
+                        <div className="flex items-center justify-between border-b border-sentinel-border/50 pb-2">
+                          <span className="font-bold text-white uppercase text-[11px] flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-blue-400" />
+                            Execution Venue &amp; Routing (Phase 4)
+                          </span>
+                          <span className="text-blue-400 text-[11px] font-semibold">
+                            Sentinel Authorization Ticket Gated
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px]">
+                          <div>
+                            <span className="text-sentinel-textSubtle block text-[10px]">VENUE TYPE</span>
+                            <span className="text-white font-bold">
+                              {record.executionVenue.venueName}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-sentinel-textSubtle block text-[10px]">POOL / CONTRACT ADDRESS</span>
+                            <span className="text-blue-400 font-bold truncate block">
+                              {record.executionVenue.poolAddress ?? 'Sentinel PDA In-Memory Execution'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {record.executionVenue.route && (
+                          <div className="pt-2 border-t border-sentinel-border/40 text-[11px]">
+                            <span className="text-sentinel-textSubtle block text-[10px]">VERIFIED EXECUTION ROUTE</span>
+                            <span className="text-emerald-400 font-semibold">{record.executionVenue.route}</span>
+                          </div>
+                        )}
+
+                        {record.executionVenue.marketQuality && (
+                          <div className="pt-2 border-t border-sentinel-border/40 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px]">
+                            <div>
+                              <span className="text-sentinel-textSubtle">Meteora DBC Reserve Depth:</span>{' '}
+                              <span className="text-white font-bold">
+                                ${record.executionVenue.marketQuality.liquidityDepthUsd.toLocaleString()} (≥ $25,000 required)
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-sentinel-textSubtle">Price Deviation:</span>{' '}
+                              <span className="text-emerald-400 font-bold">
+                                {(record.executionVenue.marketQuality.actualDeviationBps / 100).toFixed(2)}% (≤ 2.00% max)
+                              </span>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
 

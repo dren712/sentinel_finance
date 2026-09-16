@@ -342,9 +342,36 @@ export interface Verification {
   timestamp: number;
 }
 
-// -----------------------------------------------------------------------------
-// 8. Evidence (PROVN Cryptographic Proof)
-// -----------------------------------------------------------------------------
+export interface SentinelAuthorizationTicket {
+  ticketId: string;
+  promiseId: string;
+  agentId: string;
+  intentHash: string;
+  policyHash: string;
+  preStateHash: string;
+  authorizedAt: number;
+  expiresAt: number;
+  authorizedAmountUsd: number;
+  authorizedDirection: 'BUY' | 'SELL';
+  targetAssetSymbol: string;
+  maxSlippageBps: number;
+  signature?: string;
+}
+
+export interface ExecutionVenueDetails {
+  venueType: 'METEORA_DBC' | 'PRESTOCKS_SECONDARY' | 'DEMO_SIMULATION' | 'SOLANA_MAINNET';
+  venueName: string;
+  poolAddress?: string;
+  route?: string;
+  marketQuality?: {
+    liquidityPassed: boolean;
+    liquidityDepthUsd: number;
+    priceDeviationPassed: boolean;
+    actualDeviationBps: number;
+    details: string;
+  };
+  durationMs?: number;
+}
 
 export interface Evidence {
   id: string;
@@ -362,6 +389,7 @@ export interface Evidence {
   swarmSummary: SwarmVerificationSummary;
   checks: PostconditionCheckResult[];
   oracleProvenance?: OracleProvenance;
+  executionVenue?: ExecutionVenueDetails;
   timestamp: number;
   isSimulation: boolean;
 }

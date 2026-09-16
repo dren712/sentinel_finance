@@ -117,6 +117,7 @@ export function createEvidenceRecord(params: {
   failureReason?: string;
   isSimulation?: boolean;
   oracleProvenance?: OracleProvenance;
+  executionVenue?: import('./types').ExecutionVenueDetails;
 }): EvidenceRecord {
   const id = `provn_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
   const policyHash = hashFinancialPolicy(params.policy);
@@ -140,6 +141,7 @@ export function createEvidenceRecord(params: {
     swarmSummary: params.swarmSummary,
     checks: params.checks,
     oracleProvenance: params.oracleProvenance,
+    executionVenue: params.executionVenue,
     timestamp: Date.now(),
     isSimulation: params.isSimulation ?? false,
   };

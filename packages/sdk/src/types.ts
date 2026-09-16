@@ -5,7 +5,23 @@ import {
   EvaluationOutcome,
   EvidenceRecord,
   PTAStatus,
+  SentinelAuthorizationTicket,
 } from '@sentinel/domain';
+
+export type ExecutionVenueType = 'METEORA_DBC' | 'PRESTOCKS_SECONDARY' | 'DEMO_SIMULATION' | 'SOLANA_MAINNET';
+
+export class SecurityViolationError extends Error {
+  public readonly violationType: 'BYPASS_ATTEMPT' | 'INVALID_TICKET' | 'EXPIRED_TICKET' | 'POLICY_BREACH';
+
+  constructor(
+    message: string,
+    violationType: 'BYPASS_ATTEMPT' | 'INVALID_TICKET' | 'EXPIRED_TICKET' | 'POLICY_BREACH' = 'BYPASS_ATTEMPT'
+  ) {
+    super(message);
+    this.name = 'SecurityViolationError';
+    this.violationType = violationType;
+  }
+}
 
 export interface ExecutionResult {
   success: boolean;
@@ -17,12 +33,24 @@ export interface ExecutionResult {
   executionPrice: number;
   isSimulation: boolean;
   timestamp: number;
+  venueType: ExecutionVenueType;
+  venueName: string;
+  poolAddress: string;
+  route: string;
+  executionDurationMs: number;
+  marketQuality?: MeteoraVerificationResult;
   error?: string;
 }
 
 export interface ExecutionAdapter {
+  readonly venueType: ExecutionVenueType;
+  readonly venueName: string;
   getMode(): 'LIVE' | 'SIMULATION';
-  executeTrade(intent: TradeIntent, preState: PortfolioSnapshot): Promise<ExecutionResult>;
+  executeTrade(
+    intent: TradeIntent,
+    preState: PortfolioSnapshot,
+    authorization?: SentinelAuthorizationTicket
+  ): Promise<ExecutionResult>;
 }
 
 export interface DecisionCycleReport {
