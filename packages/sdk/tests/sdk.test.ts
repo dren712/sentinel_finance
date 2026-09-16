@@ -487,5 +487,133 @@ describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
       assert.strictEqual(reportDemo.evidenceRecord.executionVenue?.venueType, 'DEMO_SIMULATION');
     });
   });
+
+  describe('Promise Model 2.0 & Institutional Audit Explanations (Phase 5)', () => {
+    it('constructs a rich 7-dimensional Promise with cryptographic rationale hash', async () => {
+      const pClient = new SentinelClient();
+      const compliantIntent = pClient.getAgent().proposeIntent({
+        assetSymbol: 'NVDAx',
+        assetMint: 'NVDA111111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 5000,
+        referencePriceUsd: 120,
+        strategyRationale: 'Targeted allocation expansion within single-asset cap',
+      });
+
+      const report = await pClient.executeDecisionCycle(portfolio, policy, compliantIntent);
+      const promise = report.promise;
+
+      // Dimension 1: WHO
+      assert.strictEqual(promise.who.agentId, pClient.getAgent().agentId);
+      assert.strictEqual(promise.who.portfolioId, portfolio.portfolioId);
+      assert.ok(promise.who.walletAddress);
+
+      // Dimension 2: WHAT
+      assert.strictEqual(promise.what.assetSymbol, 'NVDAx');
+      assert.strictEqual(promise.what.side, 'BUY');
+      assert.strictEqual(promise.what.amountUsd, 5000);
+      assert.strictEqual(promise.what.estimatedTokens, 41.6667);
+
+      // Dimension 3: WHY
+      assert.strictEqual(promise.why.strategyRationale, 'Targeted allocation expansion within single-asset cap');
+      assert.ok(promise.why.rationaleHash);
+      assert.strictEqual(promise.why.rationaleHash.length, 64); // 32-byte sha256 hex string
+
+      // Dimension 4: UNDER WHICH POLICY
+      assert.strictEqual(promise.underWhichPolicy.policyVersion, 1);
+      assert.ok(promise.underWhichPolicy.policyHash);
+      assert.strictEqual(promise.underWhichPolicy.maxSingleAssetBps, 2500);
+      assert.strictEqual(promise.underWhichPolicy.minStablecoinBps, 2000);
+
+      // Dimension 5: MARKET ASSUMPTIONS (Pyth)
+      assert.strictEqual(promise.marketAssumptions.quotedPriceUsd, 120);
+      assert.ok(promise.marketAssumptions.priceSource.includes('Pyth'));
+      assert.ok(promise.marketAssumptions.feedId);
+      assert.ok(typeof promise.marketAssumptions.publishTimeUtc === 'string');
+
+      // Dimension 6: EXECUTION LIMITS
+      assert.strictEqual(promise.executionLimits.maxSlippageBps, 100);
+      assert.strictEqual(promise.executionLimits.maxTradeValueUsd, 10000);
+      assert.strictEqual(promise.executionLimits.minLiquidityDepthUsd, 25000);
+
+      // Dimension 7: VALIDITY & LIFECYCLE
+      assert.strictEqual(promise.status, 'SETTLED');
+      assert.ok(promise.validity.createdAt > 0);
+      assert.ok(promise.validity.expiresAt > promise.validity.createdAt);
+      assert.strictEqual(promise.validity.expiresAt - promise.validity.createdAt, 60000);
+    });
+
+    it('generates deterministic "Why did Sentinel allow this?" audit explanations with invariant table', async () => {
+      const pClient = new SentinelClient();
+      const compliantIntent = pClient.getAgent().proposeIntent({
+        assetSymbol: 'NVDAx',
+        assetMint: 'NVDA111111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 5000,
+        referencePriceUsd: 120,
+        strategyRationale: 'Expand NVDA position safely within 25% single-stock ceiling',
+      });
+
+      const report = await pClient.executeDecisionCycle(portfolio, policy, compliantIntent);
+      const explanation = report.evidenceRecord.auditExplanation;
+
+      assert.ok(explanation);
+      assert.strictEqual(explanation.decision, 'ALLOWED');
+      assert.ok(explanation.headline.includes('Sentinel Authorized'));
+      assert.strictEqual(explanation.invariantsEvaluated.length, 5);
+
+      // Invariant 1: Single asset ceiling
+      const singleAssetInv = explanation.invariantsEvaluated.find(i => i.name === 'MAX_SINGLE_ASSET');
+      assert.ok(singleAssetInv);
+      assert.strictEqual(singleAssetInv.passed, true);
+      assert.strictEqual(singleAssetInv.threshold, '≤ 25.00%');
+
+      // Invariant 2: Cash reserve floor
+      const cashInv = explanation.invariantsEvaluated.find(i => i.name === 'MIN_STABLECOIN');
+      assert.ok(cashInv);
+      assert.strictEqual(cashInv.passed, true);
+      assert.strictEqual(cashInv.threshold, '≥ 20.00%');
+
+      // Invariant 3: Sizing limit
+      const sizeInv = explanation.invariantsEvaluated.find(i => i.name === 'MAX_TRADE_SIZE');
+      assert.ok(sizeInv);
+      assert.strictEqual(sizeInv.passed, true);
+      assert.strictEqual(sizeInv.threshold, '≤ $10,000');
+
+      // Invariant 4: Oracle confidence
+      const oracleInv = explanation.invariantsEvaluated.find(i => i.name === 'ORACLE_CONFIDENCE');
+      assert.ok(oracleInv);
+      assert.strictEqual(oracleInv.passed, true);
+
+      assert.ok(explanation.summary.length > 30);
+      assert.ok(explanation.marketTruthSummary.includes('Pyth'));
+      assert.ok(explanation.venueQualitySummary.includes('Meteora'));
+    });
+
+    it('generates clear "Why did Sentinel block this?" explanations for non-compliant intents', async () => {
+      const pClient = new SentinelClient();
+      const badIntent = pClient.getAgent().proposeIntent({
+        assetSymbol: 'NVDAx',
+        assetMint: 'NVDA111111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 15000,
+        referencePriceUsd: 120,
+        strategyRationale: 'Attempt oversized position exceeding cash floor and trade cap',
+      });
+
+      const report = await pClient.executeDecisionCycle(portfolio, policy, badIntent);
+      assert.strictEqual(report.status, 'REJECTED');
+      assert.strictEqual(report.promise.status, 'REJECTED');
+
+      const explanation = report.evidenceRecord.auditExplanation;
+      assert.ok(explanation);
+      assert.strictEqual(explanation.decision, 'BLOCKED');
+      assert.ok(explanation.headline.includes('Sentinel Blocked'));
+
+      const failedInvariants = explanation.invariantsEvaluated.filter(i => !i.passed);
+      assert.ok(failedInvariants.length >= 1);
+      assert.ok(explanation.summary.includes('rejected'));
+    });
+  });
 });
 

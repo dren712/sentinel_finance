@@ -8,6 +8,10 @@ import {
   PostconditionCheckResult,
   FailureCode,
   OracleProvenance,
+  Promise,
+  AuditExplanation,
+  AuditExplanationInvariant,
+  ExecutionVenueDetails,
 } from './types';
 
 /**
@@ -100,6 +104,79 @@ export function hashFinancialPolicy(policy: FinancialPolicy): string {
 }
 
 /**
+ * Generates an institutional, human-readable AuditExplanation answering:
+ * "Why did Sentinel allow this?" (or "Why did Sentinel block this?")
+ */
+export function generateAuditExplanation(params: {
+  promise: Promise;
+  checks: PostconditionCheckResult[];
+  verificationResult: 'SETTLED' | 'REJECTED';
+  failureReason?: string;
+  failureCode?: FailureCode;
+  oracleProvenance?: OracleProvenance;
+  executionVenue?: ExecutionVenueDetails;
+}): AuditExplanation {
+  const isAllowed = params.verificationResult === 'SETTLED';
+  const asset = params.promise.what?.assetSymbol ?? params.promise.intent?.assetSymbol ?? 'ASSET';
+  const side = params.promise.what?.side ?? params.promise.intent?.direction ?? 'BUY';
+  const amountUsd = params.promise.what?.amountUsd ?? params.promise.intent?.tradeAmountUsd ?? 0;
+
+  const invariantsEvaluated: AuditExplanationInvariant[] = params.checks.map(c => {
+    let actualValue = `${c.actualBpsOrValue}`;
+    let threshold = `${c.expectedBpsOrValue}`;
+
+    if (c.checkName === 'MAX_SINGLE_ASSET' || c.checkName === 'MIN_STABLECOIN') {
+      actualValue = `${(c.actualBpsOrValue / 100).toFixed(2)}%`;
+      threshold = `${c.checkName === 'MAX_SINGLE_ASSET' ? '≤ ' : '≥ '}${(c.expectedBpsOrValue / 100).toFixed(2)}%`;
+    } else if (c.checkName === 'MAX_TRADE_SIZE') {
+      actualValue = `$${c.actualBpsOrValue.toLocaleString()}`;
+      threshold = `≤ $${c.expectedBpsOrValue.toLocaleString()}`;
+    } else if (c.checkName === 'SLIPPAGE') {
+      actualValue = `${(c.actualBpsOrValue / 100).toFixed(2)}%`;
+      threshold = `≤ ${(c.expectedBpsOrValue / 100).toFixed(2)}%`;
+    } else if (c.checkName === 'TRACKING_ERROR') {
+      actualValue = `${c.actualBpsOrValue} bps`;
+      threshold = `≤ ${c.expectedBpsOrValue} bps`;
+    }
+
+    return {
+      name: c.checkName,
+      description: c.description,
+      passed: c.passed,
+      actualValue,
+      threshold,
+      failureCode: c.failureCode,
+    };
+  });
+
+  const headline = isAllowed
+    ? `Sentinel Authorized: All mathematical risk bounds, Pyth oracle confidence intervals, and venue liquidity verified.`
+    : `Sentinel Blocked Trade: Invariant violation detected (${params.failureCode ?? 'RISK_CEILING_EXCEEDED'}). Capital preserved.`;
+
+  const summary = isAllowed
+    ? `Autonomous intent to ${side} $${amountUsd.toLocaleString()} of ${asset} strictly satisfies single-asset cap (${((params.promise.underWhichPolicy?.maxSingleAssetBps ?? 2500) / 100).toFixed(2)}%), stablecoin reserve floor (${((params.promise.underWhichPolicy?.minStablecoinBps ?? 2000) / 100).toFixed(2)}%), and Pyth market pricing integrity.`
+    : `Autonomous intent to ${side} $${amountUsd.toLocaleString()} of ${asset} was rejected: ${params.failureReason ?? 'Policy bounds exceeded'}. Portfolio state remained completely untouched.`;
+
+  const marketTruthSummary = params.oracleProvenance
+    ? `Pyth feed ${params.oracleProvenance.feedDisplayId} at $${params.oracleProvenance.priceUsd.toFixed(2)} (±$${params.oracleProvenance.confidenceUsd.toFixed(2)}). Basis tracking error: ${(params.oracleProvenance.deviationPct ?? 0).toFixed(2)}%.`
+    : `Reference price $${(params.promise.marketAssumptions?.quotedPriceUsd ?? 100).toFixed(2)} sourced from ${params.promise.marketAssumptions?.priceSource ?? 'Oracle'}.`;
+
+  const venueQualitySummary = params.executionVenue
+    ? `${params.executionVenue.venueName} via ${params.executionVenue.route ?? 'standard route'}. Pool: ${params.executionVenue.poolAddress ?? 'Deterministic engine'}.`
+    : `Execution target: ${params.promise.executionLimits?.targetVenue ?? 'Sentinel Execution Adapter'}.`;
+
+  return {
+    headline,
+    summary,
+    decision: isAllowed ? 'ALLOWED' : 'BLOCKED',
+    invariantsEvaluated,
+    marketTruthSummary,
+    venueQualitySummary,
+    timestamp: Date.now(),
+  };
+}
+
+/**
  * Creates an immutable PROVN evidence record for an accepted or rejected state transition
  */
 export function createEvidenceRecord(params: {
@@ -117,7 +194,9 @@ export function createEvidenceRecord(params: {
   failureReason?: string;
   isSimulation?: boolean;
   oracleProvenance?: OracleProvenance;
-  executionVenue?: import('./types').ExecutionVenueDetails;
+  executionVenue?: ExecutionVenueDetails;
+  auditExplanation?: AuditExplanation;
+  promise?: Promise;
 }): EvidenceRecord {
   const id = `provn_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
   const policyHash = hashFinancialPolicy(params.policy);
@@ -142,6 +221,8 @@ export function createEvidenceRecord(params: {
     checks: params.checks,
     oracleProvenance: params.oracleProvenance,
     executionVenue: params.executionVenue,
+    auditExplanation: params.auditExplanation,
+    promise: params.promise,
     timestamp: Date.now(),
     isSimulation: params.isSimulation ?? false,
   };

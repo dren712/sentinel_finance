@@ -1,9 +1,11 @@
+import { createHash } from 'crypto';
 import {
   PortfolioSnapshot,
   FinancialPolicy,
   TradeIntent,
   PromiseRecord,
   createEvidenceRecord,
+  generateAuditExplanation,
   evaluatePostconditions,
   evaluateSwarm,
   hashFinancialPolicy,
@@ -126,25 +128,6 @@ export class AutonomousRoboAgent {
     const cycleId = `cycle_${Date.now()}`;
     const promiseId = `promise_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
-    // Build formal promise record
-    const promise: PromiseRecord = {
-      promiseId,
-      agentId: this.agentId,
-      policyHash: hashFinancialPolicy(policy),
-      policyVersion: policy.policyVersion,
-      intentHash: hashTradeIntent(intent),
-      intent,
-      expectedConstraints: {
-        maxSingleAssetBps: policy.maxSingleAssetBps,
-        minStablecoinBps: policy.minStablecoinBps,
-        maxTradeValueUsd: policy.maxTradeValueUsd,
-        maxSlippageBps: policy.maxSlippageBps,
-      },
-      status: 'VALIDATING',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
-
     // Extract oracle provenance if Pyth market truth is provided
     let oracleProvenance: OracleProvenance | undefined;
     if (priceSource) {
@@ -174,6 +157,84 @@ export class AutonomousRoboAgent {
       };
     }
 
+    // Phase 5: Promise Model 2.0 (who, what, why, underWhichPolicy, marketAssumptions, executionLimits, validity)
+    const rationaleHash = createHash('sha256')
+      .update(intent.strategyRationale || 'No rationale provided')
+      .digest('hex');
+
+    const estimatedTokens = intent.referencePriceUsd > 0
+      ? Math.round((intent.tradeAmountUsd / intent.referencePriceUsd) * 10_000) / 10_000
+      : 0;
+
+    const promise: PromiseRecord = {
+      promiseId,
+      who: {
+        agentId: this.agentId,
+        agentName: this.name,
+        portfolioId: preState.portfolioId ?? 'portfolio_main_sentinel',
+        walletAddress: preState.walletAddress ?? preState.owner,
+        owner: preState.owner,
+      },
+      what: {
+        assetSymbol: intent.assetSymbol,
+        assetMint: intent.assetMint,
+        side: intent.direction,
+        amountUsd: intent.tradeAmountUsd,
+        estimatedTokens,
+      },
+      why: {
+        strategyName: this.objective,
+        strategyRationale: intent.strategyRationale || 'Strategy allocation',
+        rationaleHash,
+      },
+      underWhichPolicy: {
+        policyId: policy.policyId,
+        policyHash: hashFinancialPolicy(policy),
+        policyVersion: policy.policyVersion,
+        maxSingleAssetBps: policy.maxSingleAssetBps,
+        minStablecoinBps: policy.minStablecoinBps,
+        maxTradeValueUsd: policy.maxTradeValueUsd,
+        maxTrackingErrorBps: policy.maxTrackingErrorBps,
+      },
+      marketAssumptions: {
+        quotedPriceUsd: intent.referencePriceUsd,
+        priceSource: oracleProvenance?.source ?? 'Pyth Network',
+        feedId: oracleProvenance?.feedId,
+        confidenceUsd: oracleProvenance?.confidenceUsd,
+        basisTrackingErrorBps: oracleProvenance?.trackingErrorBps,
+        publishTimeUtc: oracleProvenance?.publishTimeFormatted,
+      },
+      executionLimits: {
+        maxSlippageBps: policy.maxSlippageBps,
+        maxTradeValueUsd: policy.maxTradeValueUsd,
+        minLiquidityDepthUsd: 25_000,
+        targetVenue: adapter.venueName,
+      },
+      validity: {
+        createdAt: Date.now(),
+        expiresAt: Date.now() + 60_000,
+        updatedAt: Date.now(),
+      },
+      status: 'PROPOSED',
+
+      // Backwards-compatible flat fields
+      agentId: this.agentId,
+      policyHash: hashFinancialPolicy(policy),
+      policyVersion: policy.policyVersion,
+      intentHash: hashTradeIntent(intent),
+      intent,
+      expectedConstraints: {
+        maxSingleAssetBps: policy.maxSingleAssetBps,
+        minStablecoinBps: policy.minStablecoinBps,
+        maxTradeValueUsd: policy.maxTradeValueUsd,
+        maxSlippageBps: policy.maxSlippageBps,
+        maxTrackingErrorBps: policy.maxTrackingErrorBps,
+      },
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      expiresAt: Date.now() + 60_000,
+    };
+
     // Evaluate postconditions through Sentinel Core Engine with Pyth Market Truth
     const evaluation = evaluatePostconditions(preState, intent, policy, undefined, priceSource);
     const swarmSummary = evaluateSwarm(evaluation.postState, intent, policy, undefined, priceSource);
@@ -181,11 +242,25 @@ export class AutonomousRoboAgent {
     if (!evaluation.allPassed) {
       // POSTCONDITION FAILED -> ATOMIC ABORT
       promise.status = 'REJECTED';
+      promise.validity.updatedAt = Date.now();
+
       const executionVenue: ExecutionVenueDetails = {
         venueType: adapter.venueType ?? 'DEMO_SIMULATION',
         venueName: adapter.venueName ?? 'Sentinel Venue Adapter',
         route: 'Execution Blocked: Pre-flight policy violation detected by Sentinel Engine',
       };
+
+      // Generate institutional audit explanation: Why did Sentinel block this?
+      const auditExplanation = generateAuditExplanation({
+        promise,
+        checks: evaluation.checks,
+        verificationResult: 'REJECTED',
+        failureCode: evaluation.failureCode,
+        failureReason: evaluation.failureReason,
+        oracleProvenance,
+        executionVenue,
+      });
+      promise.explanation = auditExplanation;
 
       const evidenceRecord = createEvidenceRecord({
         agentId: this.agentId,
@@ -202,6 +277,8 @@ export class AutonomousRoboAgent {
         failureCode: evaluation.failureCode,
         failureReason: evaluation.failureReason,
         executionVenue,
+        auditExplanation,
+        promise,
         isSimulation: adapter.getMode() === 'SIMULATION',
       });
 
@@ -218,8 +295,11 @@ export class AutonomousRoboAgent {
       };
     }
 
-    // POSTCONDITIONS PASSED -> ISSUE CRYPTOGRAPHIC SENTINEL AUTHORIZATION TICKET
-    // The execution adapter cannot execute on any venue without this ticket!
+    // POSTCONDITIONS PASSED -> AUTHORIZED
+    promise.status = 'AUTHORIZED';
+    promise.validity.updatedAt = Date.now();
+
+    // ISSUE CRYPTOGRAPHIC SENTINEL AUTHORIZATION TICKET
     const authorizationTicket: SentinelAuthorizationTicket = {
       ticketId: `auth_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       promiseId,
@@ -236,9 +316,16 @@ export class AutonomousRoboAgent {
     };
 
     try {
+      // TRANSITION TO EXECUTING
+      promise.status = 'EXECUTING';
+      promise.validity.updatedAt = Date.now();
+
       // SETTLE VIA EXECUTION ADAPTER GATED BY SENTINEL AUTHORIZATION
       const executionResult = await adapter.executeTrade(intent, preState, authorizationTicket);
+
+      // TRANSITION TO SETTLED
       promise.status = 'SETTLED';
+      promise.validity.updatedAt = Date.now();
 
       const executionVenue: ExecutionVenueDetails = {
         venueType: executionResult.venueType ?? adapter.venueType ?? 'DEMO_SIMULATION',
@@ -255,6 +342,16 @@ export class AutonomousRoboAgent {
         durationMs: executionResult.executionDurationMs,
       };
 
+      // Generate institutional audit explanation: Why did Sentinel allow this?
+      const auditExplanation = generateAuditExplanation({
+        promise,
+        checks: evaluation.checks,
+        verificationResult: 'SETTLED',
+        oracleProvenance,
+        executionVenue,
+      });
+      promise.explanation = auditExplanation;
+
       const evidenceRecord = createEvidenceRecord({
         agentId: this.agentId,
         promiseId,
@@ -268,6 +365,8 @@ export class AutonomousRoboAgent {
         swarmSummary,
         oracleProvenance,
         executionVenue,
+        auditExplanation,
+        promise,
         isSimulation: adapter.getMode() === 'SIMULATION',
       });
 
@@ -285,6 +384,8 @@ export class AutonomousRoboAgent {
       };
     } catch (err: unknown) {
       promise.status = 'REJECTED';
+      promise.validity.updatedAt = Date.now();
+
       const msg = err instanceof Error ? err.message : String(err);
       const isSecurityViolation =
         err instanceof SecurityViolationError ||
@@ -296,6 +397,17 @@ export class AutonomousRoboAgent {
         venueName: adapter.venueName ?? 'Sentinel Venue Adapter',
         route: `Execution Aborted: ${msg}`,
       };
+
+      const auditExplanation = generateAuditExplanation({
+        promise,
+        checks: evaluation.checks,
+        verificationResult: 'REJECTED',
+        failureCode,
+        failureReason: msg,
+        oracleProvenance,
+        executionVenue,
+      });
+      promise.explanation = auditExplanation;
 
       const evidenceRecord = createEvidenceRecord({
         agentId: this.agentId,
@@ -312,6 +424,8 @@ export class AutonomousRoboAgent {
         failureCode,
         failureReason: msg,
         executionVenue,
+        auditExplanation,
+        promise,
         isSimulation: adapter.getMode() === 'SIMULATION',
       });
 

@@ -3,7 +3,15 @@
  * Single Source of Truth for Sentinel Robo-Portfolio Foundation
  */
 
-export type PTAStatus = 'CREATED' | 'PROMISED' | 'VALIDATING' | 'SETTLED' | 'REJECTED';
+export type PromiseStatus =
+  | 'PROPOSED'
+  | 'AUTHORIZED'
+  | 'EXECUTING'
+  | 'SETTLED'
+  | 'REJECTED'
+  | 'EXPIRED';
+
+export type PTAStatus = PromiseStatus | 'CREATED' | 'PROMISED' | 'VALIDATING';
 export type TradeDirection = 'BUY' | 'SELL';
 
 // -----------------------------------------------------------------------------
@@ -248,17 +256,103 @@ export interface PromiseExpectedConstraints {
   maxTrackingErrorBps?: number;
 }
 
+export interface PromiseWho {
+  agentId: string;
+  agentName: string;
+  portfolioId: string;
+  walletAddress: string;
+  owner?: string;
+}
+
+export interface PromiseWhat {
+  assetSymbol: string;
+  assetMint: string;
+  side: 'BUY' | 'SELL';
+  amountUsd: number;
+  estimatedTokens?: number;
+}
+
+export interface PromiseWhy {
+  strategyName: string;
+  strategyRationale: string;
+  rationaleHash: string;
+}
+
+export interface PromiseUnderWhichPolicy {
+  policyId: string;
+  policyHash: string;
+  policyVersion: number;
+  maxSingleAssetBps: number;
+  minStablecoinBps: number;
+  maxTradeValueUsd: number;
+  maxTrackingErrorBps?: number;
+}
+
+export interface PromiseMarketAssumptions {
+  quotedPriceUsd: number;
+  priceSource: string;
+  feedId?: string;
+  confidenceUsd?: number;
+  basisTrackingErrorBps?: number;
+  publishTimeUtc?: string;
+}
+
+export interface PromiseExecutionLimits {
+  maxSlippageBps: number;
+  maxTradeValueUsd: number;
+  minLiquidityDepthUsd?: number;
+  targetVenue?: string;
+}
+
+export interface PromiseValidity {
+  createdAt: number;
+  expiresAt: number;
+  updatedAt: number;
+}
+
+export interface AuditExplanationInvariant {
+  name: string;
+  description: string;
+  passed: boolean;
+  actualValue: string;
+  threshold: string;
+  failureCode?: FailureCode;
+}
+
+export interface AuditExplanation {
+  headline: string;
+  summary: string;
+  decision: 'ALLOWED' | 'BLOCKED';
+  invariantsEvaluated: AuditExplanationInvariant[];
+  marketTruthSummary: string;
+  venueQualitySummary: string;
+  timestamp: number;
+}
+
 export interface Promise {
   promiseId: string;
+
+  // Conceptual Promise 2.0 Dimensions
+  who: PromiseWho;
+  what: PromiseWhat;
+  why: PromiseWhy;
+  underWhichPolicy: PromiseUnderWhichPolicy;
+  marketAssumptions: PromiseMarketAssumptions;
+  executionLimits: PromiseExecutionLimits;
+  validity: PromiseValidity;
+  status: PromiseStatus | PTAStatus;
+  explanation?: AuditExplanation;
+
+  // Backwards-Compatible Flat Fields
   agentId: string;
   policyHash: string;
   policyVersion: number;
   intentHash: string;
   intent: Intent;
   expectedConstraints: PromiseExpectedConstraints;
-  status: PTAStatus;
   createdAt: number;
   updatedAt: number;
+  expiresAt?: number;
 }
 
 // -----------------------------------------------------------------------------
@@ -390,6 +484,8 @@ export interface Evidence {
   checks: PostconditionCheckResult[];
   oracleProvenance?: OracleProvenance;
   executionVenue?: ExecutionVenueDetails;
+  auditExplanation?: AuditExplanation;
+  promise?: Promise;
   timestamp: number;
   isSimulation: boolean;
 }

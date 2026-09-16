@@ -26,6 +26,7 @@ import {
   Cpu,
   Building2,
   TrendingUp,
+  FileText,
 } from 'lucide-react';
 import { Badge } from './ui/Badge';
 import { formatCurrency, formatPercent, formatAddress } from '@/lib/formatters';
@@ -583,6 +584,92 @@ export const AgentView: React.FC<AgentViewProps> = ({
                   • Pyth Oracle Verifier: Basis tracking error of {(effectiveTrackingErrorBps / 100).toFixed(2)}% exceeds policy ceiling of {((policy.maxTrackingErrorBps ?? 250) / 100).toFixed(2)}% (ERR_TRACKING_ERROR_EXCEEDED)!
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* ----------------------------------------------------------- */}
+          {/* PROMISE 2.0 CONTRACT DRAFT PREVIEW (Phase 5)                */}
+          {/* ----------------------------------------------------------- */}
+          <div className="bg-sentinel-surfaceMuted/90 border border-blue-500/30 rounded-xl p-4 space-y-3 font-mono text-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-sentinel-border/70 pb-2.5">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-blue-400" />
+                <span className="font-bold text-white text-xs uppercase tracking-wide">
+                  Promise 2.0 Contract Draft (Pre-Flight Preview)
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 font-semibold border border-blue-500/30">
+                  STATUS: PROPOSED
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-semibold border border-purple-500/30">
+                  TTL: 60s
+                </span>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-sentinel-textMuted font-sans leading-relaxed">
+              Sentinel will register and cryptographically lock this 7-dimensional promise contract before any state transition can execute.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 text-[11px]">
+              {/* 1. WHO */}
+              <div className="bg-sentinel-surface p-2.5 rounded-lg border border-sentinel-border space-y-0.5">
+                <span className="text-sentinel-textSubtle text-[10px] block font-sans uppercase font-semibold">1. WHO</span>
+                <div className="text-white font-bold truncate">{agent.agentId}</div>
+                <div className="text-blue-400 text-[10px] truncate">Auth: {formatAddress(agent.wallet.getPublicKeyString())}</div>
+              </div>
+
+              {/* 2. WHAT */}
+              <div className="bg-sentinel-surface p-2.5 rounded-lg border border-sentinel-border space-y-0.5">
+                <span className="text-sentinel-textSubtle text-[10px] block font-sans uppercase font-semibold">2. WHAT</span>
+                <div className="text-white font-bold flex items-center gap-1">
+                  <span className={direction === 'BUY' ? 'text-emerald-400' : 'text-rose-400'}>{direction}</span>
+                  <span>${amountNum.toLocaleString()}</span>
+                  <span className="text-sentinel-textMuted">({selectedAsset})</span>
+                </div>
+                <div className="text-sentinel-textSubtle text-[10px]">
+                  ~{(amountNum / ((currentMarketPrice?.priceUsd ?? targetAsset?.priceUsd ?? 100) || 1)).toFixed(4)} estimated tokens
+                </div>
+              </div>
+
+              {/* 3. WHY */}
+              <div className="bg-sentinel-surface p-2.5 rounded-lg border border-sentinel-border space-y-0.5">
+                <span className="text-sentinel-textSubtle text-[10px] block font-sans uppercase font-semibold">3. WHY</span>
+                <div className="text-sentinel-textMuted text-[10px] truncate" title={`${strategy} rebalancing for ${selectedAsset}`}>
+                  &quot;{strategy} rebalancing for {selectedAsset}&quot;
+                </div>
+                <div className="text-purple-400 text-[10px] truncate">SHA-256 Rationale Hash Bound</div>
+              </div>
+
+              {/* 4. UNDER WHICH POLICY */}
+              <div className="bg-sentinel-surface p-2.5 rounded-lg border border-sentinel-border space-y-0.5">
+                <span className="text-sentinel-textSubtle text-[10px] block font-sans uppercase font-semibold">4. POLICY</span>
+                <div className="text-white font-bold">Policy v{policy.policyVersion}</div>
+                <div className="text-sentinel-textMuted text-[10px]">
+                  Cap: ≤ {(policy.maxSingleAssetBps / 100).toFixed(1)}% | Floor: ≥ {(policy.minStablecoinBps / 100).toFixed(1)}%
+                </div>
+              </div>
+
+              {/* 5. MARKET ASSUMPTIONS */}
+              <div className="bg-sentinel-surface p-2.5 rounded-lg border border-sentinel-border space-y-0.5">
+                <span className="text-sentinel-textSubtle text-[10px] block font-sans uppercase font-semibold">5. MARKET TRUTH</span>
+                <div className="text-white font-bold">
+                  ${(currentMarketPrice?.priceUsd ?? targetAsset?.priceUsd ?? 100).toFixed(2)} (Pyth Oracle)
+                </div>
+                <div className="text-emerald-400 text-[10px]">
+                  ±${(currentMarketPrice?.confidenceUsd ?? 0.05).toFixed(2)} | {(effectiveTrackingErrorBps / 100).toFixed(2)}% depeg
+                </div>
+              </div>
+
+              {/* 6. EXECUTION LIMITS */}
+              <div className="bg-sentinel-surface p-2.5 rounded-lg border border-sentinel-border space-y-0.5">
+                <span className="text-sentinel-textSubtle text-[10px] block font-sans uppercase font-semibold">6. VENUE &amp; LIMITS</span>
+                <div className="text-white font-bold truncate">{targetVenueName.split(' ')[0]}</div>
+                <div className="text-sentinel-textMuted text-[10px]">
+                  Max Slip: ≤ {(policy.maxSlippageBps / 100).toFixed(2)}% | Floor: ≥ $25k
+                </div>
+              </div>
             </div>
           </div>
 

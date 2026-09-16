@@ -5,6 +5,8 @@ import {
   EvaluationOutcome,
   EvidenceRecord,
   PTAStatus,
+  PromiseStatus,
+  AuditExplanation,
   SentinelAuthorizationTicket,
 } from '@sentinel/domain';
 
@@ -62,7 +64,7 @@ export interface DecisionCycleReport {
   executionResult?: ExecutionResult;
   evidenceRecord: EvidenceRecord;
   resultingPortfolio: PortfolioSnapshot;
-  status: PTAStatus;
+  status: PromiseStatus | PTAStatus;
   timestamp: number;
 }
 
