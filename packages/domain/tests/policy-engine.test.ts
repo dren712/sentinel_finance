@@ -294,7 +294,7 @@ describe('Sentinel Domain & Policy Engine Unit Tests', () => {
       assert.strictEqual(evidence.verificationResult, 'SETTLED');
       assert.strictEqual(evidence.policyVersion, 1);
       assert.strictEqual(evidence.swarmSummary.consensus, true);
-      assert.strictEqual(evidence.swarmSummary.passedCount, 3);
+      assert.strictEqual(evidence.swarmSummary.passedCount, 6);
       assert.strictEqual(evidence.isSimulation, true);
     });
   });
@@ -314,17 +314,23 @@ describe('Sentinel Domain & Policy Engine Unit Tests', () => {
       const outcome = evaluatePostconditions(initialPortfolio, goodIntent, initialPolicy);
       const swarm = evaluateSwarm(outcome.postState, goodIntent, initialPolicy);
 
-      assert.strictEqual(swarm.totalCount, 3);
-      assert.strictEqual(swarm.passedCount, 3);
+      assert.strictEqual(swarm.totalCount, 6);
+      assert.strictEqual(swarm.passedCount, 6);
       assert.strictEqual(swarm.consensus, true);
 
       const risk = swarm.verdicts.find(v => v.name === 'RiskVerifier');
       const balance = swarm.verdicts.find(v => v.name === 'BalanceVerifier');
       const policy = swarm.verdicts.find(v => v.name === 'PolicyVerifier');
+      const liquidity = swarm.verdicts.find(v => v.name === 'LiquidityVerifier');
+      const priceIntegrity = swarm.verdicts.find(v => v.name === 'PriceIntegrityVerifier');
+      const portfolio = swarm.verdicts.find(v => v.name === 'PortfolioVerifier');
 
       assert.strictEqual(risk?.passed, true);
       assert.strictEqual(balance?.passed, true);
       assert.strictEqual(policy?.passed, true);
+      assert.strictEqual(liquidity?.passed, true);
+      assert.strictEqual(priceIntegrity?.passed, true);
+      assert.strictEqual(portfolio?.passed, true);
     });
 
     it('reports failure in SWARM summary when invariants are violated', () => {
@@ -460,10 +466,10 @@ describe('Sentinel Domain & Policy Engine Unit Tests', () => {
       };
 
       const swarm = evaluateSwarm(outcome.postState, intent, initialPolicy, 120, priceSource);
-      assert.strictEqual(swarm.totalCount, 4); // Risk, Balance, Policy, PythOracle
-      assert.strictEqual(swarm.passedCount, 4);
+      assert.strictEqual(swarm.totalCount, 6); // 6-Verifier SWARM Decision Engine
+      assert.strictEqual(swarm.passedCount, 6);
       assert.strictEqual(swarm.consensus, true);
-      assert.ok(swarm.verdicts.some(v => v.name === 'PythOracleVerifier'));
+      assert.ok(swarm.verdicts.some(v => v.name === 'PriceIntegrityVerifier' || v.name === 'PythOracleVerifier'));
     });
   });
 
@@ -1063,6 +1069,182 @@ describe('Sentinel Domain & Policy Engine Unit Tests', () => {
       assert.ok(sectorInvariant);
       assert.strictEqual(sectorInvariant.passed, true);
       assert.ok(sectorInvariant.threshold.includes('%'));
+    });
+  });
+
+  describe('SWARM-Lite 6-Specialized-Verifier Decision Engine (Phase 7)', () => {
+    it('executes all 6 independent verifiers with granular sub-check telemetry', () => {
+      const compliantIntent: TradeIntent = {
+        intentId: 'intent_p7_pass',
+        agentId: 'agent_robo_01',
+        assetSymbol: 'NVDAx',
+        assetMint: 'NVDA111111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 5000,
+        referencePriceUsd: 120,
+        timestamp: Date.now(),
+      };
+      const outcome = evaluatePostconditions(initialPortfolio, compliantIntent, initialPolicy);
+      const swarm = evaluateSwarm(outcome.postState, compliantIntent, initialPolicy);
+
+      assert.strictEqual(swarm.totalCount, 6);
+      assert.strictEqual(swarm.passedCount, 6);
+      assert.strictEqual(swarm.consensus, true);
+      assert.strictEqual(swarm.failedChecks?.length ?? 0, 0);
+      assert.ok((swarm.passedChecks?.length ?? 0) >= 15);
+
+      const verifierNames = swarm.verdicts.map(v => v.name);
+      assert.ok(verifierNames.includes('RiskVerifier'));
+      assert.ok(verifierNames.includes('BalanceVerifier'));
+      assert.ok(verifierNames.includes('PolicyVerifier'));
+      assert.ok(verifierNames.includes('LiquidityVerifier'));
+      assert.ok(verifierNames.includes('PriceIntegrityVerifier'));
+      assert.ok(verifierNames.includes('PortfolioVerifier'));
+
+      // Verify each verifier contains subChecks with actual vs limit values
+      for (const v of swarm.verdicts) {
+        assert.ok(v.subChecks && v.subChecks.length > 0, `${v.name} should populate subChecks`);
+        for (const sc of v.subChecks!) {
+          assert.ok(sc.actual, `${v.name} subCheck ${sc.name} should have actual value`);
+          assert.ok(sc.limit, `${v.name} subCheck ${sc.name} should have limit threshold`);
+        }
+      }
+    });
+
+    it('reports fine-grained consensus failure telemetry for the Hackathon Demo moment', () => {
+      // Intent: BUY NVDAx $15,000 (breaches 25% single-asset cap and $10,000 trade limit)
+      const demoBadIntent: TradeIntent = {
+        intentId: 'intent_demo_reject',
+        agentId: 'agent_robo_01',
+        assetSymbol: 'NVDAx',
+        assetMint: 'NVDA111111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 15000,
+        referencePriceUsd: 120,
+        timestamp: Date.now(),
+      };
+      const outcome = evaluatePostconditions(initialPortfolio, demoBadIntent, initialPolicy);
+      const swarm = evaluateSwarm(outcome.postState, demoBadIntent, initialPolicy);
+
+      // Not merely REJECTED, but structured consensus telemetry
+      assert.strictEqual(swarm.consensus, false);
+      assert.strictEqual(swarm.totalCount, 6);
+      assert.ok(swarm.passedCount >= 4, `Expected at least 4 passing verifiers, got ${swarm.passedCount}`);
+
+      // Invariants violated (Concentration & Trade Size)
+      assert.ok(swarm.failedChecks && swarm.failedChecks.length >= 2);
+      const concentrationBreach = swarm.failedChecks.find(c => c.name === 'Concentration');
+      const tradeSizeBreach = swarm.failedChecks.find(c => c.name === 'Trade Sizing');
+
+      assert.ok(concentrationBreach, 'Should report Concentration breach');
+      assert.ok(concentrationBreach.limit.includes('25.0% limit'));
+      assert.ok(concentrationBreach.actual.includes('35.0% projected'));
+
+      assert.ok(tradeSizeBreach, 'Should report Trade Sizing breach');
+      assert.ok(tradeSizeBreach.actual.includes('$15,000 proposed'));
+
+      // Invariants satisfied (Authority, Policy, Solvency, Venue Liquidity, Market Reference)
+      assert.ok(swarm.passedChecks && swarm.passedChecks.length > 0);
+      assert.ok(swarm.passedChecks.some(c => c.name === 'Authority'));
+      assert.ok(swarm.passedChecks.some(c => c.name === 'Solvency'));
+      assert.ok(swarm.passedChecks.some(c => c.name === 'Venue Liquidity'));
+    });
+
+    it('LiquidityVerifier fails when pool depth is below $25,000 or venue is degraded', () => {
+      const intent: TradeIntent = {
+        intentId: 'intent_liq',
+        agentId: 'agent_robo_01',
+        assetSymbol: 'NVDAx',
+        assetMint: 'NVDA111111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 1000,
+        referencePriceUsd: 120,
+        timestamp: Date.now(),
+      };
+      const outcome = evaluatePostconditions(initialPortfolio, intent, initialPolicy);
+
+      // Shallow pool ($12,000 < $25,000 floor)
+      const shallowSwarm = evaluateSwarm(outcome.postState, intent, initialPolicy, 120, undefined, undefined, {
+        venueType: 'METEORA_DBC',
+        isHealthy: true,
+        liquidityDepthUsd: 12000,
+      });
+      assert.strictEqual(shallowSwarm.consensus, false);
+      const liqVerifier = shallowSwarm.verdicts.find(v => v.name === 'LiquidityVerifier');
+      assert.strictEqual(liqVerifier?.passed, false);
+      assert.ok(shallowSwarm.failedChecks?.some(c => c.name === 'Venue Liquidity'));
+
+      // Degraded venue
+      const degradedSwarm = evaluateSwarm(outcome.postState, intent, initialPolicy, 120, undefined, undefined, {
+        venueType: 'METEORA_DBC',
+        isHealthy: false,
+        liquidityDepthUsd: 145000,
+      });
+      assert.strictEqual(degradedSwarm.consensus, false);
+      const degradedLiq = degradedSwarm.verdicts.find(v => v.name === 'LiquidityVerifier');
+      assert.strictEqual(degradedLiq?.passed, false);
+      assert.ok(degradedSwarm.failedChecks?.some(c => c.name === 'Venue Health'));
+    });
+
+    it('PriceIntegrityVerifier fails on stale quotes and oracle peg deviation', () => {
+      const intent: TradeIntent = {
+        intentId: 'intent_oracle',
+        agentId: 'agent_robo_01',
+        assetSymbol: 'NVDAx',
+        assetMint: 'NVDA111111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 1000,
+        referencePriceUsd: 120,
+        timestamp: Date.now(),
+      };
+      const outcome = evaluatePostconditions(initialPortfolio, intent, initialPolicy);
+
+      // Stale quote (120s old > 60s limit)
+      const stalePriceSource: PriceSource = {
+        source: 'PYTH_PRICE_FEED',
+        feedId: '0xnvda',
+        symbol: 'NVDAx',
+        price: 120.00,
+        confidence: 0.10,
+        publishTime: Date.now() - 120_000,
+        exponent: -8,
+        status: 'LIVE',
+        trackingErrorBps: 20,
+      };
+      const staleSwarm = evaluateSwarm(outcome.postState, intent, {
+        ...initialPolicy,
+        maxQuoteAgeSeconds: 60,
+      }, 120, stalePriceSource);
+
+      assert.strictEqual(staleSwarm.consensus, false);
+      const priceVerifier = staleSwarm.verdicts.find(v => v.name === 'PriceIntegrityVerifier');
+      assert.strictEqual(priceVerifier?.passed, false);
+      assert.ok(staleSwarm.failedChecks?.some(c => c.name === 'Market Price Fresh'));
+    });
+
+    it('PortfolioVerifier fails when sector exposure cap is exceeded', () => {
+      const intent: TradeIntent = {
+        intentId: 'intent_sector',
+        agentId: 'agent_robo_01',
+        assetSymbol: 'NVDAx',
+        assetMint: 'NVDA111111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 5000,
+        referencePriceUsd: 120,
+        timestamp: Date.now(),
+      };
+      const outcome = evaluatePostconditions(initialPortfolio, intent, initialPolicy);
+
+      // Policy with strict 20.00% Tech sector cap
+      const tightSectorPolicy: FinancialPolicy = {
+        ...initialPolicy,
+        maxSectorExposureBps: 2000, // 20.00%
+      };
+      const sectorSwarm = evaluateSwarm(outcome.postState, intent, tightSectorPolicy);
+      assert.strictEqual(sectorSwarm.consensus, false);
+      const portVerifier = sectorSwarm.verdicts.find(v => v.name === 'PortfolioVerifier');
+      assert.strictEqual(portVerifier?.passed, false);
+      assert.ok(sectorSwarm.failedChecks?.some(c => c.name === 'Sector Exposure'));
     });
   });
 });

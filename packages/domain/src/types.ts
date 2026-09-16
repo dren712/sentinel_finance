@@ -430,6 +430,7 @@ export type FailureCode =
   | 'ERR_TRADE_SIZE_EXCEEDED'
   | 'ERR_SLIPPAGE_EXCEEDED'
   | 'ERR_INSUFFICIENT_FUNDS'
+  | 'ERR_SOLVENCY_VIOLATION'
   | 'ERR_STALE_POLICY'
   | 'ERR_UNAUTHORIZED'
   | 'ERR_ORACLE_CONFIDENCE_TOO_WIDE'
@@ -492,11 +493,30 @@ export interface EvaluationOutcome {
   postState: Portfolio;
 }
 
+export interface VerifierSubCheck {
+  name: string;
+  passed: boolean;
+  actual: string;
+  limit: string;
+  description: string;
+  failureCode?: FailureCode;
+}
+
 export interface VerifierVerdict {
-  name: 'RiskVerifier' | 'BalanceVerifier' | 'PolicyVerifier' | 'PythOracleVerifier' | 'MeteoraDBCVerifier';
+  name:
+    | 'RiskVerifier'
+    | 'BalanceVerifier'
+    | 'PolicyVerifier'
+    | 'LiquidityVerifier'
+    | 'PriceIntegrityVerifier'
+    | 'PortfolioVerifier'
+    | 'PythOracleVerifier'
+    | 'MeteoraDBCVerifier';
   passed: boolean;
   message: string;
   timestamp: number;
+  subChecks?: VerifierSubCheck[];
+  details?: string;
 }
 
 export interface SwarmVerificationSummary {
@@ -504,6 +524,10 @@ export interface SwarmVerificationSummary {
   passedCount: number;
   totalCount: number;
   consensus: boolean;
+  checksPassedCount?: number;
+  checksTotalCount?: number;
+  failedChecks?: Array<{ name: string; actual: string; limit: string; description: string }>;
+  passedChecks?: Array<{ name: string; actual: string; limit: string; description: string }>;
 }
 
 export interface Verification {
@@ -540,6 +564,8 @@ export interface ExecutionVenueDetails {
   venueName: string;
   poolAddress?: string;
   route?: string;
+  isHealthy?: boolean;
+  liquidityDepthUsd?: number;
   marketQuality?: {
     liquidityPassed: boolean;
     liquidityDepthUsd: number;

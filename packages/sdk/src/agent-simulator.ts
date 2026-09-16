@@ -260,7 +260,17 @@ export class AutonomousRoboAgent {
       this.agentRiskState,
       venueDetails
     );
-    const swarmSummary = evaluateSwarm(evaluation.postState, intent, policy, undefined, priceSource);
+    const swarmSummary = evaluateSwarm(
+      evaluation.postState,
+      intent,
+      policy,
+      undefined,
+      priceSource,
+      this.agentRiskState,
+      venueDetails,
+      Date.now(),
+      preState
+    );
 
     if (!evaluation.allPassed) {
       // POSTCONDITION FAILED -> ATOMIC ABORT
