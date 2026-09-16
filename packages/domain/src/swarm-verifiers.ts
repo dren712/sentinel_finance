@@ -5,6 +5,7 @@ import {
   VerifierVerdict,
   SwarmVerificationSummary,
   PriceSource,
+  NormalizedMarketPrice,
 } from './types';
 import {
   checkMaxSingleAsset,
@@ -95,19 +96,22 @@ export function evaluatePolicyVerifier(
  * PythOracleVerifier: Independently inspects Pyth price feed confidence and basis tracking error.
  */
 export function evaluatePythOracleVerifier(
-  priceSource: PriceSource,
+  priceSource: PriceSource | NormalizedMarketPrice,
   policy: FinancialPolicy
 ): VerifierVerdict {
   const maxConfidenceBps = policy.maxOracleConfidenceBps ?? 150; // Default: 1.50%
-  const confidenceRatioBps = priceSource.price > 0
-    ? Math.round((priceSource.confidence * 10_000) / priceSource.price)
+  const price = 'priceUsd' in priceSource ? priceSource.priceUsd : priceSource.price;
+  const confidence = 'confidenceUsd' in priceSource ? priceSource.confidenceUsd : priceSource.confidence;
+
+  const confidenceRatioBps = price > 0
+    ? Math.round((confidence * 10_000) / price)
     : 0;
 
   if (confidenceRatioBps > maxConfidenceBps) {
     return {
       name: 'PythOracleVerifier',
       passed: false,
-      message: `Pyth confidence interval ±$${priceSource.confidence} (${(confidenceRatioBps / 100).toFixed(2)}%) exceeds limit of ${(maxConfidenceBps / 100).toFixed(2)}%`,
+      message: `Pyth confidence interval ±$${confidence} (${(confidenceRatioBps / 100).toFixed(2)}%) exceeds limit of ${(maxConfidenceBps / 100).toFixed(2)}%`,
       timestamp: Date.now(),
     };
   }
@@ -127,7 +131,7 @@ export function evaluatePythOracleVerifier(
   return {
     name: 'PythOracleVerifier',
     passed: true,
-    message: `Pyth oracle confidence (±$${priceSource.confidence}) and peg tracking verified within bounds`,
+    message: `Pyth oracle confidence (±$${confidence}) and peg tracking verified within bounds`,
     timestamp: Date.now(),
   };
 }
@@ -140,7 +144,7 @@ export function evaluateSwarm(
   intent: TradeIntent,
   policy: FinancialPolicy,
   actualPrice?: number,
-  priceSource?: PriceSource
+  priceSource?: PriceSource | NormalizedMarketPrice
 ): SwarmVerificationSummary {
   const verdicts: VerifierVerdict[] = [
     evaluateRiskVerifier(postState, policy, intent.assetSymbol),

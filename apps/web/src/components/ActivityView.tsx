@@ -304,6 +304,45 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
                       </div>
                     )}
 
+                    {/* Pyth Oracle Provenance Record */}
+                    {record.oracleProvenance && (
+                      <div className="bg-sentinel-surface p-3.5 rounded-lg border border-purple-500/30 space-y-2 font-mono text-xs">
+                        <div className="flex items-center justify-between border-b border-sentinel-border/50 pb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-purple-400" />
+                            <span className="font-bold text-white uppercase text-[11px]">
+                              Pyth Oracle Provenance at Decision Time
+                            </span>
+                          </div>
+                          <span className="text-purple-400 text-[11px] font-semibold">
+                            {record.oracleProvenance.feedDisplayId}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px]">
+                          <div>
+                            <span className="text-sentinel-textSubtle block text-[10px]">PYTH QUOTE</span>
+                            <span className="text-white font-bold">${record.oracleProvenance.priceUsd.toFixed(2)}</span>
+                          </div>
+                          <div>
+                            <span className="text-sentinel-textSubtle block text-[10px]">CONFIDENCE BOUNDS</span>
+                            <span className="text-blue-400 font-bold">
+                              ${record.oracleProvenance.confidenceMinUsd.toFixed(2)} – ${record.oracleProvenance.confidenceMaxUsd.toFixed(2)}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-sentinel-textSubtle block text-[10px]">PUBLISH TIME (UTC)</span>
+                            <span className="text-white font-bold">{record.oracleProvenance.publishTimeFormatted}</span>
+                          </div>
+                          <div>
+                            <span className="text-sentinel-textSubtle block text-[10px]">BASIS DEVIATION</span>
+                            <span className="text-emerald-400 font-bold">
+                              {record.oracleProvenance.deviationPct.toFixed(2)}% ({record.oracleProvenance.trackingErrorBps} bps)
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Postcondition Invariant Breakdown */}
                     <div>
                       <h4 className="font-semibold text-white text-xs uppercase tracking-wider mb-2.5">

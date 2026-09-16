@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import {
   PortfolioSnapshot,
   FinancialPolicy,
+  NormalizedMarketPrice,
 } from '@sentinel/domain';
 import { AutonomousRoboAgent } from '@sentinel/sdk';
 import {
@@ -27,6 +28,7 @@ interface AgentViewProps {
   agent: AutonomousRoboAgent;
   portfolio: PortfolioSnapshot;
   policy: FinancialPolicy;
+  marketPrices?: Record<string, NormalizedMarketPrice>;
   onExecuteCustomTrade: (assetSymbol: string, direction: 'BUY' | 'SELL', amountUsd: number) => void;
   isRunningTrade: boolean;
 }
@@ -35,6 +37,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
   agent,
   portfolio,
   policy,
+  marketPrices,
   onExecuteCustomTrade,
   isRunningTrade,
 }) => {
@@ -58,6 +61,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
   };
 
   // Calculate pre-flight estimation
+  const [simulateDepeg, setSimulateDepeg] = useState(false);
   const amountNum = parseFloat(tradeAmount) || 0;
   const targetAsset = portfolio.assets.find(a => a.symbol === selectedAsset);
   const currentAssetVal = targetAsset ? targetAsset.valueUsd : 0;
@@ -71,7 +75,12 @@ export const AgentView: React.FC<AgentViewProps> = ({
   const postReserveBps = Math.round((postUsdcVal / portfolio.totalValueUsd) * 10_000);
   const willBreachReserve = postReserveBps < policy.minStablecoinBps;
 
-  const willBeRejected = willExceedExposure || willExceedTradeLimit || willBreachReserve;
+  // Pyth Market Truth Invariant Check
+  const currentMarketPrice = marketPrices?.[selectedAsset];
+  const effectiveTrackingErrorBps = simulateDepeg ? 320 : (currentMarketPrice?.trackingErrorBps ?? 18);
+  const willExceedTrackingError = effectiveTrackingErrorBps > (policy.maxTrackingErrorBps ?? 250);
+
+  const willBeRejected = willExceedExposure || willExceedTradeLimit || willBreachReserve || willExceedTrackingError;
 
   return (
     <div className="space-y-6">
@@ -108,65 +117,58 @@ export const AgentView: React.FC<AgentViewProps> = ({
           {/* Box 1: Agent Authority */}
           <div className="bg-sentinel-surfaceMuted rounded-lg p-4 border border-sentinel-border">
             <div className="flex items-center gap-2 text-xs text-sentinel-textSubtle font-semibold">
-              <Key className="w-3.5 h-3.5 text-blue-400" />
-              <span>AGENT AUTHORITY (ED25519)</span>
+              <Key className="w-4 h-4 text-blue-400" />
+              <span>AGENT AUTHORITY</span>
             </div>
-            <div className="mt-2 flex items-center justify-between gap-2">
-              <span className="font-mono text-xs text-white truncate">
-                {formatAddress(agent.wallet.getPublicKeyString(), 10)}
-              </span>
+            <div className="mt-2 flex items-center justify-between bg-sentinel-surface border border-sentinel-border rounded-md px-2.5 py-1.5 font-mono text-xs text-white">
+              <span>{formatAddress(agent.wallet.getPublicKeyString(), 8)}</span>
               <button
+                type="button"
                 onClick={copyAuthority}
-                className="text-sentinel-textMuted hover:text-white p-1 rounded hover:bg-slate-800 transition cursor-pointer"
-                title="Copy Agent Public Key"
+                className="text-sentinel-textMuted hover:text-white transition"
               >
                 {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
               </button>
             </div>
-            <div className="mt-1 text-[11px] text-sentinel-textSubtle">
-              Detached cryptographic intent signer
+            <div className="text-[10px] text-sentinel-textMuted mt-1.5">
+              Signs trade proposals via detached Ed25519
             </div>
           </div>
 
-          {/* Box 2: Active Strategy */}
+          {/* Box 2: Mandate & Objective */}
           <div className="bg-sentinel-surfaceMuted rounded-lg p-4 border border-sentinel-border">
-            <div className="text-xs text-sentinel-textSubtle font-semibold">
-              ACTIVE STRATEGY
+            <div className="flex items-center gap-2 text-xs text-sentinel-textSubtle font-semibold">
+              <Zap className="w-4 h-4 text-amber-400" />
+              <span>ACTIVE MANDATE</span>
             </div>
-            <select
-              value={strategy}
-              onChange={(e) => setStrategy(e.target.value as any)}
-              className="mt-1.5 w-full bg-sentinel-surface border border-sentinel-border rounded-md px-2.5 py-1 text-xs text-white font-semibold focus:outline-none focus:border-blue-500"
-            >
-              <option value="Momentum Growth">Momentum Growth</option>
-              <option value="Balanced Allocation">Balanced Allocation</option>
-              <option value="Conservative Capital Preservation">Conservative Capital Preservation</option>
-            </select>
-            <div className="mt-1 text-[11px] text-sentinel-textSubtle">
-              Rebalances equity basket dynamically
+            <div className="mt-2 text-xs font-semibold text-white">
+              Max Growth with Reserve Guardrails
+            </div>
+            <div className="text-[10px] text-sentinel-textMuted mt-1.5 font-mono">
+              Enforcing max 25% single equity &amp; min 20% USDC
             </div>
           </div>
 
-          {/* Box 3: Postcondition Guard */}
+          {/* Box 3: Decision Cadence */}
           <div className="bg-sentinel-surfaceMuted rounded-lg p-4 border border-sentinel-border">
-            <div className="text-xs text-sentinel-textSubtle font-semibold">
-              POSTCONDITION PROTECTION
+            <div className="flex items-center gap-2 text-xs text-sentinel-textSubtle font-semibold">
+              <Clock className="w-4 h-4 text-emerald-400" />
+              <span>EXECUTION CADENCE</span>
             </div>
-            <div className="mt-1.5 flex items-center gap-2 text-xs font-semibold text-emerald-400">
-              <ShieldCheck className="w-4 h-4" />
-              <span>Sentinel Invariants Active</span>
+            <div className="mt-2 text-xs font-semibold text-white">
+              Pre-Flight Evaluated on Every Block
             </div>
-            <div className="mt-1 text-[11px] text-sentinel-textSubtle">
-              Single cap: {(policy.maxSingleAssetBps / 100).toFixed(1)}% • Reserve: ≥ {(policy.minStablecoinBps / 100).toFixed(1)}%
+            <div className="text-[10px] text-sentinel-textMuted mt-1.5 font-mono">
+              On-chain atomic rollback on violation
             </div>
           </div>
         </div>
       </div>
 
-      {/* 2. Interactive Custom Trade Proposer with Sentinel Pre-Flight Warning */}
-      <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-6 space-y-4">
-        <div className="border-b border-sentinel-border pb-3">
-          <h3 className="text-base font-bold text-sentinel-text">Propose Autonomous Decision</h3>
+      {/* 2. Autonomous Intent Proposer & Invariant Pre-Flight */}
+      <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-6">
+        <div className="border-b border-sentinel-border pb-4 mb-6">
+          <h3 className="text-base font-bold text-sentinel-text">Autonomous Trade Intent Proposer</h3>
           <p className="text-xs text-sentinel-textMuted mt-0.5">
             Submit a trade intent from the agent authority. Sentinel evaluates invariants before state settlement.
           </p>
@@ -244,6 +246,69 @@ export const AgentView: React.FC<AgentViewProps> = ({
             </div>
           </div>
 
+          {/* Pyth Market Truth Status for Target Asset */}
+          {currentMarketPrice && (
+            <div className="bg-sentinel-surfaceMuted/80 border border-purple-500/20 rounded-lg p-3 text-xs font-mono">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-sentinel-border/50 pb-2 mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
+                  <span className="font-bold text-white text-[11px] uppercase">
+                    Pyth Market Truth: {currentMarketPrice.feedDisplayId}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sentinel-textMuted text-[10px]">
+                    {currentMarketPrice.publishTimeFormatted}
+                  </span>
+                  <span className="px-2 py-0.5 rounded bg-purple-500/10 text-purple-300 text-[10px] font-semibold border border-purple-500/20">
+                    Pyth Oracle
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                <div>
+                  <span className="text-sentinel-textSubtle block text-[10px]">PRICE</span>
+                  <span className="text-white font-bold">${currentMarketPrice.priceUsd.toFixed(2)}</span>
+                </div>
+                <div>
+                  <span className="text-sentinel-textSubtle block text-[10px]">CONFIDENCE</span>
+                  <span className="text-blue-400 font-bold">±${currentMarketPrice.confidenceUsd.toFixed(2)}</span>
+                </div>
+                <div>
+                  <span className="text-sentinel-textSubtle block text-[10px]">UNDERLYING</span>
+                  <span className="text-white font-bold">
+                    {currentMarketPrice.underlyingSymbol ?? 'US Eq'} (${currentMarketPrice.underlyingPriceUsd?.toFixed(2) ?? currentMarketPrice.priceUsd.toFixed(2)})
+                  </span>
+                </div>
+                <div>
+                  <span className="text-sentinel-textSubtle block text-[10px]">BASIS DEVIATION</span>
+                  <span className={`font-bold ${!willExceedTrackingError ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {(effectiveTrackingErrorBps / 100).toFixed(2)}% ({effectiveTrackingErrorBps} bps)
+                  </span>
+                </div>
+              </div>
+
+              {/* Simulation checkbox */}
+              <div className="mt-2.5 pt-2 border-t border-sentinel-border/40 flex items-center justify-between text-[11px]">
+                <label className="flex items-center gap-2 cursor-pointer text-sentinel-textSubtle hover:text-white transition">
+                  <input
+                    type="checkbox"
+                    checked={simulateDepeg}
+                    onChange={(e) => setSimulateDepeg(e.target.checked)}
+                    className="rounded border-sentinel-border text-purple-600 focus:ring-purple-500 accent-purple-500"
+                  />
+                  <span>Simulate Oracle Peg Deviation (3.20% depeg &gt; 2.50% ceiling)</span>
+                </label>
+                {simulateDepeg && (
+                  <span className="text-[10px] text-rose-400 font-bold font-mono">
+                    SIMULATED DEPEG ACTIVE
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Real-time Invariant Pre-Flight Warning Box */}
           <div
             className={`p-3.5 rounded-lg border text-xs space-y-1.5 ${
@@ -280,6 +345,11 @@ export const AgentView: React.FC<AgentViewProps> = ({
               {willExceedTradeLimit && (
                 <div className="text-rose-400 font-bold">
                   • Trade size of {formatCurrency(amountNum)} exceeds policy max of {formatCurrency(policy.maxTradeValueUsd)}!
+                </div>
+              )}
+              {willExceedTrackingError && (
+                <div className="text-rose-400 font-bold">
+                  • Pyth Oracle Verifier: Basis tracking error of {(effectiveTrackingErrorBps / 100).toFixed(2)}% exceeds policy ceiling of {((policy.maxTrackingErrorBps ?? 250) / 100).toFixed(2)}% (ERR_TRACKING_ERROR_EXCEEDED)!
                 </div>
               )}
             </div>

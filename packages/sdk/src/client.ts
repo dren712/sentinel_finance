@@ -3,6 +3,11 @@ import {
   PortfolioSnapshot,
   TradeIntent,
   EvidenceRecord,
+  PythPriceAdapter,
+  SentinelValuationEngine,
+  NormalizedMarketPrice,
+  MarketIntegrityMetrics,
+  PriceSource,
 } from '@sentinel/domain';
 import {
   ExecutionAdapter,
@@ -18,6 +23,8 @@ import { MeteoraDBCMarketQualityVerifier } from './sponsors/meteora';
 export interface SentinelClientConfig {
   adapter?: ExecutionAdapter;
   agent?: AutonomousRoboAgent;
+  pythAdapter?: PythPriceAdapter;
+  valuationEngine?: SentinelValuationEngine;
 }
 
 /**
@@ -27,12 +34,16 @@ export interface SentinelClientConfig {
 export class SentinelClient {
   private adapter: ExecutionAdapter;
   private agent: AutonomousRoboAgent;
+  private pythAdapter: PythPriceAdapter;
+  private valuationEngine: SentinelValuationEngine;
   private meteoraVerifier: MeteoraDBCMarketQualityVerifier;
   private evidenceHistory: EvidenceRecord[] = [];
 
   constructor(config: SentinelClientConfig = {}) {
     this.adapter = config.adapter ?? new SimulatedExecutionAdapter(200);
     this.agent = config.agent ?? new AutonomousRoboAgent();
+    this.pythAdapter = config.pythAdapter ?? new PythPriceAdapter();
+    this.valuationEngine = config.valuationEngine ?? new SentinelValuationEngine();
     this.meteoraVerifier = new MeteoraDBCMarketQualityVerifier();
   }
 
@@ -130,15 +141,46 @@ export class SentinelClient {
     };
   }
 
+  getPythAdapter(): PythPriceAdapter {
+    return this.pythAdapter;
+  }
+
+  getValuationEngine(): SentinelValuationEngine {
+    return this.valuationEngine;
+  }
+
+  async getMarketPrices(): Promise<Record<string, NormalizedMarketPrice>> {
+    return this.pythAdapter.getAllNormalizedMarketPrices();
+  }
+
+  async getMarketPrice(symbol: string): Promise<NormalizedMarketPrice> {
+    return this.pythAdapter.getNormalizedMarketPrice(symbol);
+  }
+
+  async valuePortfolio(portfolio: PortfolioSnapshot): Promise<PortfolioSnapshot> {
+    const prices = await this.getMarketPrices();
+    return this.valuationEngine.markPortfolioToMarket(portfolio, prices);
+  }
+
+  async getMarketIntegrityMetrics(
+    portfolio: PortfolioSnapshot,
+    policy?: FinancialPolicy
+  ): Promise<MarketIntegrityMetrics> {
+    const prices = await this.getMarketPrices();
+    return this.valuationEngine.calculateMarketIntegrityMetrics(portfolio, prices, policy);
+  }
+
   /**
    * Executes an autonomous decision cycle and stores the resulting PROVN evidence
    */
   async executeDecisionCycle(
     preState: PortfolioSnapshot,
     policy: FinancialPolicy,
-    intent: TradeIntent
+    intent: TradeIntent,
+    priceSource?: PriceSource | NormalizedMarketPrice
   ): Promise<DecisionCycleReport> {
-    const report = await this.agent.runDecisionCycle(preState, policy, intent, this.adapter);
+    const activePrice = priceSource ?? (await this.getMarketPrice(intent.assetSymbol));
+    const report = await this.agent.runDecisionCycle(preState, policy, intent, this.adapter, activePrice);
     this.evidenceHistory.unshift(report.evidenceRecord);
     return report;
   }

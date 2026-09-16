@@ -8,6 +8,10 @@ import {
   evaluateSwarm,
   hashFinancialPolicy,
   hashTradeIntent,
+  PriceSource,
+  NormalizedMarketPrice,
+  OracleProvenance,
+  formatPublishTimeUtc,
 } from '@sentinel/domain';
 import {
   ExecutionAdapter,
@@ -111,7 +115,8 @@ export class AutonomousRoboAgent {
     preState: PortfolioSnapshot,
     policy: FinancialPolicy,
     intent: TradeIntent,
-    adapter: ExecutionAdapter
+    adapter: ExecutionAdapter,
+    priceSource?: PriceSource | NormalizedMarketPrice
   ): Promise<DecisionCycleReport> {
     const cycleId = `cycle_${Date.now()}`;
     const promiseId = `promise_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -135,9 +140,38 @@ export class AutonomousRoboAgent {
       updatedAt: Date.now(),
     };
 
-    // Evaluate postconditions through Sentinel Core Engine
-    const evaluation = evaluatePostconditions(preState, intent, policy);
-    const swarmSummary = evaluateSwarm(evaluation.postState, intent, policy);
+    // Extract oracle provenance if Pyth market truth is provided
+    let oracleProvenance: OracleProvenance | undefined;
+    if (priceSource) {
+      const price = 'priceUsd' in priceSource ? priceSource.priceUsd : priceSource.price;
+      const conf = 'confidenceUsd' in priceSource ? priceSource.confidenceUsd : priceSource.confidence;
+      const confMin = 'confidenceMinUsd' in priceSource ? priceSource.confidenceMinUsd : Math.round((price - conf) * 100) / 100;
+      const confMax = 'confidenceMaxUsd' in priceSource ? priceSource.confidenceMaxUsd : Math.round((price + conf) * 100) / 100;
+      const publishTime = 'publishTime' in priceSource ? priceSource.publishTime : Date.now();
+      const publishTimeFormatted = 'publishTimeFormatted' in priceSource ? priceSource.publishTimeFormatted : formatPublishTimeUtc(publishTime);
+      const feedDisplayId = 'feedDisplayId' in priceSource ? priceSource.feedDisplayId : `Crypto.${intent.assetSymbol.toUpperCase()}/USD`;
+
+      oracleProvenance = {
+        source: priceSource.source,
+        feedId: priceSource.feedId,
+        feedDisplayId,
+        priceUsd: price,
+        confidenceUsd: conf,
+        confidenceMinUsd: confMin,
+        confidenceMaxUsd: confMax,
+        publishTime,
+        publishTimeFormatted,
+        underlyingSymbol: 'underlyingSymbol' in priceSource ? priceSource.underlyingSymbol : ('underlyingAsset' in priceSource ? priceSource.underlyingAsset : undefined),
+        underlyingFeedId: 'underlyingFeedId' in priceSource ? priceSource.underlyingFeedId : undefined,
+        underlyingPriceUsd: 'underlyingPriceUsd' in priceSource ? priceSource.underlyingPriceUsd : ('underlyingPrice' in priceSource ? priceSource.underlyingPrice : undefined),
+        trackingErrorBps: priceSource.trackingErrorBps ?? 0,
+        deviationPct: 'deviationPct' in priceSource ? priceSource.deviationPct : (priceSource.trackingErrorBps ? Math.round((priceSource.trackingErrorBps / 100) * 100) / 100 : 0),
+      };
+    }
+
+    // Evaluate postconditions through Sentinel Core Engine with Pyth Market Truth
+    const evaluation = evaluatePostconditions(preState, intent, policy, undefined, priceSource);
+    const swarmSummary = evaluateSwarm(evaluation.postState, intent, policy, undefined, priceSource);
 
     if (!evaluation.allPassed) {
       // POSTCONDITION FAILED -> ATOMIC ABORT
@@ -153,6 +187,7 @@ export class AutonomousRoboAgent {
         verificationResult: 'REJECTED',
         checks: evaluation.checks,
         swarmSummary,
+        oracleProvenance,
         failureCode: evaluation.failureCode,
         failureReason: evaluation.failureReason,
         isSimulation: adapter.getMode() === 'SIMULATION',
@@ -186,6 +221,7 @@ export class AutonomousRoboAgent {
       verificationResult: 'SETTLED',
       checks: evaluation.checks,
       swarmSummary,
+      oracleProvenance,
       isSimulation: adapter.getMode() === 'SIMULATION',
     });
 

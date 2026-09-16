@@ -25,6 +25,9 @@ import {
   getAssetsByClass,
   getAssetMetadata,
   PriceSource,
+  PythPriceAdapter,
+  SentinelValuationEngine,
+  formatPublishTimeUtc,
 } from '../src/index';
 
 describe('Sentinel Domain & Policy Engine Unit Tests', () => {
@@ -448,6 +451,102 @@ describe('Sentinel Domain & Policy Engine Unit Tests', () => {
       assert.strictEqual(swarm.passedCount, 4);
       assert.strictEqual(swarm.consensus, true);
       assert.ok(swarm.verdicts.some(v => v.name === 'PythOracleVerifier'));
+    });
+  });
+
+  describe('Pyth Becomes Market Truth (Phase 2)', () => {
+    it('PythPriceAdapter generates NormalizedMarketPrice with valid UTC timestamp and confidence intervals', async () => {
+      const adapter = new PythPriceAdapter();
+      const applePrice = await adapter.getNormalizedMarketPrice('AAPLx');
+
+      assert.strictEqual(applePrice.symbol, 'AAPLx');
+      assert.strictEqual(applePrice.source, 'Pyth Network');
+      assert.strictEqual(applePrice.feedDisplayId, 'Crypto.AAPLX/USD');
+      assert.strictEqual(applePrice.underlyingFeedId, 'Equity.US.AAPL/USD');
+      assert.strictEqual(applePrice.underlyingSymbol, 'AAPL');
+      assert.strictEqual(applePrice.status, 'LIVE');
+      assert.ok(applePrice.priceUsd > 0);
+      assert.ok(applePrice.confidenceUsd > 0);
+      assert.strictEqual(
+        applePrice.confidenceMinUsd,
+        Math.round((applePrice.priceUsd - applePrice.confidenceUsd) * 100) / 100
+      );
+      assert.strictEqual(
+        applePrice.confidenceMaxUsd,
+        Math.round((applePrice.priceUsd + applePrice.confidenceUsd) * 100) / 100
+      );
+      assert.ok(/^\d{2}:\d{2}:\d{2} UTC$/.test(applePrice.publishTimeFormatted));
+    });
+
+    it('PythPriceAdapter calculates dual-feed basis tracking error between tokenized stock and underlying equity', async () => {
+      const adapter = new PythPriceAdapter();
+      adapter.setPrice('AAPLx', 202.00, 200.00, 0.20);
+      const applePrice = await adapter.getNormalizedMarketPrice('AAPLx');
+
+      // |202 - 200| * 10,000 / 200 = 100 bps = 1.00%
+      assert.strictEqual(applePrice.trackingErrorBps, 100);
+      assert.strictEqual(applePrice.deviationPct, 1.0);
+    });
+
+    it('SentinelValuationEngine.markPortfolioToMarket updates NAV and exposures accurately', async () => {
+      const adapter = new PythPriceAdapter();
+      adapter.setPrice('NVDAx', 140.00); // Up from 120
+      const prices = await adapter.getAllNormalizedMarketPrices();
+
+      const valuationEngine = new SentinelValuationEngine();
+      const marked = valuationEngine.markPortfolioToMarket(initialPortfolio, prices);
+
+      const nvdaPosition = marked.assets.find(a => a.symbol === 'NVDAx');
+      assert.ok(nvdaPosition);
+      assert.strictEqual(nvdaPosition.priceUsd, 140.00);
+      assert.ok(marked.totalValueUsd > initialPortfolio.totalValueUsd);
+      assert.strictEqual(
+        marked.totalValueUsd,
+        calculatePortfolioValue(marked.assets)
+      );
+    });
+
+    it('SentinelValuationEngine.calculateMarketIntegrityMetrics evaluates portfolio tracking error', async () => {
+      const adapter = new PythPriceAdapter();
+      const prices = await adapter.getAllNormalizedMarketPrices();
+      const valuationEngine = new SentinelValuationEngine();
+
+      const metrics = valuationEngine.calculateMarketIntegrityMetrics(initialPortfolio, prices, initialPolicy);
+      assert.ok(metrics.activeFeedsCount >= 4);
+      assert.ok(metrics.portfolioTrackingErrorBps >= 0);
+      assert.strictEqual(metrics.allOraclesHealthy, true);
+    });
+
+    it('evaluatePostconditions enforces Pyth market truth and aborts on depeg or wide confidence', async () => {
+      const adapter = new PythPriceAdapter();
+      const valuationEngine = new SentinelValuationEngine();
+
+      // Case 1: Excessive tracking error depeg (e.g. 3.0% = 300 bps > 250 bps limit)
+      adapter.setPrice('NVDAx', 123.60, 120.00, 0.10); // 300 bps tracking error
+      const depeggedPrice = await adapter.getNormalizedMarketPrice('NVDAx');
+
+      const intent: TradeIntent = {
+        intentId: 'intent_depeg',
+        agentId: 'agent_1',
+        assetSymbol: 'NVDAx',
+        assetMint: 'NVDA111111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 2000,
+        referencePriceUsd: 123.60,
+        timestamp: Date.now(),
+      };
+
+      const depegOutcome = evaluatePostconditions(initialPortfolio, intent, initialPolicy, undefined, depeggedPrice);
+      assert.strictEqual(depegOutcome.allPassed, false);
+      assert.strictEqual(depegOutcome.failureCode, 'ERR_TRACKING_ERROR_EXCEEDED');
+
+      // Case 2: Excessive confidence spread (e.g. 2.50% = 250 bps > 150 bps limit)
+      adapter.setPrice('NVDAx', 120.00, 120.00, 3.00); // 3.00 / 120 = 2.50% confidence ratio
+      const widePrice = await adapter.getNormalizedMarketPrice('NVDAx');
+
+      const wideOutcome = evaluatePostconditions(initialPortfolio, intent, initialPolicy, undefined, widePrice);
+      assert.strictEqual(wideOutcome.allPassed, false);
+      assert.strictEqual(wideOutcome.failureCode, 'ERR_ORACLE_CONFIDENCE_TOO_WIDE');
     });
   });
 });

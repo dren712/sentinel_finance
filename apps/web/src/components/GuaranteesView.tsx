@@ -258,6 +258,55 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
             Protects against MEV, sandwich attacks, and illiquid trading pools. Execution price must conform within bounded basis points of quoted reference price.
           </p>
         </div>
+
+        {/* Invariant E: Pyth Market Truth & Peg Integrity */}
+        <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-6 space-y-4 md:col-span-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center font-bold text-xs">
+                E
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-white">Pyth Market Truth &amp; Peg Integrity Guarantee</h3>
+                <span className="text-[11px] text-sentinel-textSubtle font-mono">
+                  |tokenized - underlying| / underlying ≤ 250 bps &amp; conf / price ≤ 150 bps
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 text-right">
+              <div>
+                <div className="text-xs text-sentinel-textSubtle uppercase">Max Tracking Error</div>
+                <div className="text-base font-bold text-purple-400 tabular-nums font-mono">2.50% (250 bps)</div>
+              </div>
+              <div>
+                <div className="text-xs text-sentinel-textSubtle uppercase">Max Confidence Spread</div>
+                <div className="text-base font-bold text-blue-400 tabular-nums font-mono">1.50% (150 bps)</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-sentinel-surfaceMuted p-3 rounded-lg border border-sentinel-border/60 text-xs font-mono">
+            <div>
+              <span className="text-sentinel-textSubtle block text-[10px]">ACTIVE ORACLE VENUE</span>
+              <span className="text-white font-bold">Pyth Network Hermes v2</span>
+            </div>
+            <div>
+              <span className="text-sentinel-textSubtle block text-[10px]">MONITORED FEEDS</span>
+              <span className="text-emerald-400 font-bold flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                4 Active Dual-Feeds
+              </span>
+            </div>
+            <div>
+              <span className="text-sentinel-textSubtle block text-[10px]">ENFORCEMENT MECHANISM</span>
+              <span className="text-purple-400 font-bold">SWARM PythOracleVerifier</span>
+            </div>
+          </div>
+
+          <p className="text-xs text-sentinel-textMuted pt-1">
+            Mathematically guarantees that tokenized equities trade in alignment with underlying US equity markets. If a secondary liquidity pool depegs by &gt; 2.50% or oracle spread widens past 1.50%, Sentinel halts autonomous execution and records a cryptographic evidence rejection.
+          </p>
+        </div>
       </div>
 
       {/* 3. On-Chain Solana Anchor Details */}

@@ -132,4 +132,44 @@ describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
       assert.strictEqual(shallowResult.liquidityPassed, false);
     });
   });
+
+  describe('Pyth Market Truth & Provenance Integration (Phase 2)', () => {
+    it('SentinelClient fetches normalized market prices and marks portfolio to market', async () => {
+      const prices = await client.getMarketPrices();
+      assert.ok(prices['AAPLx']);
+      assert.ok(prices['NVDAx']);
+      assert.strictEqual(prices['AAPLx'].source, 'Pyth Network');
+      assert.strictEqual(prices['AAPLx'].feedDisplayId, 'Crypto.AAPLX/USD');
+
+      const revalued = await client.valuePortfolio(portfolio);
+      assert.ok(revalued.totalValueUsd > 0);
+      assert.strictEqual(revalued.assets.length, 4);
+    });
+
+    it('SentinelClient.executeDecisionCycle embeds oracle provenance in PROVN evidence', async () => {
+      const intent = client.getAgent().proposeIntent({
+        assetSymbol: 'NVDAx',
+        assetMint: 'NVDA111111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 2000,
+        referencePriceUsd: 120,
+        strategyRationale: 'Pyth test intent for oracle provenance verification',
+      });
+
+      const report = await client.executeDecisionCycle(portfolio, policy, intent);
+      assert.ok(report.evidenceRecord.oracleProvenance);
+      assert.strictEqual(report.evidenceRecord.oracleProvenance.source, 'Pyth Network');
+      assert.strictEqual(report.evidenceRecord.oracleProvenance.feedDisplayId, 'Crypto.NVDAX/USD');
+      assert.ok(report.evidenceRecord.oracleProvenance.publishTimeFormatted.includes('UTC'));
+      assert.ok(report.evidenceRecord.oracleProvenance.confidenceUsd > 0);
+      assert.ok(report.evidenceRecord.oracleProvenance.confidenceMinUsd < report.evidenceRecord.oracleProvenance.confidenceMaxUsd);
+    });
+
+    it('SentinelClient computes portfolio market integrity metrics', async () => {
+      const metrics = await client.getMarketIntegrityMetrics(portfolio, policy);
+      assert.ok(metrics.activeFeedsCount >= 4);
+      assert.strictEqual(metrics.allOraclesHealthy, true);
+      assert.ok(metrics.portfolioConfidenceBps >= 0);
+    });
+  });
 });

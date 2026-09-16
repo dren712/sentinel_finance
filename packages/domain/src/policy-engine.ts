@@ -6,6 +6,8 @@ import {
   PostconditionCheckResult,
   EvaluationOutcome,
   FailureCode,
+  PriceSource,
+  NormalizedMarketPrice,
 } from './types';
 import { getAssetMetadata } from './asset-registry';
 
@@ -258,7 +260,8 @@ export function evaluatePostconditions(
   preState: PortfolioSnapshot,
   intent: TradeIntent,
   policy: FinancialPolicy,
-  actualExecutionPrice?: number
+  actualExecutionPrice?: number,
+  priceSource?: PriceSource | NormalizedMarketPrice
 ): EvaluationOutcome {
   if (!policy.isActive) {
     throw new Error('Cannot evaluate against an inactive policy');
@@ -300,6 +303,41 @@ export function evaluatePostconditions(
 
   if (policy.maxPreIpoExposureBps !== undefined) {
     checks.push(checkPreIpoExposure(postState, policy.maxPreIpoExposureBps));
+  }
+
+  // 3. Evaluate Pyth Market Truth & Integrity if oracle source is provided
+  if (priceSource) {
+    const price = 'priceUsd' in priceSource ? priceSource.priceUsd : priceSource.price;
+    const confidence = 'confidenceUsd' in priceSource ? priceSource.confidenceUsd : priceSource.confidence;
+    const confidenceRatioBps = price > 0 ? Math.round((confidence * 10_000) / price) : 0;
+    const maxConfidenceBps = policy.maxOracleConfidenceBps ?? 150; // 1.50%
+
+    const confPassed = confidenceRatioBps <= maxConfidenceBps;
+    checks.push({
+      checkName: 'ORACLE_CONFIDENCE',
+      passed: confPassed,
+      expectedBpsOrValue: maxConfidenceBps,
+      actualBpsOrValue: confidenceRatioBps,
+      description: confPassed
+        ? `Oracle confidence interval ±$${confidence} (${(confidenceRatioBps / 100).toFixed(2)}%) is within tolerance`
+        : `Oracle confidence interval ±$${confidence} (${(confidenceRatioBps / 100).toFixed(2)}%) exceeds limit of ${(maxConfidenceBps / 100).toFixed(2)}%`,
+      failureCode: confPassed ? undefined : 'ERR_ORACLE_CONFIDENCE_TOO_WIDE',
+    });
+
+    if (priceSource.trackingErrorBps !== undefined) {
+      const maxTrackingBps = policy.maxTrackingErrorBps ?? 250; // 2.50%
+      const trackingPassed = priceSource.trackingErrorBps <= maxTrackingBps;
+      checks.push({
+        checkName: 'TRACKING_ERROR',
+        passed: trackingPassed,
+        expectedBpsOrValue: maxTrackingBps,
+        actualBpsOrValue: priceSource.trackingErrorBps,
+        description: trackingPassed
+          ? `Peg tracking error ${(priceSource.trackingErrorBps / 100).toFixed(2)}% is within authorization`
+          : `Peg tracking error ${(priceSource.trackingErrorBps / 100).toFixed(2)}% exceeds ceiling of ${(maxTrackingBps / 100).toFixed(2)}%`,
+        failureCode: trackingPassed ? undefined : 'ERR_TRACKING_ERROR_EXCEEDED',
+      });
+    }
   }
 
   const failedChecks = checks.filter(c => !c.passed);

@@ -7,6 +7,7 @@ import {
   EvidenceRecord,
   PortfolioAsset,
   getAssetMetadata,
+  NormalizedMarketPrice,
 } from '@sentinel/domain';
 import {
   TrendingUp,
@@ -27,6 +28,7 @@ import { Stat } from './ui/Stat';
 import { Badge } from './ui/Badge';
 import { ProgressBar } from './ui/ProgressBar';
 import { FinancialChart } from './ui/FinancialChart';
+import { PriceProvenanceHover } from './ui/PriceProvenanceHover';
 import { formatCurrency, formatPercent, formatAddress } from '@/lib/formatters';
 import { getExplorerAddressUrl } from '@/lib/config';
 
@@ -34,6 +36,7 @@ interface PortfolioViewProps {
   portfolio: PortfolioSnapshot;
   policy: FinancialPolicy;
   recentEvidence: EvidenceRecord[];
+  marketPrices?: Record<string, NormalizedMarketPrice>;
   onSelectEvidence: (record: EvidenceRecord) => void;
   onNavigateToDecisions: () => void;
 }
@@ -42,6 +45,7 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
   portfolio,
   policy,
   recentEvidence,
+  marketPrices,
   onSelectEvidence,
   onNavigateToDecisions,
 }) => {
@@ -69,7 +73,7 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Policy Health & Demo Transparency Banner */}
+      {/* Policy Health & Pyth Oracle Valuation Banner */}
       <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
@@ -82,14 +86,18 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <span className="font-bold text-sm text-white">
-                Demo Portfolio (Simulated Benchmark Assets)
+                Institutional Portfolio
+              </span>
+              <span className="px-2 py-0.5 rounded text-[11px] font-mono font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/30 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
+                Pyth Market Truth
               </span>
               <span className="px-2 py-0.5 rounded text-[11px] font-mono font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/30">
                 Solana Devnet
               </span>
             </div>
             <p className="text-xs text-sentinel-textMuted mt-0.5">
-              Target equities and index ETFs benchmarked against canonical simulated oracles.
+              Valued via Pyth Network oracle feeds with dual-feed tracking (tokenized vs. underlying US equities).
             </p>
           </div>
         </div>
@@ -103,7 +111,7 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
             {isHealthy ? (
               <>
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                4 / 4 Guarantees Healthy
+                5 / 5 Guarantees Healthy
               </>
             ) : (
               <>
@@ -285,9 +293,12 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
                         </div>
                       </td>
 
-                      {/* Price */}
-                      <td className="py-3.5 font-mono text-white tabular-nums">
-                        {formatCurrency(asset.priceUsd)}
+                      {/* Price with Pyth Provenance Hover */}
+                      <td className="py-3.5" onClick={(e) => e.stopPropagation()}>
+                        <PriceProvenanceHover
+                          priceUsd={asset.priceUsd}
+                          marketPrice={marketPrices?.[asset.symbol]}
+                        />
                       </td>
 
                       {/* Quantity */}
@@ -343,7 +354,7 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
                     {/* Expandable Asset Detail */}
                     {isSelected && (
                       <tr className="bg-sentinel-surfaceElevated/40">
-                        <td colSpan={6} className="p-4">
+                        <td colSpan={6} className="p-4 space-y-3">
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-mono bg-sentinel-surfaceMuted p-3.5 rounded-lg border border-sentinel-border">
                             <div>
                               <span className="text-sentinel-textSubtle block">SOLANA TOKEN MINT</span>
@@ -382,6 +393,58 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
                               </span>
                             </div>
                           </div>
+
+                          {/* Pyth Market Truth Institutional Provenance Box */}
+                          {marketPrices?.[asset.symbol] && (
+                            <div className="bg-sentinel-surfaceMuted/90 p-3.5 rounded-lg border border-purple-500/20 text-xs font-mono">
+                              <div className="flex items-center justify-between border-b border-sentinel-border/60 pb-2 mb-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
+                                  <span className="font-bold text-white uppercase text-[11px]">
+                                    Pyth Dual-Feed Oracle Provenance
+                                  </span>
+                                </div>
+                                <span className="text-purple-400 font-semibold text-[11px]">
+                                  {marketPrices[asset.symbol].feedDisplayId}
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px]">
+                                <div>
+                                  <span className="text-sentinel-textSubtle block">PYTH PRICE</span>
+                                  <span className="text-white font-bold">
+                                    ${marketPrices[asset.symbol].priceUsd.toFixed(2)}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-sentinel-textSubtle block">CONFIDENCE (±σ)</span>
+                                  <span className="text-blue-400 font-bold">
+                                    ±${marketPrices[asset.symbol].confidenceUsd.toFixed(2)} ({((marketPrices[asset.symbol].confidenceRatioBps ?? 10) / 100).toFixed(2)}%)
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-sentinel-textSubtle block">UNDERLYING BENCHMARK</span>
+                                  <span className="text-white font-bold">
+                                    {marketPrices[asset.symbol].underlyingSymbol ?? 'US Equity'}{' '}
+                                    {marketPrices[asset.symbol].underlyingPriceUsd
+                                      ? `($${marketPrices[asset.symbol].underlyingPriceUsd!.toFixed(2)})`
+                                      : ''}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-sentinel-textSubtle block">BASIS DEVIATION</span>
+                                  <span
+                                    className={`font-bold ${
+                                      (marketPrices[asset.symbol].trackingErrorBps ?? 0) <= 250
+                                        ? 'text-emerald-400'
+                                        : 'text-rose-400'
+                                    }`}
+                                  >
+                                    {marketPrices[asset.symbol].deviationPct.toFixed(2)}% ({marketPrices[asset.symbol].trackingErrorBps} bps)
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     )}

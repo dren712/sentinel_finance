@@ -72,6 +72,48 @@ export interface PriceSource {
   marketStatus?: MarketStatus;
 }
 
+export interface NormalizedMarketPrice {
+  symbol: string;
+  assetId: string;
+  priceUsd: number;
+  confidenceUsd: number;
+  confidenceMinUsd: number;
+  confidenceMaxUsd: number;
+  confidenceRatioBps: number;
+  publishTime: number;
+  publishTimeFormatted: string;
+  exponent: number;
+  feedId: string;
+  feedDisplayId: string;
+  source: 'Pyth Network' | 'Pyth Hermes Live' | 'Pyth Benchmark';
+  status: PriceStatus;
+
+  // Underlying equity basis comparison (Pyth dual-feed)
+  underlyingSymbol?: string;
+  underlyingFeedId?: string;
+  underlyingPriceUsd?: number;
+  trackingErrorBps: number;
+  deviationPct: number;
+  marketStatus: MarketStatus;
+}
+
+export interface OracleProvenance {
+  source: string;
+  feedId: string;
+  feedDisplayId: string;
+  priceUsd: number;
+  confidenceUsd: number;
+  confidenceMinUsd: number;
+  confidenceMaxUsd: number;
+  publishTime: number;
+  publishTimeFormatted: string;
+  underlyingSymbol?: string;
+  underlyingFeedId?: string;
+  underlyingPriceUsd?: number;
+  trackingErrorBps: number;
+  deviationPct: number;
+}
+
 // -----------------------------------------------------------------------------
 // 3. Position & Portfolio
 // -----------------------------------------------------------------------------
@@ -261,6 +303,7 @@ export interface Evidence {
   failureReason?: string;
   swarmSummary: SwarmVerificationSummary;
   checks: PostconditionCheckResult[];
+  oracleProvenance?: OracleProvenance;
   timestamp: number;
   isSimulation: boolean;
 }

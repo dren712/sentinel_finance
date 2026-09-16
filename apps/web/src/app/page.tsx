@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   PortfolioSnapshot,
   FinancialPolicy,
   EvidenceRecord,
+  NormalizedMarketPrice,
 } from '@sentinel/domain';
 import {
   SentinelClient,
@@ -29,11 +30,34 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<NavTab>('portfolio');
   const [portfolio, setPortfolio] = useState<PortfolioSnapshot>(() => client.createDefaultPortfolio());
   const [policy, setPolicy] = useState<FinancialPolicy>(() => client.createDefaultPolicy());
+  const [marketPrices, setMarketPrices] = useState<Record<string, NormalizedMarketPrice>>({});
   const [evidenceList, setEvidenceList] = useState<EvidenceRecord[]>([]);
   const [latestReport, setLatestReport] = useState<DecisionCycleReport | null>(null);
   const [selectedEvidenceId, setSelectedEvidenceId] = useState<string | undefined>(undefined);
   const [isRunningDemo, setIsRunningDemo] = useState(false);
   const [isRunningTrade, setIsRunningTrade] = useState(false);
+
+  // Poll Pyth market truth prices periodically
+  useEffect(() => {
+    let isMounted = true;
+    const updatePrices = async () => {
+      try {
+        const prices = await client.getMarketPrices();
+        if (isMounted) {
+          setMarketPrices(prices);
+        }
+      } catch (err) {
+        console.error('Failed to load Pyth market prices:', err);
+      }
+    };
+
+    updatePrices();
+    const interval = setInterval(updatePrices, 4000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [client]);
 
   // Transaction Lifecycle Modal State
   const [txModalOpen, setTxModalOpen] = useState(false);
@@ -71,7 +95,8 @@ export default function Home() {
     try {
       const asset = portfolio.assets.find(a => a.symbol === assetSymbol);
       const mint = asset ? asset.mint : 'MINT_UNKNOWN';
-      const price = asset ? asset.priceUsd : 100;
+      const pythPrice = marketPrices[assetSymbol];
+      const price = pythPrice?.priceUsd ?? (asset ? asset.priceUsd : 100);
 
       const intent = client.getAgent().proposeIntent({
         assetSymbol,
@@ -82,7 +107,7 @@ export default function Home() {
         strategyRationale: `User-directed autonomous intent: ${direction} ${assetSymbol} for $${amountUsd.toLocaleString()}`,
       });
 
-      const report = await client.executeDecisionCycle(portfolio, policy, intent);
+      const report = await client.executeDecisionCycle(portfolio, policy, intent, pythPrice);
       setLatestReport(report);
       setEvidenceList(client.getEvidenceHistory());
       setSelectedEvidenceId(report.evidenceRecord.id);
@@ -106,7 +131,8 @@ export default function Home() {
       const agent = client.getAgent();
       const nvdaAsset = portfolio.assets.find(a => a.symbol === 'NVDAx');
       const nvdaMint = nvdaAsset ? nvdaAsset.mint : 'NVDA111111111111111111111111111111111111111';
-      const nvdaPrice = nvdaAsset ? nvdaAsset.priceUsd : 120;
+      const nvdaPyth = marketPrices['NVDAx'];
+      const nvdaPrice = nvdaPyth?.priceUsd ?? (nvdaAsset ? nvdaAsset.priceUsd : 120);
 
       // -----------------------------------------------------------------------
       // Step 1: Autonomous Bad Decision (BUY NVDAx $15,000)
@@ -120,7 +146,7 @@ export default function Home() {
         strategyRationale: 'Increase NVDA exposure aggressively to capture momentum',
       });
 
-      const step1Report = await client.executeDecisionCycle(portfolio, policy, badIntent);
+      const step1Report = await client.executeDecisionCycle(portfolio, policy, badIntent, nvdaPyth);
       setLatestReport(step1Report);
       setEvidenceList(client.getEvidenceHistory());
       setSelectedEvidenceId(step1Report.evidenceRecord.id);
@@ -142,7 +168,7 @@ export default function Home() {
         strategyRationale: `Auto-adapted trade size to $${compliantAmount.toLocaleString()} to strictly observe single-asset (25%) and reserve (20%) guarantees`,
       });
 
-      const step2Report = await client.executeDecisionCycle(portfolio, policy, adaptedIntent);
+      const step2Report = await client.executeDecisionCycle(portfolio, policy, adaptedIntent, nvdaPyth);
       setLatestReport(step2Report);
       setPortfolio(step2Report.resultingPortfolio);
       setEvidenceList(client.getEvidenceHistory());
@@ -189,6 +215,7 @@ export default function Home() {
             portfolio={portfolio}
             policy={policy}
             recentEvidence={evidenceList}
+            marketPrices={marketPrices}
             onSelectEvidence={handleSelectEvidenceRecord}
             onNavigateToDecisions={() => setActiveTab('activity')}
           />
@@ -199,6 +226,7 @@ export default function Home() {
             agent={client.getAgent()}
             portfolio={portfolio}
             policy={policy}
+            marketPrices={marketPrices}
             onExecuteCustomTrade={handleExecuteCustomTrade}
             isRunningTrade={isRunningTrade}
           />

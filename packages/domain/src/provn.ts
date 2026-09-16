@@ -7,6 +7,7 @@ import {
   SwarmVerificationSummary,
   PostconditionCheckResult,
   FailureCode,
+  OracleProvenance,
 } from './types';
 
 /**
@@ -115,6 +116,7 @@ export function createEvidenceRecord(params: {
   failureCode?: FailureCode;
   failureReason?: string;
   isSimulation?: boolean;
+  oracleProvenance?: OracleProvenance;
 }): EvidenceRecord {
   const id = `provn_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
   const policyHash = hashFinancialPolicy(params.policy);
@@ -137,6 +139,7 @@ export function createEvidenceRecord(params: {
     failureReason: params.failureReason,
     swarmSummary: params.swarmSummary,
     checks: params.checks,
+    oracleProvenance: params.oracleProvenance,
     timestamp: Date.now(),
     isSimulation: params.isSimulation ?? false,
   };
