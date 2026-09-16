@@ -615,5 +615,147 @@ describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
       assert.ok(explanation.summary.includes('rejected'));
     });
   });
+
+  describe('Institutional Risk Engine DSL & Agent State Tracking (Phase 6)', () => {
+    const {
+      CONSERVATIVE_INSTITUTIONAL_POLICY,
+      BALANCED_MULTI_ASSET_POLICY,
+      HIGH_ALPHA_GROWTH_POLICY,
+    } = require('@sentinel/domain');
+
+    it('tracks 24h trade volume, turnover, and consecutive failures in AgentRiskState', async () => {
+      const p6Client = new SentinelClient();
+      const agent = p6Client.getAgent();
+
+      assert.strictEqual(agent.agentRiskState.tradesExecuted24hUsd, 0);
+      assert.strictEqual(agent.agentRiskState.consecutiveFailures, 0);
+
+      // Execute a compliant trade ($5,000 NVDAx)
+      const compliantIntent = agent.proposeIntent({
+        assetSymbol: 'NVDAx',
+        assetMint: 'NVDA111111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 5000,
+        referencePriceUsd: 120,
+        strategyRationale: 'Phase 6 compliant spend tracking',
+      });
+
+      const report1 = await p6Client.executeDecisionCycle(portfolio, policy, compliantIntent);
+      assert.strictEqual(report1.status, 'SETTLED');
+
+      const riskStateAfterSettled = p6Client.getAgentRiskState();
+      assert.strictEqual(riskStateAfterSettled.tradesExecuted24hUsd, 5000);
+      assert.strictEqual(riskStateAfterSettled.consecutiveFailures, 0);
+      assert.ok(riskStateAfterSettled.dailyTurnoverBps > 0);
+
+      // Execute a non-compliant trade (rejected) -> consecutive failures increment
+      const badIntent = agent.proposeIntent({
+        assetSymbol: 'NVDAx',
+        assetMint: 'NVDA111111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 15000,
+        referencePriceUsd: 120,
+        strategyRationale: 'Phase 6 failure counter increment test',
+      });
+
+      const report2 = await p6Client.executeDecisionCycle(portfolio, policy, badIntent);
+      assert.strictEqual(report2.status, 'REJECTED');
+
+      const riskStateAfterReject = p6Client.getAgentRiskState();
+      assert.strictEqual(riskStateAfterReject.tradesExecuted24hUsd, 5000); // Unchanged
+      assert.strictEqual(riskStateAfterReject.consecutiveFailures, 1);
+    });
+
+    it('triggers circuit breaker after repeated failures and blocks future trades until reset', async () => {
+      const p6Client = new SentinelClient();
+      const agent = p6Client.getAgent();
+      const breakerPolicy = {
+        ...policy,
+        maxConsecutiveFailures: 2,
+      };
+
+      const badIntent = agent.proposeIntent({
+        assetSymbol: 'NVDAx',
+        assetMint: 'NVDA111111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 15000,
+        referencePriceUsd: 120,
+        strategyRationale: 'Trigger breaker failure 1',
+      });
+
+      // Failure 1
+      await p6Client.executeDecisionCycle(portfolio, breakerPolicy, badIntent);
+      assert.strictEqual(agent.agentRiskState.consecutiveFailures, 1);
+      assert.strictEqual(agent.agentRiskState.isCircuitBreakerTriggered, false);
+
+      // Failure 2 -> triggers circuit breaker
+      await p6Client.executeDecisionCycle(portfolio, breakerPolicy, badIntent);
+      assert.strictEqual(agent.agentRiskState.consecutiveFailures, 2);
+      assert.strictEqual(agent.agentRiskState.isCircuitBreakerTriggered, true);
+
+      // Next trade (even compliant one) is blocked by circuit breaker
+      const compliantIntent = agent.proposeIntent({
+        assetSymbol: 'NVDAx',
+        assetMint: 'NVDA111111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 1000,
+        referencePriceUsd: 120,
+        strategyRationale: 'Attempt compliant trade while tripped',
+      });
+
+      const blockedReport = await p6Client.executeDecisionCycle(portfolio, breakerPolicy, compliantIntent);
+      assert.strictEqual(blockedReport.status, 'REJECTED');
+      assert.strictEqual(blockedReport.evidenceRecord.failureCode, 'ERR_CIRCUIT_BREAKER_TRIGGERED');
+
+      // Reset circuit breaker
+      p6Client.resetAgentCircuitBreaker();
+      assert.strictEqual(p6Client.getAgentRiskState().isCircuitBreakerTriggered, false);
+      assert.strictEqual(p6Client.getAgentRiskState().consecutiveFailures, 0);
+
+      // Now compliant trade succeeds!
+      const unblockedReport = await p6Client.executeDecisionCycle(portfolio, breakerPolicy, compliantIntent);
+      assert.strictEqual(unblockedReport.status, 'SETTLED');
+    });
+
+    it('toggles Emergency Pause kill-switch and immediately rejects trades', async () => {
+      const p6Client = new SentinelClient();
+      const pausedPolicy = p6Client.setEmergencyPause(policy, true);
+      assert.strictEqual(pausedPolicy.isEmergencyPaused, true);
+      assert.strictEqual(pausedPolicy.policyVersion, policy.policyVersion + 1);
+
+      const intent = p6Client.getAgent().proposeIntent({
+        assetSymbol: 'NVDAx',
+        assetMint: 'NVDA111111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 1000,
+        referencePriceUsd: 120,
+        strategyRationale: 'Trade during emergency pause',
+      });
+
+      const report = await p6Client.executeDecisionCycle(portfolio, pausedPolicy, intent);
+      assert.strictEqual(report.status, 'REJECTED');
+      assert.strictEqual(report.evidenceRecord.failureCode, 'ERR_EMERGENCY_PAUSE');
+
+      // Unpause
+      const unpausedPolicy = p6Client.setEmergencyPause(pausedPolicy, false);
+      assert.strictEqual(unpausedPolicy.isEmergencyPaused, false);
+    });
+
+    it('SentinelClient applies institutional risk DSL profiles seamlessly', () => {
+      const p6Client = new SentinelClient();
+
+      const conservative = p6Client.applyRiskProfile(CONSERVATIVE_INSTITUTIONAL_POLICY);
+      assert.strictEqual(conservative.policyId, 'policy_conservative_institutional');
+      assert.strictEqual(conservative.maxSingleAssetBps, 1500);
+
+      const balanced = p6Client.applyRiskProfile(BALANCED_MULTI_ASSET_POLICY);
+      assert.strictEqual(balanced.policyId, 'policy_balanced_multi_asset');
+      assert.strictEqual(balanced.maxSingleAssetBps, 2500);
+
+      const growth = p6Client.applyRiskProfile(HIGH_ALPHA_GROWTH_POLICY);
+      assert.strictEqual(growth.policyId, 'policy_high_alpha_growth');
+      assert.strictEqual(growth.maxSingleAssetBps, 3500);
+    });
+  });
 });
 

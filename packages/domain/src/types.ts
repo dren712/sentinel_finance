@@ -33,6 +33,7 @@ export interface Asset {
   status: AssetStatus;
   isStablecoin?: boolean;
   isIndex?: boolean;
+  sector?: string;
   colorHex?: string;
   description?: string;
   basePriceUsd?: number;
@@ -146,6 +147,8 @@ export interface Position {
   rawAmount?: string;            // Raw integer units in base atomic units (e.g. 125000000)
   decimals?: number;             // Standard SPL decimals (typically 6)
   verifiedPriceSource?: string;  // e.g. "Pyth Network (Crypto.AAPLX/USD)"
+  sector?: string;               // e.g. "SEMICONDUCTORS", "TECHNOLOGY"
+  issuer?: string;               // e.g. "Backed Finance", "PreStocks Protocol"
 }
 
 export interface Portfolio {
@@ -217,15 +220,56 @@ export interface SentinelPdaConfig {
 export interface Policy {
   policyId: string;
   owner: string;
+
+  // Tier 1: Hard Constraints
   maxSingleAssetBps: number;      // e.g. 2500 for 25.00%
   minStablecoinBps: number;        // e.g. 2000 for 20.00%
   maxTradeValueUsd: number;        // e.g. 10000 ($10,000)
   maxSlippageBps: number;          // e.g. 100 for 1.00%
-  maxPreIpoExposureBps?: number;   // e.g. 1500 for 15.00% max private equity
+
+  // Tier 2: Portfolio Constraints
+  maxSectorExposureBps?: number;   // e.g. 4000 for 40.00% max exposure to any single sector
+  maxIssuerExposureBps?: number;   // e.g. 5000 for 50.00% max issuer exposure
+  maxPositions?: number;           // e.g. 8 max concurrent non-stablecoin positions
+  minDiversificationAssets?: number; // e.g. 3 minimum distinct assets held
+  maxTurnoverBps?: number;         // e.g. 2500 for 25.00% max 24h turnover limit
+
+  // Tier 3: Trading Constraints
+  maxPriceDeviationBps?: number;   // e.g. 200 for 2.00% max basis price deviation
+  maxQuoteAgeSeconds?: number;     // e.g. 60 seconds freshness limit
+  minLiquidityUsd?: number;        // e.g. 25000 ($25,000 liquidity floor)
+  maxPriceImpactBps?: number;      // e.g. 75 for 0.75% max estimated price impact
+  venueAllowlist?: string[];       // e.g. ['METEORA_DBC', 'PRESTOCKS_SECONDARY', 'DEMO_SIMULATION']
+  assetAllowlist?: string[];       // e.g. ['NVDAx', 'AAPLx', 'SPYx', 'USDC', 'SPACEXx', 'OPENAIx', 'STRIPEx']
+
+  // Tier 4: Agent Constraints
+  dailyTradeBudgetUsd?: number;    // e.g. 50000 ($50,000 / 24h budget)
+  maxConsecutiveFailures?: number; // e.g. 3 consecutive rejections triggers circuit breaker
+  policyExpiresAt?: number;        // epoch timestamp ms after which policy expires
+  isEmergencyPaused?: boolean;     // emergency kill switch
+
+  // Tier 5: Market Constraints
+  staleOracleMaxSeconds?: number;  // e.g. 120 seconds
   maxOracleConfidenceBps?: number; // e.g. 150 for 1.50% max confidence ratio (sigma / price)
   maxTrackingErrorBps?: number;    // e.g. 250 for 2.50% max deviation from underlying
+  marketHoursOnly?: boolean;       // if true, only trades during market hours
+  requireHealthyVenue?: boolean;   // if true, venue status must be healthy
+
+  // Backwards compatibility
+  maxPreIpoExposureBps?: number;   // e.g. 1500 for 15.00% max private equity
   policyVersion: number;
   isActive: boolean;
+  updatedAt: number;
+}
+
+export interface AgentRiskState {
+  agentId: string;
+  tradesExecuted24hUsd: number;
+  dailyTurnoverBps: number;
+  consecutiveFailures: number;
+  isCircuitBreakerTriggered: boolean;
+  lastFailureTimestamp?: number;
+  lastTradeTimestamp?: number;
   updatedAt: number;
 }
 
@@ -390,13 +434,52 @@ export type FailureCode =
   | 'ERR_UNAUTHORIZED'
   | 'ERR_ORACLE_CONFIDENCE_TOO_WIDE'
   | 'ERR_TRACKING_ERROR_EXCEEDED'
-  | 'ERR_LIQUIDITY_DEPTH_INSUFFICIENT';
+  | 'ERR_LIQUIDITY_DEPTH_INSUFFICIENT'
+  // Phase 6 Risk Engine DSL Failure Codes
+  | 'ERR_SECTOR_EXPOSURE_EXCEEDED'
+  | 'ERR_ISSUER_EXPOSURE_EXCEEDED'
+  | 'ERR_MAX_POSITIONS_EXCEEDED'
+  | 'ERR_DIVERSIFICATION_BREACHED'
+  | 'ERR_TURNOVER_EXCEEDED'
+  | 'ERR_QUOTE_STALE'
+  | 'ERR_PRICE_IMPACT_EXCEEDED'
+  | 'ERR_ASSET_NOT_ALLOWED'
+  | 'ERR_VENUE_NOT_ALLOWED'
+  | 'ERR_DAILY_BUDGET_EXCEEDED'
+  | 'ERR_CIRCUIT_BREAKER_TRIGGERED'
+  | 'ERR_POLICY_EXPIRED'
+  | 'ERR_EMERGENCY_PAUSE'
+  | 'ERR_MARKET_UNAVAILABLE'
+  | 'ERR_VENUE_UNHEALTHY';
+
+export type RiskCheckName =
+  | 'MAX_SINGLE_ASSET'
+  | 'MIN_STABLECOIN'
+  | 'MAX_TRADE_SIZE'
+  | 'SLIPPAGE'
+  | 'ORACLE_CONFIDENCE'
+  | 'TRACKING_ERROR'
+  | 'SECTOR_EXPOSURE'
+  | 'ISSUER_EXPOSURE'
+  | 'MAX_POSITIONS'
+  | 'DIVERSIFICATION'
+  | 'MAX_TURNOVER'
+  | 'QUOTE_FRESHNESS'
+  | 'PRICE_IMPACT'
+  | 'ASSET_ALLOWLIST'
+  | 'VENUE_ALLOWLIST'
+  | 'DAILY_TRADE_BUDGET'
+  | 'CIRCUIT_BREAKER'
+  | 'POLICY_EXPIRY'
+  | 'EMERGENCY_PAUSE'
+  | 'MARKET_STATUS'
+  | 'VENUE_HEALTH';
 
 export interface PostconditionCheckResult {
-  checkName: 'MAX_SINGLE_ASSET' | 'MIN_STABLECOIN' | 'MAX_TRADE_SIZE' | 'SLIPPAGE' | 'ORACLE_CONFIDENCE' | 'TRACKING_ERROR';
+  checkName: RiskCheckName | string;
   passed: boolean;
-  expectedBpsOrValue: number;
-  actualBpsOrValue: number;
+  expectedBpsOrValue: number | string;
+  actualBpsOrValue: number | string;
   description: string;
   failureCode?: FailureCode;
 }

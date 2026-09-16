@@ -14,6 +14,10 @@ import {
   deriveSentinelPda,
   getSentinelPdaConfig,
   hashPortfolioProjection,
+  AgentRiskState,
+  CONSERVATIVE_INSTITUTIONAL_POLICY,
+  BALANCED_MULTI_ASSET_POLICY,
+  HIGH_ALPHA_GROWTH_POLICY,
 } from '@sentinel/domain';
 import {
   ExecutionAdapter,
@@ -344,5 +348,43 @@ export class SentinelClient {
    */
   verifyMeteoraDBC(metrics: MeteoraDBCMetrics): MeteoraVerificationResult {
     return this.meteoraVerifier.verifyMarketQuality(metrics);
+  }
+
+  /**
+   * Returns current autonomous agent risk state (24h budget, turnover, failures)
+   */
+  getAgentRiskState(): AgentRiskState {
+    return this.agent.getRiskState();
+  }
+
+  /**
+   * Resets the agent's circuit breaker and consecutive failure counter
+   */
+  resetAgentCircuitBreaker(): void {
+    this.agent.resetCircuitBreaker();
+  }
+
+  /**
+   * Sets emergency pause kill-switch on a financial policy
+   */
+  setEmergencyPause(policy: FinancialPolicy, isPaused: boolean): FinancialPolicy {
+    return {
+      ...policy,
+      isEmergencyPaused: isPaused,
+      policyVersion: policy.policyVersion + 1,
+      updatedAt: Date.now(),
+    };
+  }
+
+  /**
+   * Applies a canonical or custom risk DSL policy profile
+   */
+  applyRiskProfile(profile: FinancialPolicy, owner?: string): FinancialPolicy {
+    return {
+      ...profile,
+      owner: owner ?? profile.owner,
+      policyVersion: profile.policyVersion,
+      updatedAt: Date.now(),
+    };
   }
 }

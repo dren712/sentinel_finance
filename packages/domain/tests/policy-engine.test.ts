@@ -36,6 +36,11 @@ import {
   verifyPortfolioProjection,
   getSentinelPdaConfig,
   hashPortfolioProjection,
+  CONSERVATIVE_INSTITUTIONAL_POLICY,
+  BALANCED_MULTI_ASSET_POLICY,
+  HIGH_ALPHA_GROWTH_POLICY,
+  AgentRiskState,
+  generateAuditExplanation,
 } from '../src/index';
 
 describe('Sentinel Domain & Policy Engine Unit Tests', () => {
@@ -658,6 +663,406 @@ describe('Sentinel Domain & Policy Engine Unit Tests', () => {
       assert.strictEqual(config.roles.isExecutionAuthority, true);
       assert.strictEqual(config.roles.isPromiseRegistry, true);
       assert.strictEqual(config.roles.isEvidenceAnchor, true);
+    });
+  });
+
+  describe('Institutional Financial Risk Engine & DSL (Phase 6)', () => {
+    const owner = 'GR9CtiUswZtay68U2fGqcDeB1dg8sHtpVi9kk2nCEwzw';
+
+    it('provides canonical institutional risk profiles with valid cryptographic hashes', () => {
+      assert.strictEqual(CONSERVATIVE_INSTITUTIONAL_POLICY.policyId, 'policy_conservative_institutional');
+      assert.strictEqual(CONSERVATIVE_INSTITUTIONAL_POLICY.maxSingleAssetBps, 1500); // 15%
+      assert.strictEqual(CONSERVATIVE_INSTITUTIONAL_POLICY.minStablecoinBps, 3000);  // 30%
+      assert.strictEqual(CONSERVATIVE_INSTITUTIONAL_POLICY.maxSectorExposureBps, 3000); // 30%
+      assert.strictEqual(CONSERVATIVE_INSTITUTIONAL_POLICY.dailyTradeBudgetUsd, 25000);
+
+      assert.strictEqual(BALANCED_MULTI_ASSET_POLICY.policyId, 'policy_balanced_multi_asset');
+      assert.strictEqual(BALANCED_MULTI_ASSET_POLICY.maxSingleAssetBps, 2500); // 25%
+      assert.strictEqual(BALANCED_MULTI_ASSET_POLICY.minStablecoinBps, 2000);  // 20%
+      assert.strictEqual(BALANCED_MULTI_ASSET_POLICY.maxSectorExposureBps, 4500); // 45%
+
+      assert.strictEqual(HIGH_ALPHA_GROWTH_POLICY.policyId, 'policy_high_alpha_growth');
+      assert.strictEqual(HIGH_ALPHA_GROWTH_POLICY.maxSingleAssetBps, 3500); // 35%
+      assert.strictEqual(HIGH_ALPHA_GROWTH_POLICY.minStablecoinBps, 1500);  // 15%
+
+      const hashConservative = hashFinancialPolicy(CONSERVATIVE_INSTITUTIONAL_POLICY);
+      const hashBalanced = hashFinancialPolicy(BALANCED_MULTI_ASSET_POLICY);
+      const hashGrowth = hashFinancialPolicy(HIGH_ALPHA_GROWTH_POLICY);
+
+      assert.strictEqual(hashConservative.length, 64);
+      assert.strictEqual(hashBalanced.length, 64);
+      assert.strictEqual(hashGrowth.length, 64);
+      assert.notStrictEqual(hashConservative, hashBalanced);
+    });
+
+    it('enforces Emergency Pause kill-switch and aborts immediately', () => {
+      const pausedPolicy: FinancialPolicy = {
+        ...initialPolicy,
+        isEmergencyPaused: true,
+      };
+
+      const intent: TradeIntent = {
+        intentId: 'intent_pause',
+        agentId: 'agent_1',
+        assetSymbol: 'NVDAx',
+        assetMint: 'NVDA111111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 1000,
+        referencePriceUsd: 120,
+        timestamp: Date.now(),
+      };
+
+      const outcome = evaluatePostconditions(initialPortfolio, intent, pausedPolicy);
+      assert.strictEqual(outcome.allPassed, false);
+      assert.strictEqual(outcome.failureCode, 'ERR_EMERGENCY_PAUSE');
+      assert.ok(outcome.failureReason?.includes('Emergency'));
+    });
+
+    it('enforces Policy Expiry timestamp guardrail', () => {
+      const expiredPolicy: FinancialPolicy = {
+        ...initialPolicy,
+        policyExpiresAt: Date.now() - 10000, // expired 10s ago
+      };
+
+      const intent: TradeIntent = {
+        intentId: 'intent_expired',
+        agentId: 'agent_1',
+        assetSymbol: 'NVDAx',
+        assetMint: 'NVDA111111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 1000,
+        referencePriceUsd: 120,
+        timestamp: Date.now(),
+      };
+
+      const outcome = evaluatePostconditions(initialPortfolio, intent, expiredPolicy);
+      assert.strictEqual(outcome.allPassed, false);
+      assert.strictEqual(outcome.failureCode, 'ERR_POLICY_EXPIRED');
+      assert.ok(outcome.failureReason?.includes('expired'));
+    });
+
+    it('enforces Asset and Venue allowlists', () => {
+      const allowlistPolicy: FinancialPolicy = {
+        ...initialPolicy,
+        assetAllowlist: ['AAPLx', 'USDC'], // NVDAx not in allowlist
+        venueAllowlist: ['METEORA_DBC'],
+      };
+
+      const unlistedAssetIntent: TradeIntent = {
+        intentId: 'intent_unlisted_asset',
+        agentId: 'agent_1',
+        assetSymbol: 'NVDAx',
+        assetMint: 'NVDA111111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 1000,
+        referencePriceUsd: 120,
+        timestamp: Date.now(),
+      };
+
+      const assetOutcome = evaluatePostconditions(initialPortfolio, unlistedAssetIntent, allowlistPolicy);
+      assert.strictEqual(assetOutcome.allPassed, false);
+      assert.strictEqual(assetOutcome.failureCode, 'ERR_ASSET_NOT_ALLOWED');
+
+      // Now with allowed asset but unlisted venue
+      const allowedAssetIntent: TradeIntent = {
+        ...unlistedAssetIntent,
+        assetSymbol: 'AAPLx',
+        assetMint: 'AAPL111111111111111111111111111111111111111',
+      };
+      const venueOutcome = evaluatePostconditions(
+        initialPortfolio,
+        allowedAssetIntent,
+        allowlistPolicy,
+        undefined,
+        undefined,
+        undefined,
+        {
+          venueType: 'UNKNOWN_DEX',
+          liquidityDepthUsd: 500000,
+          isHealthy: true,
+        }
+      );
+      assert.strictEqual(venueOutcome.allPassed, false);
+      assert.strictEqual(venueOutcome.failureCode, 'ERR_VENUE_NOT_ALLOWED');
+    });
+
+    it('enforces sector and issuer exposure limits', () => {
+      // Semiconductor sector cap at 32% (3200 bps)
+      // SPYx (30%), AAPLx (25%), NVDAx (20%) are initially <= 3200 bps
+      // Buying $13,000 NVDAx pushes SEMICONDUCTORS to $33,000 (3300 bps > 3200 bps)
+      const sectorPolicy: FinancialPolicy = {
+        ...initialPolicy,
+        maxTradeValueUsd: 20000,
+        maxSingleAssetBps: 4000,
+        minStablecoinBps: 1000, // 10% floor so reserve is not breached
+        maxSectorExposureBps: 3200, // 32.00%
+      };
+
+      const intent: TradeIntent = {
+        intentId: 'intent_sector_breach',
+        agentId: 'agent_1',
+        assetSymbol: 'NVDAx',
+        assetMint: 'NVDA111111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 13000,
+        referencePriceUsd: 120,
+        timestamp: Date.now(),
+      };
+
+      const outcome = evaluatePostconditions(initialPortfolio, intent, sectorPolicy);
+      assert.strictEqual(outcome.allPassed, false);
+      assert.strictEqual(outcome.failureCode, 'ERR_SECTOR_EXPOSURE_EXCEEDED');
+      const sectorCheck = outcome.checks.find(c => c.checkName === 'SECTOR_EXPOSURE');
+      assert.strictEqual(sectorCheck?.passed, false);
+      assert.strictEqual(sectorCheck?.actualBpsOrValue, 3300);
+      assert.strictEqual(sectorCheck?.expectedBpsOrValue, 3200);
+    });
+
+    it('enforces maximum simultaneous positions and minimum diversification', () => {
+      // initialPortfolio has 4 positions: AAPLx, NVDAx, SPYx, USDC
+      // If maxPositions is 3, buying a 5th asset should fail
+      const positionLimitPolicy: FinancialPolicy = {
+        ...initialPolicy,
+        maxPositions: 3,
+      };
+
+      const newAssetIntent: TradeIntent = {
+        intentId: 'intent_new_pos',
+        agentId: 'agent_1',
+        assetSymbol: 'SPACEXx',
+        assetMint: 'SPACEX1111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 1000,
+        referencePriceUsd: 180,
+        timestamp: Date.now(),
+      };
+
+      const posOutcome = evaluatePostconditions(initialPortfolio, newAssetIntent, positionLimitPolicy);
+      assert.strictEqual(posOutcome.allPassed, false);
+      assert.strictEqual(posOutcome.failureCode, 'ERR_MAX_POSITIONS_EXCEEDED');
+
+      // Diversification test: policy requires at least 4 active non-stable positions
+      // initialPortfolio has 3 non-stable positions (AAPLx, NVDAx, SPYx)
+      const diversPolicy: FinancialPolicy = {
+        ...initialPolicy,
+        minDiversificationAssets: 4,
+      };
+
+      const goodIntent: TradeIntent = {
+        intentId: 'intent_good',
+        agentId: 'agent_1',
+        assetSymbol: 'NVDAx',
+        assetMint: 'NVDA111111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 1000,
+        referencePriceUsd: 120,
+        timestamp: Date.now(),
+      };
+
+      const divOutcome = evaluatePostconditions(initialPortfolio, goodIntent, diversPolicy);
+      assert.strictEqual(divOutcome.allPassed, false);
+      assert.strictEqual(divOutcome.failureCode, 'ERR_DIVERSIFICATION_BREACHED');
+    });
+
+    it('enforces Agent 24h Daily Trade Budget and Circuit Breaker', () => {
+      const budgetPolicy: FinancialPolicy = {
+        ...initialPolicy,
+        dailyTradeBudgetUsd: 10000, // $10,000 24h budget
+        maxConsecutiveFailures: 3,
+      };
+
+      // Agent already used $9,000
+      const agentRiskState: AgentRiskState = {
+        agentId: 'agent_1',
+        tradesExecuted24hUsd: 9000,
+        dailyTurnoverBps: 900,
+        consecutiveFailures: 0,
+        isCircuitBreakerTriggered: false,
+        lastFailureTimestamp: undefined,
+        updatedAt: Date.now(),
+      };
+
+      const intent: TradeIntent = {
+        intentId: 'intent_overbudget',
+        agentId: 'agent_1',
+        assetSymbol: 'NVDAx',
+        assetMint: 'NVDA111111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 2000, // 9000 + 2000 = 11000 > 10000
+        referencePriceUsd: 120,
+        timestamp: Date.now(),
+      };
+
+      const budgetOutcome = evaluatePostconditions(
+        initialPortfolio,
+        intent,
+        budgetPolicy,
+        undefined,
+        undefined,
+        agentRiskState
+      );
+      assert.strictEqual(budgetOutcome.allPassed, false);
+      assert.strictEqual(budgetOutcome.failureCode, 'ERR_DAILY_BUDGET_EXCEEDED');
+
+      // Now test circuit breaker tripped
+      const trippedAgentState: AgentRiskState = {
+        ...agentRiskState,
+        tradesExecuted24hUsd: 0,
+        consecutiveFailures: 3,
+        isCircuitBreakerTriggered: true,
+      };
+
+      const breakerOutcome = evaluatePostconditions(
+        initialPortfolio,
+        { ...intent, tradeAmountUsd: 500 },
+        budgetPolicy,
+        undefined,
+        undefined,
+        trippedAgentState
+      );
+      assert.strictEqual(breakerOutcome.allPassed, false);
+      assert.strictEqual(breakerOutcome.failureCode, 'ERR_CIRCUIT_BREAKER_TRIGGERED');
+    });
+
+    it('enforces Quote Freshness, Venue Health, and Market Hours', () => {
+      const marketPolicy: FinancialPolicy = {
+        ...initialPolicy,
+        maxQuoteAgeSeconds: 15,
+        requireHealthyVenue: true,
+      };
+
+      const intent: TradeIntent = {
+        intentId: 'intent_market',
+        agentId: 'agent_1',
+        assetSymbol: 'NVDAx',
+        assetMint: 'NVDA111111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 1000,
+        referencePriceUsd: 120,
+        timestamp: Date.now() - 30_000, // quote 30s old > 15s limit
+      };
+
+      const staleOutcome = evaluatePostconditions(
+        initialPortfolio,
+        intent,
+        marketPolicy,
+        120,
+        {
+          source: 'PYTH_PRICE_FEED',
+          feedId: '0x123',
+          symbol: 'NVDAx',
+          price: 120,
+          confidence: 0.1,
+          publishTime: Date.now() - 30_000,
+          exponent: -8,
+          status: 'LIVE',
+        },
+        undefined,
+        undefined,
+        Date.now()
+      );
+      assert.strictEqual(staleOutcome.allPassed, false);
+      assert.strictEqual(staleOutcome.failureCode, 'ERR_QUOTE_STALE');
+
+      // Degraded Venue test
+      const freshIntent: TradeIntent = { ...intent, timestamp: Date.now() };
+      const venueOutcome = evaluatePostconditions(
+        initialPortfolio,
+        freshIntent,
+        marketPolicy,
+        120,
+        undefined,
+        undefined,
+        {
+          venueType: 'METEORA_DBC',
+          liquidityDepthUsd: 100000,
+          isHealthy: false, // degraded
+        }
+      );
+      assert.strictEqual(venueOutcome.allPassed, false);
+      assert.strictEqual(venueOutcome.failureCode, 'ERR_VENUE_UNHEALTHY');
+    });
+
+    it('formats Phase 6 invariants cleanly in AuditExplanation', () => {
+      const intent: TradeIntent = {
+        intentId: 'intent_audit_exp',
+        agentId: 'agent_1',
+        assetSymbol: 'NVDAx',
+        assetMint: 'NVDA111111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 5000,
+        referencePriceUsd: 120,
+        timestamp: Date.now(),
+      };
+
+      const outcome = evaluatePostconditions(initialPortfolio, intent, BALANCED_MULTI_ASSET_POLICY);
+      assert.strictEqual(outcome.allPassed, true);
+
+      const explanation = generateAuditExplanation({
+        promise: {
+          promiseId: 'promise_p6',
+          agentId: 'agent_1',
+          policyHash: '0xabc',
+          policyVersion: 1,
+          intentHash: '0x123',
+          intent: intent as any,
+          expectedConstraints: {
+            maxSingleAssetBps: 2500,
+            minStablecoinBps: 2000,
+            maxTradeValueUsd: 10000,
+            maxSlippageBps: 100,
+          },
+          who: {
+            agentId: 'agent_1',
+            agentName: 'Sentinel Agent',
+            portfolioId: 'port_1',
+            walletAddress: owner,
+          },
+          what: {
+            assetSymbol: 'NVDAx',
+            assetMint: 'NVDA111111111111111111111111111111111111111',
+            side: 'BUY',
+            amountUsd: 5000,
+          },
+          why: {
+            strategyName: 'Momentum',
+            strategyRationale: 'Compliant allocation',
+            rationaleHash: '0xdef',
+          },
+          underWhichPolicy: {
+            policyId: BALANCED_MULTI_ASSET_POLICY.policyId,
+            policyHash: '0xpolicy',
+            policyVersion: 1,
+            maxSingleAssetBps: BALANCED_MULTI_ASSET_POLICY.maxSingleAssetBps,
+            minStablecoinBps: BALANCED_MULTI_ASSET_POLICY.minStablecoinBps,
+            maxTradeValueUsd: BALANCED_MULTI_ASSET_POLICY.maxTradeValueUsd,
+          },
+          marketAssumptions: {
+            quotedPriceUsd: 120,
+            priceSource: 'Pyth',
+          },
+          executionLimits: {
+            maxSlippageBps: 100,
+            maxTradeValueUsd: 10000,
+          },
+          validity: {
+            createdAt: Date.now(),
+            expiresAt: Date.now() + 60000,
+            updatedAt: Date.now(),
+          },
+          status: 'SETTLED',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        },
+        checks: outcome.checks,
+        verificationResult: 'SETTLED',
+      });
+
+      assert.strictEqual(explanation.decision, 'ALLOWED');
+      const sectorInvariant = explanation.invariantsEvaluated.find(i => i.name === 'SECTOR_EXPOSURE');
+      assert.ok(sectorInvariant);
+      assert.strictEqual(sectorInvariant.passed, true);
+      assert.ok(sectorInvariant.threshold.includes('%'));
     });
   });
 });

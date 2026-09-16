@@ -99,6 +99,13 @@ export function hashFinancialPolicy(policy: FinancialPolicy): string {
     maxTradeValueUsd: policy.maxTradeValueUsd,
     maxSlippageBps: policy.maxSlippageBps,
     isActive: policy.isActive,
+    maxSectorExposureBps: policy.maxSectorExposureBps,
+    maxIssuerExposureBps: policy.maxIssuerExposureBps,
+    maxPositions: policy.maxPositions,
+    minDiversificationAssets: policy.minDiversificationAssets,
+    dailyTradeBudgetUsd: policy.dailyTradeBudgetUsd,
+    maxConsecutiveFailures: policy.maxConsecutiveFailures,
+    isEmergencyPaused: policy.isEmergencyPaused,
   };
   return canonicalHash(payload);
 }
@@ -125,18 +132,45 @@ export function generateAuditExplanation(params: {
     let actualValue = `${c.actualBpsOrValue}`;
     let threshold = `${c.expectedBpsOrValue}`;
 
+    const numActual = typeof c.actualBpsOrValue === 'number' ? c.actualBpsOrValue : Number(c.actualBpsOrValue) || 0;
+    const numExpected = typeof c.expectedBpsOrValue === 'number' ? c.expectedBpsOrValue : Number(c.expectedBpsOrValue) || 0;
+
     if (c.checkName === 'MAX_SINGLE_ASSET' || c.checkName === 'MIN_STABLECOIN') {
-      actualValue = `${(c.actualBpsOrValue / 100).toFixed(2)}%`;
-      threshold = `${c.checkName === 'MAX_SINGLE_ASSET' ? '≤ ' : '≥ '}${(c.expectedBpsOrValue / 100).toFixed(2)}%`;
-    } else if (c.checkName === 'MAX_TRADE_SIZE') {
-      actualValue = `$${c.actualBpsOrValue.toLocaleString()}`;
-      threshold = `≤ $${c.expectedBpsOrValue.toLocaleString()}`;
-    } else if (c.checkName === 'SLIPPAGE') {
-      actualValue = `${(c.actualBpsOrValue / 100).toFixed(2)}%`;
-      threshold = `≤ ${(c.expectedBpsOrValue / 100).toFixed(2)}%`;
+      actualValue = `${(numActual / 100).toFixed(2)}%`;
+      threshold = `${c.checkName === 'MAX_SINGLE_ASSET' ? '≤ ' : '≥ '}${(numExpected / 100).toFixed(2)}%`;
+    } else if (c.checkName === 'SECTOR_EXPOSURE' || c.checkName === 'ISSUER_EXPOSURE') {
+      actualValue = `${(numActual / 100).toFixed(2)}%`;
+      threshold = `≤ ${(numExpected / 100).toFixed(2)}%`;
+    } else if (c.checkName === 'MAX_TRADE_SIZE' || c.checkName === 'DAILY_TRADE_BUDGET') {
+      actualValue = `$${numActual.toLocaleString()}`;
+      threshold = `≤ $${numExpected.toLocaleString()}`;
+    } else if (c.checkName === 'SLIPPAGE' || c.checkName === 'PRICE_IMPACT' || c.checkName === 'ORACLE_CONFIDENCE') {
+      actualValue = `${(numActual / 100).toFixed(2)}%`;
+      threshold = `≤ ${(numExpected / 100).toFixed(2)}%`;
     } else if (c.checkName === 'TRACKING_ERROR') {
-      actualValue = `${c.actualBpsOrValue} bps`;
-      threshold = `≤ ${c.expectedBpsOrValue} bps`;
+      actualValue = `${numActual} bps`;
+      threshold = `≤ ${numExpected} bps`;
+    } else if (c.checkName === 'MAX_POSITIONS') {
+      actualValue = `${numActual} positions`;
+      threshold = `≤ ${numExpected} positions`;
+    } else if (c.checkName === 'DIVERSIFICATION') {
+      actualValue = `${numActual} assets`;
+      threshold = `≥ ${numExpected} assets`;
+    } else if (c.checkName === 'CIRCUIT_BREAKER') {
+      actualValue = `${numActual} consecutive failures`;
+      threshold = `< ${numExpected} allowed`;
+    } else if (c.checkName === 'EMERGENCY_PAUSE') {
+      actualValue = numActual === 1 ? 'PAUSED' : 'ACTIVE';
+      threshold = 'ACTIVE';
+    } else if (c.checkName === 'QUOTE_FRESHNESS' || c.checkName === 'ORACLE_FRESHNESS') {
+      actualValue = `${numActual}s`;
+      threshold = `≤ ${numExpected}s`;
+    } else if (c.checkName === 'ASSET_ALLOWLIST' || c.checkName === 'VENUE_ALLOWLIST') {
+      actualValue = c.passed ? 'ALLOWLISTED' : 'NOT ALLOWLISTED';
+      threshold = 'ALLOWLISTED';
+    } else if (c.checkName === 'VENUE_HEALTH' || c.checkName === 'MARKET_STATUS') {
+      actualValue = c.passed ? 'ONLINE' : 'DEGRADED';
+      threshold = 'ONLINE';
     }
 
     return {

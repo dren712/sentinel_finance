@@ -245,6 +245,11 @@ export default function Home() {
           <GuaranteesView
             policy={policy}
             onUpdatePolicy={handleUpdatePolicy}
+            agentRiskState={client.getAgentRiskState()}
+            onResetCircuitBreaker={() => {
+              client.resetAgentCircuitBreaker();
+              setPolicy(prev => ({ ...prev }));
+            }}
           />
         )}
 

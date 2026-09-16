@@ -18,6 +18,7 @@ import {
   ExecutionVenueDetails,
   hashPortfolioState,
   FailureCode,
+  AgentRiskState,
 } from '@sentinel/domain';
 import {
   ExecutionAdapter,
@@ -44,6 +45,7 @@ export class AutonomousRoboAgent {
   public objective: string;
   public status: 'ACTIVE' | 'PAUSED' | 'STEP_BY_STEP';
   public readonly wallet: ClawPumpAgentWallet;
+  public agentRiskState: AgentRiskState;
 
   constructor(config: AgentConfig = {}) {
     this.agentId = config.agentId ?? 'sentinel_robo_agent_1';
@@ -51,6 +53,14 @@ export class AutonomousRoboAgent {
     this.objective = config.objective ?? 'Earnings Momentum & Growth Allocation';
     this.status = 'ACTIVE';
     this.wallet = new ClawPumpAgentWallet(this.agentId, this.name);
+    this.agentRiskState = {
+      agentId: this.agentId,
+      tradesExecuted24hUsd: 0,
+      dailyTurnoverBps: 0,
+      consecutiveFailures: 0,
+      isCircuitBreakerTriggered: false,
+      updatedAt: Date.now(),
+    };
   }
 
   /**
@@ -235,12 +245,32 @@ export class AutonomousRoboAgent {
       expiresAt: Date.now() + 60_000,
     };
 
-    // Evaluate postconditions through Sentinel Core Engine with Pyth Market Truth
-    const evaluation = evaluatePostconditions(preState, intent, policy, undefined, priceSource);
+    // Evaluate postconditions through Sentinel Core Engine with Pyth Market Truth and Agent Risk State
+    const venueDetails: { venueType?: string; isHealthy?: boolean; liquidityDepthUsd?: number } = {
+      venueType: adapter.venueType ?? 'DEMO_SIMULATION',
+      isHealthy: true,
+      liquidityDepthUsd: 145_000,
+    };
+    const evaluation = evaluatePostconditions(
+      preState,
+      intent,
+      policy,
+      undefined,
+      priceSource,
+      this.agentRiskState,
+      venueDetails
+    );
     const swarmSummary = evaluateSwarm(evaluation.postState, intent, policy, undefined, priceSource);
 
     if (!evaluation.allPassed) {
       // POSTCONDITION FAILED -> ATOMIC ABORT
+      this.agentRiskState.consecutiveFailures += 1;
+      this.agentRiskState.lastFailureTimestamp = Date.now();
+      this.agentRiskState.updatedAt = Date.now();
+      if (policy.maxConsecutiveFailures && this.agentRiskState.consecutiveFailures >= policy.maxConsecutiveFailures) {
+        this.agentRiskState.isCircuitBreakerTriggered = true;
+      }
+
       promise.status = 'REJECTED';
       promise.validity.updatedAt = Date.now();
 
@@ -327,6 +357,15 @@ export class AutonomousRoboAgent {
       promise.status = 'SETTLED';
       promise.validity.updatedAt = Date.now();
 
+      // State transitions on successful execution
+      this.agentRiskState.consecutiveFailures = 0;
+      this.agentRiskState.tradesExecuted24hUsd += intent.tradeAmountUsd;
+      if (preState.totalValueUsd > 0) {
+        this.agentRiskState.dailyTurnoverBps += Math.round((intent.tradeAmountUsd / preState.totalValueUsd) * 10_000);
+      }
+      this.agentRiskState.lastTradeTimestamp = Date.now();
+      this.agentRiskState.updatedAt = Date.now();
+
       const executionVenue: ExecutionVenueDetails = {
         venueType: executionResult.venueType ?? adapter.venueType ?? 'DEMO_SIMULATION',
         venueName: executionResult.venueName ?? adapter.venueName ?? 'Sentinel Venue Adapter',
@@ -383,6 +422,12 @@ export class AutonomousRoboAgent {
         timestamp: Date.now(),
       };
     } catch (err: unknown) {
+      this.agentRiskState.consecutiveFailures += 1;
+      this.agentRiskState.lastFailureTimestamp = Date.now();
+      this.agentRiskState.updatedAt = Date.now();
+      if (policy.maxConsecutiveFailures && this.agentRiskState.consecutiveFailures >= policy.maxConsecutiveFailures) {
+        this.agentRiskState.isCircuitBreakerTriggered = true;
+      }
       promise.status = 'REJECTED';
       promise.validity.updatedAt = Date.now();
 
@@ -497,6 +542,24 @@ export class AutonomousRoboAgent {
       step1BadDecision: step1Report,
       step2AdaptedDecision: step2Report,
       summary: `Autonomous Agent Demo Complete: Step 1 proposed $15,000 (rejected: ${step1Report.evidenceRecord.failureReason}); Step 2 auto-adapted to $${compliantAmount.toLocaleString()} and successfully settled.`,
+    };
+  }
+
+  getRiskState(): AgentRiskState {
+    return { ...this.agentRiskState };
+  }
+
+  resetCircuitBreaker(): void {
+    this.agentRiskState.consecutiveFailures = 0;
+    this.agentRiskState.isCircuitBreakerTriggered = false;
+    this.agentRiskState.updatedAt = Date.now();
+  }
+
+  setRiskState(partial: Partial<AgentRiskState>): void {
+    this.agentRiskState = {
+      ...this.agentRiskState,
+      ...partial,
+      updatedAt: Date.now(),
     };
   }
 }

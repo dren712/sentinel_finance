@@ -331,23 +331,50 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
                         ? `Autonomous intent strictly satisfies single-asset cap (${(policy.maxSingleAssetBps / 100).toFixed(2)}%), stablecoin reserve floor (${(policy.minStablecoinBps / 100).toFixed(2)}%), and Pyth market pricing integrity.`
                         : `Autonomous intent was rejected: ${record.failureReason ?? 'Policy bounds exceeded'}. Portfolio state remained completely untouched.`);
 
-                      const invariants = explanation?.invariantsEvaluated ?? record.checks.map(c => ({
-                        name: c.checkName,
-                        description: c.description,
-                        passed: c.passed,
-                        actualValue: (c.checkName === 'MAX_SINGLE_ASSET' || c.checkName === 'MIN_STABLECOIN')
-                          ? `${(c.actualBpsOrValue / 100).toFixed(2)}%`
-                          : c.checkName === 'MAX_TRADE_SIZE'
-                          ? `$${c.actualBpsOrValue.toLocaleString()}`
-                          : `${c.actualBpsOrValue}`,
-                        threshold: (c.checkName === 'MAX_SINGLE_ASSET')
-                          ? `≤ ${(c.expectedBpsOrValue / 100).toFixed(2)}%`
-                          : (c.checkName === 'MIN_STABLECOIN')
-                          ? `≥ ${(c.expectedBpsOrValue / 100).toFixed(2)}%`
-                          : (c.checkName === 'MAX_TRADE_SIZE')
-                          ? `≤ $${c.expectedBpsOrValue.toLocaleString()}`
-                          : `≤ ${c.expectedBpsOrValue}`,
-                      }));
+                      const invariants = explanation?.invariantsEvaluated ?? record.checks.map(c => {
+                        const numAct = typeof c.actualBpsOrValue === 'number' ? c.actualBpsOrValue : Number(c.actualBpsOrValue) || 0;
+                        const numExp = typeof c.expectedBpsOrValue === 'number' ? c.expectedBpsOrValue : Number(c.expectedBpsOrValue) || 0;
+
+                        let actualValue = `${c.actualBpsOrValue}`;
+                        let threshold = `${c.expectedBpsOrValue}`;
+
+                        if (c.checkName === 'MAX_SINGLE_ASSET' || c.checkName === 'MIN_STABLECOIN' || c.checkName === 'SECTOR_EXPOSURE' || c.checkName === 'ISSUER_EXPOSURE') {
+                          actualValue = `${(numAct / 100).toFixed(2)}%`;
+                          threshold = `${c.checkName === 'MIN_STABLECOIN' ? '≥ ' : '≤ '}${(numExp / 100).toFixed(2)}%`;
+                        } else if (c.checkName === 'MAX_TRADE_SIZE' || c.checkName === 'DAILY_TRADE_BUDGET') {
+                          actualValue = `$${numAct.toLocaleString()}`;
+                          threshold = `≤ $${numExp.toLocaleString()}`;
+                        } else if (c.checkName === 'SLIPPAGE' || c.checkName === 'PRICE_IMPACT' || c.checkName === 'ORACLE_CONFIDENCE') {
+                          actualValue = `${(numAct / 100).toFixed(2)}%`;
+                          threshold = `≤ ${(numExp / 100).toFixed(2)}%`;
+                        } else if (c.checkName === 'TRACKING_ERROR') {
+                          actualValue = `${numAct} bps`;
+                          threshold = `≤ ${numExp} bps`;
+                        } else if (c.checkName === 'MAX_POSITIONS') {
+                          actualValue = `${numAct} positions`;
+                          threshold = `≤ ${numExp} positions`;
+                        } else if (c.checkName === 'DIVERSIFICATION') {
+                          actualValue = `${numAct} assets`;
+                          threshold = `≥ ${numExp} assets`;
+                        } else if (c.checkName === 'CIRCUIT_BREAKER') {
+                          actualValue = `${numAct} failures`;
+                          threshold = `< ${numExp} allowed`;
+                        } else if (c.checkName === 'EMERGENCY_PAUSE') {
+                          actualValue = numAct === 1 ? 'PAUSED' : 'ACTIVE';
+                          threshold = 'ACTIVE';
+                        } else if (c.checkName === 'QUOTE_FRESHNESS') {
+                          actualValue = `${numAct}s`;
+                          threshold = `≤ ${numExp}s`;
+                        }
+
+                        return {
+                          name: c.checkName,
+                          description: c.description,
+                          passed: c.passed,
+                          actualValue,
+                          threshold,
+                        };
+                      });
 
                       const humanInvariantName = (code: string) => {
                         switch (code) {
@@ -357,6 +384,19 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
                           case 'ORACLE_CONFIDENCE': return 'Pyth Oracle Confidence Band';
                           case 'TRACKING_ERROR': return 'Basis Tracking Error';
                           case 'SLIPPAGE': return 'Execution Slippage Limit';
+                          case 'SECTOR_EXPOSURE': return 'Sector Concentration Limit';
+                          case 'ISSUER_EXPOSURE': return 'Issuer Exposure Limit';
+                          case 'MAX_POSITIONS': return 'Maximum Positions Count';
+                          case 'DIVERSIFICATION': return 'Minimum Asset Diversification';
+                          case 'DAILY_TRADE_BUDGET': return '24h Cumulative Volume Budget';
+                          case 'CIRCUIT_BREAKER': return 'Agent Circuit Breaker';
+                          case 'EMERGENCY_PAUSE': return 'Emergency Pause Kill-Switch';
+                          case 'QUOTE_FRESHNESS': return 'Quote Freshness Ceiling';
+                          case 'PRICE_IMPACT': return 'Estimated Price Impact';
+                          case 'ASSET_ALLOWLIST': return 'Authorized Asset Allowlist';
+                          case 'VENUE_ALLOWLIST': return 'Authorized Venue Allowlist';
+                          case 'VENUE_HEALTH': return 'Venue Operational Health';
+                          case 'MARKET_STATUS': return 'Market Operational Hours';
                           default: return code;
                         }
                       };

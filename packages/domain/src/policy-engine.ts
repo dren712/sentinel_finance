@@ -8,6 +8,7 @@ import {
   FailureCode,
   PriceSource,
   NormalizedMarketPrice,
+  AgentRiskState,
 } from './types';
 import { getAssetMetadata } from './asset-registry';
 import { hashPortfolioProjection } from './portfolio-reader';
@@ -60,9 +61,20 @@ export function simulateStateTransition(
       exposureBps: 0,
       isStablecoin: meta?.isStablecoin ?? false,
       isIndex: meta?.isIndex ?? false,
+      sector: meta?.sector,
+      issuer: meta?.issuer,
       assetClass: meta?.assetClass,
     });
     targetAssetIndex = newAssets.length - 1;
+  }
+
+  // Ensure all existing assets have sector and issuer metadata populated
+  for (const asset of newAssets) {
+    if (!asset.sector || !asset.issuer) {
+      const m = getAssetMetadata(asset.symbol);
+      if (!asset.sector && m?.sector) asset.sector = m.sector;
+      if (!asset.issuer && m?.issuer) asset.issuer = m.issuer;
+    }
   }
 
   // Find stablecoin asset (USDC)
@@ -268,18 +280,504 @@ export function checkPreIpoExposure(
   };
 }
 
+// -----------------------------------------------------------------------------
+// Phase 6: Financial Risk Engine DSL Checks
+// -----------------------------------------------------------------------------
+
+/**
+ * Checks emergency pause state (Kill Switch)
+ */
+export function checkEmergencyPause(policy: FinancialPolicy): PostconditionCheckResult {
+  const isPaused = policy.isEmergencyPaused === true;
+  return {
+    checkName: 'EMERGENCY_PAUSE',
+    passed: !isPaused,
+    expectedBpsOrValue: 'OPERATIONAL',
+    actualBpsOrValue: isPaused ? 'EMERGENCY_PAUSED' : 'OPERATIONAL',
+    description: isPaused
+      ? 'Emergency kill switch is ACTIVE: all state transitions are immediately blocked'
+      : 'Emergency kill switch clear (system operational)',
+    failureCode: isPaused ? 'ERR_EMERGENCY_PAUSE' : undefined,
+  };
+}
+
+/**
+ * Checks policy expiration
+ */
+export function checkPolicyExpiry(policy: FinancialPolicy, now: number = Date.now()): PostconditionCheckResult {
+  const isExpired = policy.policyExpiresAt !== undefined && now > policy.policyExpiresAt;
+  return {
+    checkName: 'POLICY_EXPIRY',
+    passed: !isExpired,
+    expectedBpsOrValue: policy.policyExpiresAt ? new Date(policy.policyExpiresAt).toISOString() : 'PERPETUAL',
+    actualBpsOrValue: new Date(now).toISOString(),
+    description: isExpired
+      ? `Policy expired at ${new Date(policy.policyExpiresAt!).toISOString()} (current: ${new Date(now).toISOString()})`
+      : 'Policy validity window active',
+    failureCode: isExpired ? 'ERR_POLICY_EXPIRED' : undefined,
+  };
+}
+
+/**
+ * Checks permitted asset symbols or mint addresses
+ */
+export function checkAssetAllowlist(intent: TradeIntent, allowlist?: string[]): PostconditionCheckResult {
+  if (!allowlist || allowlist.length === 0) {
+    return {
+      checkName: 'ASSET_ALLOWLIST',
+      passed: true,
+      expectedBpsOrValue: 'UNRESTRICTED',
+      actualBpsOrValue: intent.assetSymbol,
+      description: 'Asset allowlist check passed (unrestricted)',
+    };
+  }
+  const passed = allowlist.includes(intent.assetSymbol) || allowlist.includes(intent.assetMint);
+  return {
+    checkName: 'ASSET_ALLOWLIST',
+    passed,
+    expectedBpsOrValue: allowlist.join(', '),
+    actualBpsOrValue: intent.assetSymbol,
+    description: passed
+      ? `Asset ${intent.assetSymbol} is permitted by policy allowlist`
+      : `Asset ${intent.assetSymbol} is NOT authorized by policy allowlist [${allowlist.join(', ')}]`,
+    failureCode: passed ? undefined : 'ERR_ASSET_NOT_ALLOWED',
+  };
+}
+
+/**
+ * Checks permitted execution venues
+ */
+export function checkVenueAllowlist(venueType?: string, allowlist?: string[]): PostconditionCheckResult {
+  if (!allowlist || allowlist.length === 0 || !venueType) {
+    return {
+      checkName: 'VENUE_ALLOWLIST',
+      passed: true,
+      expectedBpsOrValue: 'UNRESTRICTED',
+      actualBpsOrValue: venueType ?? 'DEFAULT',
+      description: 'Venue allowlist check passed',
+    };
+  }
+  const passed = allowlist.includes(venueType);
+  return {
+    checkName: 'VENUE_ALLOWLIST',
+    passed,
+    expectedBpsOrValue: allowlist.join(', '),
+    actualBpsOrValue: venueType,
+    description: passed
+      ? `Execution venue ${venueType} is permitted by policy allowlist`
+      : `Execution venue ${venueType} is NOT authorized by policy allowlist [${allowlist.join(', ')}]`,
+    failureCode: passed ? undefined : 'ERR_VENUE_NOT_ALLOWED',
+  };
+}
+
+/**
+ * Checks maximum sector exposure in basis points
+ */
+export function checkMaxSectorExposure(
+  postState: PortfolioSnapshot,
+  maxSectorBps?: number
+): PostconditionCheckResult {
+  if (maxSectorBps === undefined || maxSectorBps <= 0) {
+    return {
+      checkName: 'SECTOR_EXPOSURE',
+      passed: true,
+      expectedBpsOrValue: 10_000,
+      actualBpsOrValue: 0,
+      description: 'Sector exposure check passed (no ceiling configured)',
+    };
+  }
+
+  const sectorValues: Record<string, number> = {};
+  for (const asset of postState.assets) {
+    if (asset.isStablecoin || asset.symbol === 'USDC') continue;
+    const sector = asset.sector ?? getAssetMetadata(asset.symbol)?.sector ?? 'OTHER';
+    sectorValues[sector] = (sectorValues[sector] ?? 0) + asset.valueUsd;
+  }
+
+  let maxObservedBps = 0;
+  let offendingSector = 'NONE';
+  for (const [sector, val] of Object.entries(sectorValues)) {
+    const bps = calculateAssetExposureBps(val, postState.totalValueUsd);
+    if (bps > maxObservedBps) {
+      maxObservedBps = bps;
+      offendingSector = sector;
+    }
+  }
+
+  const passed = maxObservedBps <= maxSectorBps;
+  return {
+    checkName: 'SECTOR_EXPOSURE',
+    passed,
+    expectedBpsOrValue: maxSectorBps,
+    actualBpsOrValue: maxObservedBps,
+    description: passed
+      ? `Sector exposure within limit (${offendingSector}: ${(maxObservedBps / 100).toFixed(2)}% <= ${(maxSectorBps / 100).toFixed(2)}%)`
+      : `Sector exposure ceiling exceeded: ${offendingSector} reached ${(maxObservedBps / 100).toFixed(2)}%, exceeding ceiling of ${(maxSectorBps / 100).toFixed(2)}%`,
+    failureCode: passed ? undefined : 'ERR_SECTOR_EXPOSURE_EXCEEDED',
+  };
+}
+
+/**
+ * Checks maximum issuer exposure in basis points
+ */
+export function checkMaxIssuerExposure(
+  postState: PortfolioSnapshot,
+  maxIssuerBps?: number
+): PostconditionCheckResult {
+  if (maxIssuerBps === undefined || maxIssuerBps <= 0) {
+    return {
+      checkName: 'ISSUER_EXPOSURE',
+      passed: true,
+      expectedBpsOrValue: 10_000,
+      actualBpsOrValue: 0,
+      description: 'Issuer exposure check passed (no ceiling configured)',
+    };
+  }
+
+  const issuerValues: Record<string, number> = {};
+  for (const asset of postState.assets) {
+    if (asset.isStablecoin || asset.symbol === 'USDC') continue;
+    const issuer = asset.issuer ?? getAssetMetadata(asset.symbol)?.issuer ?? 'UNKNOWN';
+    issuerValues[issuer] = (issuerValues[issuer] ?? 0) + asset.valueUsd;
+  }
+
+  let maxObservedBps = 0;
+  let offendingIssuer = 'NONE';
+  for (const [issuer, val] of Object.entries(issuerValues)) {
+    const bps = calculateAssetExposureBps(val, postState.totalValueUsd);
+    if (bps > maxObservedBps) {
+      maxObservedBps = bps;
+      offendingIssuer = issuer;
+    }
+  }
+
+  const passed = maxObservedBps <= maxIssuerBps;
+  return {
+    checkName: 'ISSUER_EXPOSURE',
+    passed,
+    expectedBpsOrValue: maxIssuerBps,
+    actualBpsOrValue: maxObservedBps,
+    description: passed
+      ? `Issuer exposure within limit (${offendingIssuer}: ${(maxObservedBps / 100).toFixed(2)}% <= ${(maxIssuerBps / 100).toFixed(2)}%)`
+      : `Issuer exposure ceiling exceeded: ${offendingIssuer} reached ${(maxObservedBps / 100).toFixed(2)}%, exceeding ceiling of ${(maxIssuerBps / 100).toFixed(2)}%`,
+    failureCode: passed ? undefined : 'ERR_ISSUER_EXPOSURE_EXCEEDED',
+  };
+}
+
+/**
+ * Checks maximum concurrent non-stablecoin positions
+ */
+export function checkMaxPositions(
+  postState: PortfolioSnapshot,
+  maxPositions?: number
+): PostconditionCheckResult {
+  if (maxPositions === undefined || maxPositions <= 0) {
+    return {
+      checkName: 'MAX_POSITIONS',
+      passed: true,
+      expectedBpsOrValue: 100,
+      actualBpsOrValue: 0,
+      description: 'Max positions check passed (unrestricted)',
+    };
+  }
+
+  const activePositions = postState.assets.filter(a => !a.isStablecoin && a.symbol !== 'USDC' && a.amount > 0 && a.valueUsd > 0);
+  const passed = activePositions.length <= maxPositions;
+  return {
+    checkName: 'MAX_POSITIONS',
+    passed,
+    expectedBpsOrValue: maxPositions,
+    actualBpsOrValue: activePositions.length,
+    description: passed
+      ? `Active positions count (${activePositions.length} <= ${maxPositions}) is compliant`
+      : `Max positions exceeded: holding ${activePositions.length} active positions, exceeding ceiling of ${maxPositions}`,
+    failureCode: passed ? undefined : 'ERR_MAX_POSITIONS_EXCEEDED',
+  };
+}
+
+/**
+ * Checks minimum asset diversification count
+ */
+export function checkDiversification(
+  postState: PortfolioSnapshot,
+  minAssets?: number
+): PostconditionCheckResult {
+  if (minAssets === undefined || minAssets <= 1) {
+    return {
+      checkName: 'DIVERSIFICATION',
+      passed: true,
+      expectedBpsOrValue: 1,
+      actualBpsOrValue: 1,
+      description: 'Diversification check passed',
+    };
+  }
+
+  const activeAssets = postState.assets.filter(a => a.valueUsd > 0 && !a.isStablecoin && a.symbol !== 'USDC');
+  const passed = activeAssets.length >= minAssets;
+  return {
+    checkName: 'DIVERSIFICATION',
+    passed,
+    expectedBpsOrValue: minAssets,
+    actualBpsOrValue: activeAssets.length,
+    description: passed
+      ? `Minimum diversification requirement satisfied (${activeAssets.length} >= ${minAssets} assets)`
+      : `Diversification breached: portfolio holds ${activeAssets.length} active risk assets, below requirement of ${minAssets}`,
+    failureCode: passed ? undefined : 'ERR_DIVERSIFICATION_BREACHED',
+  };
+}
+
+/**
+ * Checks agent daily trade budget and consecutive failure circuit breaker
+ */
+export function checkDailyBudgetAndCircuitBreaker(
+  intent: TradeIntent,
+  policy: FinancialPolicy,
+  agentRiskState?: AgentRiskState
+): PostconditionCheckResult[] {
+  const results: PostconditionCheckResult[] = [];
+
+  // Circuit breaker check
+  if (agentRiskState?.isCircuitBreakerTriggered) {
+    results.push({
+      checkName: 'CIRCUIT_BREAKER',
+      passed: false,
+      expectedBpsOrValue: policy.maxConsecutiveFailures ?? 3,
+      actualBpsOrValue: agentRiskState.consecutiveFailures,
+      description: `Autonomous agent circuit breaker is TRIGGERED after ${agentRiskState.consecutiveFailures} consecutive rejections. Manual intervention required.`,
+      failureCode: 'ERR_CIRCUIT_BREAKER_TRIGGERED',
+    });
+  } else if (policy.maxConsecutiveFailures !== undefined && agentRiskState) {
+    const isTriggered = agentRiskState.consecutiveFailures >= policy.maxConsecutiveFailures;
+    results.push({
+      checkName: 'CIRCUIT_BREAKER',
+      passed: !isTriggered,
+      expectedBpsOrValue: policy.maxConsecutiveFailures,
+      actualBpsOrValue: agentRiskState.consecutiveFailures,
+      description: isTriggered
+        ? `Circuit breaker tripped: ${agentRiskState.consecutiveFailures} consecutive failures reached threshold of ${policy.maxConsecutiveFailures}`
+        : `Circuit breaker healthy (${agentRiskState.consecutiveFailures} / ${policy.maxConsecutiveFailures} failures)`,
+      failureCode: isTriggered ? 'ERR_CIRCUIT_BREAKER_TRIGGERED' : undefined,
+    });
+  }
+
+  // Daily budget check
+  if (policy.dailyTradeBudgetUsd !== undefined && policy.dailyTradeBudgetUsd > 0) {
+    const current24h = agentRiskState?.tradesExecuted24hUsd ?? 0;
+    const prospectiveTotal = current24h + intent.tradeAmountUsd;
+    const passed = prospectiveTotal <= policy.dailyTradeBudgetUsd;
+    results.push({
+      checkName: 'DAILY_TRADE_BUDGET',
+      passed,
+      expectedBpsOrValue: policy.dailyTradeBudgetUsd,
+      actualBpsOrValue: prospectiveTotal,
+      description: passed
+        ? `Daily trade volume within 24h budget ($${prospectiveTotal.toLocaleString()} <= $${policy.dailyTradeBudgetUsd.toLocaleString()})`
+        : `Daily trade budget exceeded: prospective 24h volume of $${prospectiveTotal.toLocaleString()} exceeds cap of $${policy.dailyTradeBudgetUsd.toLocaleString()}`,
+      failureCode: passed ? undefined : 'ERR_DAILY_BUDGET_EXCEEDED',
+    });
+  }
+
+  return results;
+}
+
+/**
+ * Checks oracle quote freshness age in seconds
+ */
+export function checkQuoteFreshness(
+  priceSource?: PriceSource | NormalizedMarketPrice,
+  maxQuoteAgeSeconds?: number,
+  now: number = Date.now()
+): PostconditionCheckResult {
+  if (!maxQuoteAgeSeconds || !priceSource || !priceSource.publishTime) {
+    return {
+      checkName: 'QUOTE_FRESHNESS',
+      passed: true,
+      expectedBpsOrValue: maxQuoteAgeSeconds ?? 60,
+      actualBpsOrValue: 0,
+      description: 'Quote freshness check passed',
+    };
+  }
+
+  const pubMs = priceSource.publishTime > 1e11 ? priceSource.publishTime : priceSource.publishTime * 1000;
+  const ageSec = Math.max(0, Math.round((now - pubMs) / 1000));
+  const passed = ageSec <= maxQuoteAgeSeconds;
+  return {
+    checkName: 'QUOTE_FRESHNESS',
+    passed,
+    expectedBpsOrValue: maxQuoteAgeSeconds,
+    actualBpsOrValue: ageSec,
+    description: passed
+      ? `Pyth oracle quote age (${ageSec}s <= ${maxQuoteAgeSeconds}s) is fresh`
+      : `Oracle quote is stale: age of ${ageSec}s exceeds freshness ceiling of ${maxQuoteAgeSeconds}s`,
+    failureCode: passed ? undefined : 'ERR_QUOTE_STALE',
+  };
+}
+
+/**
+ * Checks estimated price impact in basis points
+ */
+export function checkPriceImpact(
+  intent: TradeIntent,
+  maxPriceImpactBps?: number,
+  liquidityDepthUsd?: number
+): PostconditionCheckResult {
+  if (!maxPriceImpactBps || !liquidityDepthUsd || liquidityDepthUsd <= 0) {
+    return {
+      checkName: 'PRICE_IMPACT',
+      passed: true,
+      expectedBpsOrValue: maxPriceImpactBps ?? 100,
+      actualBpsOrValue: 0,
+      description: 'Price impact check passed',
+    };
+  }
+
+  const impactBps = Math.round((intent.tradeAmountUsd / liquidityDepthUsd) * 10_000);
+  const passed = impactBps <= maxPriceImpactBps;
+  return {
+    checkName: 'PRICE_IMPACT',
+    passed,
+    expectedBpsOrValue: maxPriceImpactBps,
+    actualBpsOrValue: impactBps,
+    description: passed
+      ? `Estimated price impact (${(impactBps / 100).toFixed(2)}% <= ${(maxPriceImpactBps / 100).toFixed(2)}%) is acceptable`
+      : `Price impact exceeded: trade would cause estimated ${(impactBps / 100).toFixed(2)}% impact, exceeding limit of ${(maxPriceImpactBps / 100).toFixed(2)}%`,
+    failureCode: passed ? undefined : 'ERR_PRICE_IMPACT_EXCEEDED',
+  };
+}
+
+/**
+ * Checks market hours and venue health
+ */
+export function checkMarketStatusAndVenueHealth(
+  priceSource?: PriceSource | NormalizedMarketPrice,
+  venueDetails?: { venueType?: string; isHealthy?: boolean; liquidityDepthUsd?: number },
+  policy?: FinancialPolicy
+): PostconditionCheckResult[] {
+  const checks: PostconditionCheckResult[] = [];
+
+  if (policy?.marketHoursOnly && priceSource?.marketStatus === 'MARKET_CLOSED') {
+    checks.push({
+      checkName: 'MARKET_STATUS',
+      passed: false,
+      expectedBpsOrValue: 'MARKET_OPEN',
+      actualBpsOrValue: 'MARKET_CLOSED',
+      description: 'Underlying equity market is currently closed. Policy restricts trading to active market hours.',
+      failureCode: 'ERR_MARKET_UNAVAILABLE',
+    });
+  }
+
+  if (policy?.requireHealthyVenue && venueDetails?.isHealthy === false) {
+    checks.push({
+      checkName: 'VENUE_HEALTH',
+      passed: false,
+      expectedBpsOrValue: 'HEALTHY',
+      actualBpsOrValue: 'UNHEALTHY',
+      description: `Target venue ${venueDetails.venueType ?? 'Venue'} is reporting degraded health or paused trading.`,
+      failureCode: 'ERR_VENUE_UNHEALTHY',
+    });
+  }
+
+  return checks;
+}
+
 /**
  * Evaluates all financial postconditions for a proposed state transition
+ * Comprehensive Phase 6 Risk Engine DSL
  */
 export function evaluatePostconditions(
   preState: PortfolioSnapshot,
   intent: TradeIntent,
   policy: FinancialPolicy,
   actualExecutionPrice?: number,
-  priceSource?: PriceSource | NormalizedMarketPrice
+  priceSource?: PriceSource | NormalizedMarketPrice,
+  agentRiskState?: AgentRiskState,
+  venueDetails?: { venueType?: string; isHealthy?: boolean; liquidityDepthUsd?: number },
+  currentTime: number = Date.now()
 ): EvaluationOutcome {
   if (!policy.isActive) {
     throw new Error('Cannot evaluate against an inactive policy');
+  }
+
+  // Pre-check Emergency Pause (Kill switch)
+  if (policy.isEmergencyPaused) {
+    const postState = simulateStateTransition(preState, intent, actualExecutionPrice);
+    return {
+      allPassed: false,
+      checks: [{
+        checkName: 'EMERGENCY_PAUSE',
+        passed: false,
+        expectedBpsOrValue: 'OPERATIONAL',
+        actualBpsOrValue: 'EMERGENCY_PAUSED',
+        description: 'Emergency kill switch is ACTIVE: all state transitions are blocked',
+        failureCode: 'ERR_EMERGENCY_PAUSE',
+      }],
+      failureCode: 'ERR_EMERGENCY_PAUSE',
+      failureReason: 'Emergency kill switch is ACTIVE: all state transitions are blocked',
+      postState,
+    };
+  }
+
+  // Pre-check Policy Expiry
+  if (policy.policyExpiresAt && currentTime > policy.policyExpiresAt) {
+    const postState = simulateStateTransition(preState, intent, actualExecutionPrice);
+    return {
+      allPassed: false,
+      checks: [{
+        checkName: 'POLICY_EXPIRY',
+        passed: false,
+        expectedBpsOrValue: policy.policyExpiresAt,
+        actualBpsOrValue: currentTime,
+        description: `Policy expired at ${new Date(policy.policyExpiresAt).toISOString()}`,
+        failureCode: 'ERR_POLICY_EXPIRED',
+      }],
+      failureCode: 'ERR_POLICY_EXPIRED',
+      failureReason: 'Policy validity window has expired',
+      postState,
+    };
+  }
+
+  // Pre-check Asset Allowlist
+  if (policy.assetAllowlist && policy.assetAllowlist.length > 0) {
+    const isAllowed = policy.assetAllowlist.includes(intent.assetSymbol) || policy.assetAllowlist.includes(intent.assetMint);
+    if (!isAllowed) {
+      const postState = simulateStateTransition(preState, intent, actualExecutionPrice);
+      return {
+        allPassed: false,
+        checks: [{
+          checkName: 'ASSET_ALLOWLIST',
+          passed: false,
+          expectedBpsOrValue: policy.assetAllowlist.join(', '),
+          actualBpsOrValue: intent.assetSymbol,
+          description: `Asset ${intent.assetSymbol} is NOT permitted by policy asset allowlist`,
+          failureCode: 'ERR_ASSET_NOT_ALLOWED',
+        }],
+        failureCode: 'ERR_ASSET_NOT_ALLOWED',
+        failureReason: `Asset ${intent.assetSymbol} is not on the authorized asset allowlist`,
+        postState,
+      };
+    }
+  }
+
+  // Pre-check Venue Allowlist
+  if (policy.venueAllowlist && policy.venueAllowlist.length > 0 && venueDetails?.venueType) {
+    const isAllowed = policy.venueAllowlist.includes(venueDetails.venueType);
+    if (!isAllowed) {
+      const postState = simulateStateTransition(preState, intent, actualExecutionPrice);
+      return {
+        allPassed: false,
+        checks: [{
+          checkName: 'VENUE_ALLOWLIST',
+          passed: false,
+          expectedBpsOrValue: policy.venueAllowlist.join(', '),
+          actualBpsOrValue: venueDetails.venueType,
+          description: `Execution venue ${venueDetails.venueType} is NOT authorized by policy venue allowlist`,
+          failureCode: 'ERR_VENUE_NOT_ALLOWED',
+        }],
+        failureCode: 'ERR_VENUE_NOT_ALLOWED',
+        failureReason: `Execution venue ${venueDetails.venueType} is not on the authorized venue allowlist`,
+        postState,
+      };
+    }
   }
 
   // Pre-check solvency
@@ -305,8 +803,9 @@ export function evaluatePostconditions(
   // 1. Simulate hypothetical state transition
   const postState = simulateStateTransition(preState, intent, actualExecutionPrice);
 
-  // 2. Evaluate all postconditions
+  // 2. Evaluate all postconditions across 5 risk tiers
   const checks: PostconditionCheckResult[] = [
+    // Tier 1: Hard Invariants
     checkMaxSingleAsset(postState, policy.maxSingleAssetBps, intent.assetSymbol),
     checkMinStablecoin(postState, policy.minStablecoinBps),
     checkMaxTradeSize(intent, policy.maxTradeValueUsd),
@@ -316,11 +815,42 @@ export function evaluatePostconditions(
     checks.push(checkSlippage(intent.referencePriceUsd, actualExecutionPrice, policy.maxSlippageBps));
   }
 
+  // Tier 2: Portfolio Constraints
+  if (policy.maxSectorExposureBps !== undefined) {
+    checks.push(checkMaxSectorExposure(postState, policy.maxSectorExposureBps));
+  }
+
+  if (policy.maxIssuerExposureBps !== undefined) {
+    checks.push(checkMaxIssuerExposure(postState, policy.maxIssuerExposureBps));
+  }
+
+  if (policy.maxPositions !== undefined) {
+    checks.push(checkMaxPositions(postState, policy.maxPositions));
+  }
+
+  if (policy.minDiversificationAssets !== undefined) {
+    checks.push(checkDiversification(postState, policy.minDiversificationAssets));
+  }
+
   if (policy.maxPreIpoExposureBps !== undefined) {
     checks.push(checkPreIpoExposure(postState, policy.maxPreIpoExposureBps));
   }
 
-  // 3. Evaluate Pyth Market Truth & Integrity if oracle source is provided
+  // Tier 3: Trading Constraints
+  if (policy.maxQuoteAgeSeconds !== undefined && priceSource) {
+    checks.push(checkQuoteFreshness(priceSource, policy.maxQuoteAgeSeconds, currentTime));
+  }
+
+  if (policy.maxPriceImpactBps !== undefined && venueDetails?.liquidityDepthUsd) {
+    checks.push(checkPriceImpact(intent, policy.maxPriceImpactBps, venueDetails.liquidityDepthUsd));
+  }
+
+  // Tier 4: Agent Constraints
+  if (agentRiskState || policy.dailyTradeBudgetUsd !== undefined || policy.maxConsecutiveFailures !== undefined) {
+    checks.push(...checkDailyBudgetAndCircuitBreaker(intent, policy, agentRiskState));
+  }
+
+  // Tier 5: Market & Venue Constraints
   if (priceSource) {
     const price = 'priceUsd' in priceSource ? priceSource.priceUsd : priceSource.price;
     const confidence = 'confidenceUsd' in priceSource ? priceSource.confidenceUsd : priceSource.confidence;
@@ -355,6 +885,9 @@ export function evaluatePostconditions(
     }
   }
 
+  // Market status and venue health
+  checks.push(...checkMarketStatusAndVenueHealth(priceSource, venueDetails, policy));
+
   const failedChecks = checks.filter(c => !c.passed);
   const allPassed = failedChecks.length === 0;
 
@@ -370,3 +903,76 @@ export function evaluatePostconditions(
     postState,
   };
 }
+
+// -----------------------------------------------------------------------------
+// Canonical Risk-Policy DSL Profiles
+// -----------------------------------------------------------------------------
+
+export const CONSERVATIVE_INSTITUTIONAL_POLICY: FinancialPolicy = {
+  policyId: 'policy_conservative_institutional',
+  owner: 'SentinelRiskCommittee111111111111111111111',
+  maxSingleAssetBps: 1500, // 15.00%
+  minStablecoinBps: 3000,  // 30.00%
+  maxTradeValueUsd: 5000,  // $5,000
+  maxSlippageBps: 50,      // 0.50%
+  maxSectorExposureBps: 3000, // 30.00%
+  maxIssuerExposureBps: 4000, // 40.00%
+  maxPositions: 6,
+  minDiversificationAssets: 3,
+  maxTurnoverBps: 1500,    // 15.00%
+  maxPriceDeviationBps: 100, // 1.00%
+  maxQuoteAgeSeconds: 45,
+  minLiquidityUsd: 50_000,
+  maxPriceImpactBps: 50,   // 0.50%
+  dailyTradeBudgetUsd: 25_000,
+  maxConsecutiveFailures: 2,
+  policyVersion: 1,
+  isActive: true,
+  updatedAt: Date.now(),
+};
+
+export const BALANCED_MULTI_ASSET_POLICY: FinancialPolicy = {
+  policyId: 'policy_balanced_multi_asset',
+  owner: 'SentinelRiskCommittee111111111111111111111',
+  maxSingleAssetBps: 2500, // 25.00%
+  minStablecoinBps: 2000,  // 20.00%
+  maxTradeValueUsd: 10000, // $10,000
+  maxSlippageBps: 100,     // 1.00%
+  maxSectorExposureBps: 4500, // 45.00%
+  maxIssuerExposureBps: 5000, // 50.00%
+  maxPositions: 8,
+  minDiversificationAssets: 2,
+  maxTurnoverBps: 2500,    // 25.00%
+  maxPriceDeviationBps: 200, // 2.00%
+  maxQuoteAgeSeconds: 60,
+  minLiquidityUsd: 25_000,
+  maxPriceImpactBps: 75,   // 0.75%
+  dailyTradeBudgetUsd: 50_000,
+  maxConsecutiveFailures: 3,
+  policyVersion: 1,
+  isActive: true,
+  updatedAt: Date.now(),
+};
+
+export const HIGH_ALPHA_GROWTH_POLICY: FinancialPolicy = {
+  policyId: 'policy_high_alpha_growth',
+  owner: 'SentinelRiskCommittee111111111111111111111',
+  maxSingleAssetBps: 3500, // 35.00%
+  minStablecoinBps: 1500,  // 15.00%
+  maxTradeValueUsd: 25000, // $25,000
+  maxSlippageBps: 150,     // 1.50%
+  maxSectorExposureBps: 6000, // 60.00%
+  maxIssuerExposureBps: 7000, // 70.00%
+  maxPositions: 12,
+  minDiversificationAssets: 1,
+  maxTurnoverBps: 5000,    // 50.00%
+  maxPriceDeviationBps: 300, // 3.00%
+  maxQuoteAgeSeconds: 90,
+  minLiquidityUsd: 15_000,
+  maxPriceImpactBps: 150,  // 1.50%
+  dailyTradeBudgetUsd: 100_000,
+  maxConsecutiveFailures: 5,
+  policyVersion: 1,
+  isActive: true,
+  updatedAt: Date.now(),
+};
