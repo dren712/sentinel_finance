@@ -89,15 +89,17 @@ export const AgentView: React.FC<AgentViewProps> = ({
     onExecuteCustomTrade(selectedAsset, direction, amount);
   };
 
-  // Asset universe covering public stocks and PreStocks pre-IPO equities
+  // Asset universe covering public stocks, PreStocks pre-IPO equities, and ClawPump agent tokens
   const availableAssets = [
-    ...portfolio.assets.filter((a) => !a.isStablecoin && a.symbol !== 'USDC'),
+    ...portfolio.assets.filter((a) => !a.isStablecoin && a.symbol !== 'USDC' && a.symbol !== 'ROBOx'),
     { symbol: 'SPACEXx', name: 'SpaceX Pre-IPO Equity', priceUsd: 220, isPreIpo: true },
     { symbol: 'OPENAIx', name: 'OpenAI Pre-IPO Equity', priceUsd: 150, isPreIpo: true },
     { symbol: 'STRIPEx', name: 'Stripe Pre-IPO Equity', priceUsd: 85, isPreIpo: true },
+    { symbol: 'ROBOx', name: 'Sentinel Robo Strategy Token', priceUsd: 1.0, isAgentToken: true },
   ];
 
   const isPreIpoSelected = ['SPACEXx', 'OPENAIx', 'STRIPEx'].includes(selectedAsset);
+  const isAgentTokenSelected = selectedAsset === 'ROBOx';
 
   // Derive target venue and routing preview
   let targetVenueName = 'Meteora Dynamic Bonding Curve';
@@ -109,6 +111,11 @@ export const AgentView: React.FC<AgentViewProps> = ({
     targetVenueName = 'Sentinel Local Simulator (Offline Demo)';
     targetPoolAddress = 'SimulatedLocalEngine111111111111111111111111111';
     targetRoute = `USDC ATA ➔ Local Simulator ➔ ${selectedAsset} ATA`;
+  } else if (isAgentTokenSelected) {
+    targetVenueName = 'Meteora DBC (ClawPump Paired Liquidity)';
+    targetVenueType = 'METEORA_DBC';
+    targetPoolAddress = 'MeteoraRoboDbcPool111111111111111111111111111';
+    targetRoute = `USDC ATA ➔ Meteora DBC ($ROBOx) ➔ ROBOx ATA`;
   } else if (isPreIpoSelected || activeVenue === 'PRESTOCKS_SECONDARY') {
     targetVenueName = 'PreStocks Secondary Market';
     targetVenueType = 'PRESTOCKS_SECONDARY';
@@ -122,13 +129,15 @@ export const AgentView: React.FC<AgentViewProps> = ({
   const targetAsset = portfolio.assets.find(a => a.symbol === selectedAsset);
   const currentAssetVal = targetAsset ? targetAsset.valueUsd : 0;
   const postAssetVal = direction === 'BUY' ? currentAssetVal + amountNum : Math.max(0, currentAssetVal - amountNum);
-  const postExposureBps = Math.round((postAssetVal / portfolio.totalValueUsd) * 10_000);
+  const postExposureBps = Math.round((postAssetVal / (portfolio.totalValueUsd || 100_000)) * 10_000);
   const willExceedExposure = postExposureBps > policy.maxSingleAssetBps;
   const willExceedTradeLimit = amountNum > policy.maxTradeValueUsd;
+  const maxAgentTokenBps = policy.maxAgentTokenExposureBps ?? 500;
+  const willExceedSelfDealing = isAgentTokenSelected && postExposureBps > maxAgentTokenBps;
   const postUsdcVal = direction === 'BUY'
     ? portfolio.stablecoinValueUsd - amountNum
     : portfolio.stablecoinValueUsd + amountNum;
-  const postReserveBps = Math.round((postUsdcVal / portfolio.totalValueUsd) * 10_000);
+  const postReserveBps = Math.round((postUsdcVal / (portfolio.totalValueUsd || 100_000)) * 10_000);
   const willBreachReserve = postReserveBps < policy.minStablecoinBps;
 
   // Pyth Market Truth Invariant Check
@@ -136,10 +145,10 @@ export const AgentView: React.FC<AgentViewProps> = ({
   const effectiveTrackingErrorBps = simulateDepeg ? 320 : (currentMarketPrice?.trackingErrorBps ?? 18);
   const willExceedTrackingError = effectiveTrackingErrorBps > (policy.maxTrackingErrorBps ?? 250);
 
-  const willBeRejected = willExceedExposure || willExceedTradeLimit || willBreachReserve || willExceedTrackingError;
+  const willBeRejected = willExceedExposure || willExceedTradeLimit || willBreachReserve || willExceedTrackingError || willExceedSelfDealing;
 
   // Phase 7: SWARM-Lite 6-verifier pre-flight simulation
-  const riskVerifierPassed = !willExceedExposure && !willExceedTradeLimit;
+  const riskVerifierPassed = !willExceedExposure && !willExceedTradeLimit && !willExceedSelfDealing;
   const balanceVerifierPassed = !willBreachReserve;
   const policyVerifierPassed = policy.isActive;
   const liquidityVerifierPassed = true; // $145k Meteora pool depth >= $25k floor
@@ -147,7 +156,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
   const portfolioVerifierPassed = true;
 
   const swarmPreFlightVerdicts = [
-    { name: 'RiskVerifier', role: 'Risk & Sizing', passed: riskVerifierPassed },
+    { name: 'RiskVerifier', role: isAgentTokenSelected ? 'Anti-Self-Dealing & Sizing' : 'Risk & Sizing', passed: riskVerifierPassed },
     { name: 'BalanceVerifier', role: 'Reserves & Solvency', passed: balanceVerifierPassed },
     { name: 'PolicyVerifier', role: 'Authority & Rules', passed: policyVerifierPassed },
     { name: 'LiquidityVerifier', role: 'Venue Liquidity', passed: liquidityVerifierPassed },
@@ -559,6 +568,88 @@ export const AgentView: React.FC<AgentViewProps> = ({
         </div>
       </div>
 
+      {/* Phase 12: ClawPump 4-Stage Pipeline & Anti-Self-Dealing Guard */}
+      <div className="bg-gradient-to-br from-slate-900 via-emerald-950/20 to-slate-950 border border-emerald-500/30 rounded-xl p-6 shadow-lg">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-emerald-500/20 pb-4 mb-5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+              <Layers className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-bold text-white">ClawPump 4-Stage Pipeline</h3>
+                <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold border border-emerald-500/30">
+                  ANTI-SELF-DEALING GUARD
+                </span>
+              </div>
+              <p className="text-xs text-sentinel-textMuted mt-0.5">
+                Identity ➔ Stock-Linked Token ($ROBOx) ➔ Meteora DBC Liquidity ➔ Sentinel Policy Protection
+              </p>
+            </div>
+          </div>
+
+          {/* Quick-Action Test Buttons */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedAsset('ROBOx');
+                setDirection('BUY');
+                setTradeAmount('8000');
+              }}
+              className="px-3 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 font-mono text-xs border border-rose-500/40 transition flex items-center gap-1.5 cursor-pointer"
+            >
+              <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
+              <span>Simulate Rogue Buy ($8,000)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedAsset('ROBOx');
+                setDirection('BUY');
+                setTradeAmount('5000');
+              }}
+              className="px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-mono text-xs border border-emerald-500/40 transition flex items-center gap-1.5 cursor-pointer"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Auto-Adapt Compliant ($5,000)</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 4 Pipeline Stages */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs font-mono">
+          <div className="bg-sentinel-surface p-3 rounded-lg border border-sentinel-border">
+            <span className="text-[10px] text-sentinel-textSubtle block font-sans">STAGE 1 · IDENTITY</span>
+            <span className="font-bold text-white block mt-0.5">ClawPump Agent Wallet</span>
+            <span className="text-[10px] text-sentinel-textMuted block mt-1">
+              Auth: {formatAddress(agent.wallet.getPublicKeyString(), 4)} (Ed25519)
+            </span>
+          </div>
+          <div className="bg-sentinel-surface p-3 rounded-lg border border-sentinel-border">
+            <span className="text-[10px] text-sentinel-textSubtle block font-sans">STAGE 2 · ASSET</span>
+            <span className="font-bold text-emerald-400 block mt-0.5">$ROBOx Agent Token</span>
+            <span className="text-[10px] text-sentinel-textMuted block mt-1">
+              Benchmarked: NVDAx · AAPLx · SPYx
+            </span>
+          </div>
+          <div className="bg-sentinel-surface p-3 rounded-lg border border-sentinel-border">
+            <span className="text-[10px] text-sentinel-textSubtle block font-sans">STAGE 3 · LIQUIDITY</span>
+            <span className="font-bold text-blue-400 block mt-0.5">Meteora DBC Pool</span>
+            <span className="text-[10px] text-sentinel-textMuted block mt-1">
+              Depth: $50,000 · Dynamic Curve
+            </span>
+          </div>
+          <div className="bg-sentinel-surface p-3 rounded-lg border border-emerald-500/40 bg-emerald-950/10">
+            <span className="text-[10px] text-emerald-400 block font-sans font-semibold">STAGE 4 · RISK GUARD</span>
+            <span className="font-bold text-white block mt-0.5">Anti-Self-Dealing Cap</span>
+            <span className="text-[10px] text-emerald-300/80 block mt-1">
+              Strict Max: ≤ {(maxAgentTokenBps / 100).toFixed(1)}% ({formatCurrency(((portfolio.totalValueUsd || 100000) * maxAgentTokenBps) / 10000)})
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* 3. Autonomous Intent Proposer & Invariant Pre-Flight */}
       <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-6">
         <div className="border-b border-sentinel-border pb-4 mb-6">
@@ -582,19 +673,28 @@ export const AgentView: React.FC<AgentViewProps> = ({
               >
                 <optgroup label="Tokenized Public Equities (Meteora DBC)">
                   {availableAssets
-                    .filter((a) => !('isPreIpo' in a))
+                    .filter((a) => !('isPreIpo' in a) && !('isAgentToken' in a))
                     .map((a) => (
                       <option key={a.symbol} value={a.symbol}>
                         {a.symbol} (${a.priceUsd.toFixed(2)})
                       </option>
                     ))}
                 </optgroup>
-                <optgroup label="Pre-IPO Unicorn Equities (PreStocks Secondary)">
+                <optgroup label="Pre-IPO Unicorn Equities (PreStocks / Tessera SPV)">
                   {availableAssets
                     .filter((a) => 'isPreIpo' in a)
                     .map((a) => (
                       <option key={a.symbol} value={a.symbol}>
                         {a.symbol} (${a.priceUsd.toFixed(2)}) • Pre-IPO
+                      </option>
+                    ))}
+                </optgroup>
+                <optgroup label="Autonomous Agent Tokens (ClawPump / Meteora DBC)">
+                  {availableAssets
+                    .filter((a) => 'isAgentToken' in a)
+                    .map((a) => (
+                      <option key={a.symbol} value={a.symbol}>
+                        {a.symbol} (${a.priceUsd.toFixed(2)}) • Stock-Linked Agent Token
                       </option>
                     ))}
                 </optgroup>
@@ -798,6 +898,11 @@ export const AgentView: React.FC<AgentViewProps> = ({
               {willExceedTradeLimit && (
                 <div className="text-rose-400 font-bold">
                   • Trade size of {formatCurrency(amountNum)} exceeds policy max of {formatCurrency(policy.maxTradeValueUsd)}!
+                </div>
+              )}
+              {isAgentTokenSelected && (
+                <div className={willExceedSelfDealing ? 'text-rose-400 font-bold' : 'text-emerald-400 font-bold'}>
+                  • ClawPump Anti-Self-Dealing Cap: Projected {(postExposureBps / 100).toFixed(2)}% vs authorized ≤ {(maxAgentTokenBps / 100).toFixed(2)}% limit {willExceedSelfDealing ? '[BREACH: ERR_AGENT_SELF_DEALING_EXCEEDED]' : '[COMPLIANT]'}
                 </div>
               )}
               {willExceedTrackingError && (

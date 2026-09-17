@@ -11,6 +11,7 @@ import {
   deriveSentinelPda,
   evaluateAssetClassAllocations,
   getAssetCategory,
+  getTesseraTranche,
 } from '@sentinel/domain';
 import {
   TrendingUp,
@@ -517,7 +518,7 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
 
             <div className="mt-2.5 pt-2 border-t border-sentinel-border/40 text-[10px] text-sentinel-textSubtle flex items-center justify-between">
               <span>SPACEXx · OPENAIx · STRIPEx</span>
-              <span className="text-purple-400 font-mono">PreStocks Secondary</span>
+              <span className="text-purple-400 font-mono">PreStocks / Tessera SPV</span>
             </div>
           </div>
 
@@ -1231,6 +1232,58 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
                               </span>
                             </div>
                           </div>
+
+                          {/* Phase 12: Tessera Fractional SPV Tranche Layer */}
+                          {getTesseraTranche(asset.symbol) && (() => {
+                            const tranche = getTesseraTranche(asset.symbol)!;
+                            return (
+                              <div className="bg-gradient-to-r from-purple-950/30 via-slate-900 to-purple-950/20 p-3.5 rounded-lg border border-purple-500/30 text-xs font-mono">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-purple-500/20 pb-2 mb-2.5">
+                                  <div className="flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-purple-400" />
+                                    <span className="font-bold text-white uppercase text-[11px] flex items-center gap-1.5">
+                                      <Building2 className="w-3.5 h-3.5 text-purple-400" />
+                                      Tessera Fractional SPV Tranche Layer
+                                    </span>
+                                  </div>
+                                  <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[10px] font-bold border border-purple-500/30">
+                                    {tranche.trancheId}
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-[11px]">
+                                  <div>
+                                    <span className="text-sentinel-textSubtle block text-[10px]">LEGAL ENTITY</span>
+                                    <span className="text-white font-semibold truncate block" title={tranche.spvLegalEntity}>
+                                      {tranche.spvLegalEntity}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <span className="text-sentinel-textSubtle block text-[10px]">SHARE CLASS</span>
+                                    <span className="text-purple-300 font-semibold">{tranche.shareClass}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-sentinel-textSubtle block text-[10px]">CERTIFIED 409A / FORGE NAV</span>
+                                    <span className="text-white font-bold">
+                                      ${tranche.navAttestationUsd.toFixed(2)}
+                                      <span className="text-[10px] text-sentinel-textMuted font-normal ml-1">
+                                        ({tranche.navAttestationDate})
+                                      </span>
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <span className="text-sentinel-textSubtle block text-[10px]">LOCKUP &amp; MAX PREMIUM</span>
+                                    <span className="text-emerald-400 font-semibold">
+                                      Unlocked · ≤ {(tranche.maxAllowedNavPremiumBps / 100).toFixed(1)}% Premium
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="mt-2 pt-1.5 border-t border-purple-500/20 text-[10px] text-sentinel-textMuted flex items-center justify-between">
+                                  <span>Attestor: <span className="text-purple-300">{tranche.navAttestor}</span></span>
+                                  <span className="text-sentinel-textSubtle">Vault PDA: {formatAddress(tranche.vaultPda, 6)}</span>
+                                </div>
+                              </div>
+                            );
+                          })()}
 
                           {/* Pyth Market Truth Institutional Provenance Box */}
                           {marketPrices?.[asset.symbol] && (

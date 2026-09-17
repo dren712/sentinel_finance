@@ -27,6 +27,10 @@ import {
   projectPortfolioFromHoldings,
   AssetUniverseCategory,
   AssetUniverseGroup,
+  TESSERA_SPV_REGISTRY,
+  getTesseraTranche,
+  TesseraSpvTranche,
+  ClawPumpAgentLaunch,
 } from '@sentinel/domain';
 import {
   ExecutionAdapter,
@@ -47,6 +51,7 @@ import {
 } from './adapters/execution-adapter';
 import { AutonomousRoboAgent } from './agent-simulator';
 import { MeteoraDBCMarketQualityVerifier } from './sponsors/meteora';
+import { TesseraExecutionAdapter } from './sponsors/tessera';
 import { PortfolioIndexer, deriveSplAta } from './portfolio-indexer';
 
 export interface SentinelClientConfig {
@@ -69,22 +74,28 @@ export class SentinelClient {
   private selectedVenue: ExecutionVenueType;
   private meteoraAdapter: MeteoraExecutionAdapter;
   private preStocksAdapter: PreStocksExecutionAdapter;
+  private tesseraAdapter: TesseraExecutionAdapter;
   private demoAdapter: DemoExecutionAdapter;
   private agent: AutonomousRoboAgent;
   private pythAdapter: PythPriceAdapter;
   private valuationEngine: SentinelValuationEngine;
   private indexer: PortfolioIndexer;
   private meteoraVerifier: MeteoraDBCMarketQualityVerifier;
+  private clawpumpLaunch: ClawPumpAgentLaunch;
   private evidenceHistory: EvidenceRecord[] = [];
 
   constructor(config: SentinelClientConfig = {}) {
     this.demoAdapter = new DemoExecutionAdapter(200);
     this.meteoraAdapter = new MeteoraExecutionAdapter();
     this.preStocksAdapter = new PreStocksExecutionAdapter();
+    this.tesseraAdapter = new TesseraExecutionAdapter();
+    this.clawpumpLaunch = new ClawPumpAgentLaunch();
 
     this.selectedVenue = config.defaultVenue ?? (config.adapter?.venueType ?? 'METEORA_DBC');
     this.adapter = config.adapter ?? (this.selectedVenue === 'PRESTOCKS_SECONDARY'
       ? this.preStocksAdapter
+      : this.selectedVenue === 'TESSERA_VAULT'
+      ? this.tesseraAdapter
       : this.selectedVenue === 'DEMO_SIMULATION'
       ? this.demoAdapter
       : this.meteoraAdapter);
@@ -115,6 +126,8 @@ export class SentinelClient {
       this.adapter = this.meteoraAdapter;
     } else if (venueType === 'PRESTOCKS_SECONDARY') {
       this.adapter = this.preStocksAdapter;
+    } else if (venueType === 'TESSERA_VAULT') {
+      this.adapter = this.tesseraAdapter;
     } else if (venueType === 'DEMO_SIMULATION') {
       this.adapter = this.demoAdapter;
     }
@@ -132,6 +145,10 @@ export class SentinelClient {
     return this.preStocksAdapter;
   }
 
+  getTesseraAdapter(): TesseraExecutionAdapter {
+    return this.tesseraAdapter;
+  }
+
   getDemoAdapter(): DemoExecutionAdapter {
     return this.demoAdapter;
   }
@@ -139,6 +156,9 @@ export class SentinelClient {
   resolveAdapterForIntent(intent: TradeIntent): ExecutionAdapter {
     if (this.selectedVenue === 'DEMO_SIMULATION') {
       return this.demoAdapter;
+    }
+    if (this.selectedVenue === 'TESSERA_VAULT') {
+      return this.tesseraAdapter;
     }
     const preIpoSymbols = ['SPACEXx', 'OPENAIx', 'STRIPEx'];
     if (preIpoSymbols.includes(intent.assetSymbol)) {
@@ -274,18 +294,34 @@ export class SentinelClient {
       minStablecoinBps: 1000,  // 10.00% floor
       maxPublicEquitiesExposureBps: 7000, // 70.00% cap
       maxPreIpoExposureBps: 2000,         // 20.00% cap
+      maxAgentTokenExposureBps: 500,      // 5.00% cap on agent tokens ($ROBOx) to prevent self-dealing
+      maxTesseraNavPremiumBps: 1500,      // 15.00% cap on Tessera SPV NAV premium
       maxTradeValueUsd: 10_000, // $10,000
       maxSlippageBps: 100,     // 1.00%
       maxSectorExposureBps: 4500,
       maxIssuerExposureBps: 5000,
       maxPositions: 8,
       minDiversificationAssets: 3,
-      venueAllowlist: ['METEORA_DBC', 'PRESTOCKS_SECONDARY', 'DEMO_SIMULATION'],
-      assetAllowlist: ['NVDAx', 'AAPLx', 'SPYx', 'USDC', 'SPACEXx', 'OPENAIx', 'STRIPEx'],
+      venueAllowlist: ['METEORA_DBC', 'PRESTOCKS_SECONDARY', 'TESSERA_VAULT', 'DEMO_SIMULATION'],
+      assetAllowlist: ['NVDAx', 'AAPLx', 'SPYx', 'USDC', 'SPACEXx', 'OPENAIx', 'STRIPEx', 'ROBOx'],
       policyVersion: 1,
       isActive: true,
       updatedAt: Date.now(),
     };
+  }
+
+  /**
+   * Returns registered Tessera Fractional SPV Tranches
+   */
+  getTesseraTranches(): Record<string, TesseraSpvTranche> {
+    return TESSERA_SPV_REGISTRY;
+  }
+
+  /**
+   * Returns active ClawPump agent token launch instance
+   */
+  getClawPumpLaunch(): ClawPumpAgentLaunch {
+    return this.clawpumpLaunch;
   }
 
   /**

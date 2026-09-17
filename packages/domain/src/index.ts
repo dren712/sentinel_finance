@@ -8,3 +8,5 @@ export * from './price-adapter';
 export * from './valuation-engine';
 export * from './portfolio-reader';
 export * from './meteora-market';
+export * from './clawpump-market';
+export * from './tessera-vault';

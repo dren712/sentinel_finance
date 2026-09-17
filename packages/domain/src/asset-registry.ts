@@ -130,6 +130,23 @@ export const ASSET_REGISTRY: Record<string, TokenizedAssetMetadata> = {
     colorHex: '#6366F1', // Indigo
     description: 'Tokenized private equity representing Stripe Inc on Solana via PreStocks.',
   },
+  ROBOx: {
+    id: 'asset_robox',
+    symbol: 'ROBOx',
+    name: 'Sentinel Robo Strategy Token',
+    assetClass: 'TOKENIZED_EQUITY',
+    mint: 'ROBOx11111111111111111111111111111111111111',
+    mintDevnet: 'ROBOx11111111111111111111111111111111111111',
+    underlyingAsset: 'ROBO_INDEX',
+    issuer: 'ClawPump Launchpad',
+    sector: 'AUTONOMOUS_AGENTS',
+    decimals: 6,
+    status: 'ACTIVE',
+    isStablecoin: false,
+    basePriceUsd: 1.00,
+    colorHex: '#10B981', // Emerald
+    description: 'Stock-linked autonomous agent token launched on ClawPump with paired Meteora DBC liquidity.',
+  },
 };
 
 export function getAssetMetadata(symbol: string): TokenizedAssetMetadata | undefined {
