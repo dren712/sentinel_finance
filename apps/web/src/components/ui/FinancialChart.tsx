@@ -6,6 +6,9 @@ import {
   PORTFOLIO_1D_DATA,
   PORTFOLIO_1W_DATA,
   PORTFOLIO_1M_DATA,
+  PORTFOLIO_3M_DATA,
+  PORTFOLIO_ALL_DATA,
+  getScaledChartData,
   ChartDataPoint,
 } from '@/lib/sample-chart-data';
 
@@ -13,22 +16,35 @@ interface FinancialChartProps {
   currentValueUsd: number;
 }
 
+export type TimeframeOption = '1D' | '1W' | '1M' | '3M' | 'ALL';
+
 export const FinancialChart: React.FC<FinancialChartProps> = ({ currentValueUsd }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<any>(null);
-  const [timeframe, setTimeframe] = useState<'1D' | '1W' | '1M'>('1M');
+  const [timeframe, setTimeframe] = useState<TimeframeOption>('1M');
 
-  const getDataForTimeframe = (tf: '1D' | '1W' | '1M'): ChartDataPoint[] => {
+  const getDataForTimeframe = (tf: TimeframeOption): ChartDataPoint[] => {
+    let raw: ChartDataPoint[];
     switch (tf) {
       case '1D':
-        return PORTFOLIO_1D_DATA;
+        raw = PORTFOLIO_1D_DATA;
+        break;
       case '1W':
-        return PORTFOLIO_1W_DATA;
+        raw = PORTFOLIO_1W_DATA;
+        break;
+      case '3M':
+        raw = PORTFOLIO_3M_DATA;
+        break;
+      case 'ALL':
+        raw = PORTFOLIO_ALL_DATA;
+        break;
       case '1M':
       default:
-        return PORTFOLIO_1M_DATA;
+        raw = PORTFOLIO_1M_DATA;
+        break;
     }
+    return getScaledChartData(raw, currentValueUsd);
   };
 
   useEffect(() => {
@@ -38,12 +54,12 @@ export const FinancialChart: React.FC<FinancialChartProps> = ({ currentValueUsd 
     const chart = createChart(chartContainerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: 'transparent' },
-        textColor: '#94A3B8',
+        textColor: '#64748B',
         fontSize: 11,
       },
       grid: {
-        vertLines: { color: 'rgba(30, 38, 56, 0.4)' },
-        horzLines: { color: 'rgba(30, 38, 56, 0.4)' },
+        vertLines: { color: 'rgba(30, 41, 59, 0.3)' },
+        horzLines: { color: 'rgba(30, 41, 59, 0.3)' },
       },
       crosshair: {
         vertLine: {
@@ -58,10 +74,10 @@ export const FinancialChart: React.FC<FinancialChartProps> = ({ currentValueUsd 
         },
       },
       rightPriceScale: {
-        borderColor: '#1E2638',
+        borderColor: '#1E293B',
       },
       timeScale: {
-        borderColor: '#1E2638',
+        borderColor: '#1E293B',
         fixLeftEdge: true,
         fixRightEdge: true,
       },
@@ -70,26 +86,24 @@ export const FinancialChart: React.FC<FinancialChartProps> = ({ currentValueUsd 
     });
 
     const areaSeries = chart.addSeries(AreaSeries, {
-      topColor: 'rgba(37, 99, 235, 0.28)',
-      bottomColor: 'rgba(37, 99, 235, 0.02)',
+      topColor: 'rgba(37, 99, 235, 0.22)',
+      bottomColor: 'rgba(37, 99, 235, 0.01)',
       lineColor: '#3B82F6',
       lineWidth: 2,
     });
 
     const data = getDataForTimeframe(timeframe);
-    // Cast points for lightweight-charts format
     areaSeries.setData(data as any);
     chart.timeScale().fitContent();
 
     chartRef.current = chart;
     seriesRef.current = areaSeries;
 
-    // Responsive resize handler
     const handleResize = () => {
       if (chartContainerRef.current && chartRef.current) {
         chartRef.current.applyOptions({
           width: chartContainerRef.current.clientWidth,
-          height: 240,
+          height: 250,
         });
       }
     };
@@ -106,41 +120,36 @@ export const FinancialChart: React.FC<FinancialChartProps> = ({ currentValueUsd 
     };
   }, []);
 
-  // Update data when timeframe changes
+  // Update data when timeframe or currentValueUsd changes
   useEffect(() => {
     if (!seriesRef.current || !chartRef.current) return;
     const data = getDataForTimeframe(timeframe);
     seriesRef.current.setData(data as any);
     chartRef.current.timeScale().fitContent();
-  }, [timeframe]);
+  }, [timeframe, currentValueUsd]);
 
   return (
-    <div className="w-full bg-sentinel-surface border border-sentinel-border rounded-xl p-5 space-y-3">
-      {/* Chart Header Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-sentinel-border">
-        <div className="flex items-center gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <h4 className="text-sm font-bold text-sentinel-text">Portfolio Equity Curve</h4>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30">
-                SIMULATED BENCHMARK DATA
-              </span>
-            </div>
-            <p className="text-xs text-sentinel-textMuted mt-0.5">
-              Current Net Asset Value: <span className="text-white font-mono font-semibold">${currentValueUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-            </p>
+    <div className="w-full bg-sentinel-surface border border-sentinel-border rounded-xl p-6 space-y-4">
+      {/* Portfolio Value & Timeframe Controls */}
+      <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-4 pb-4 border-b border-sentinel-border/70">
+        <div>
+          <span className="text-xs font-semibold text-sentinel-textSubtle tracking-wider uppercase">
+            Portfolio Value
+          </span>
+          <div className="text-3xl sm:text-4xl font-black font-mono tracking-tight text-white mt-1">
+            ${currentValueUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
         </div>
 
-        {/* Timeframe Switcher */}
-        <div className="flex items-center gap-1 bg-sentinel-surfaceMuted p-1 rounded-lg border border-sentinel-border self-start sm:self-auto">
-          {(['1D', '1W', '1M'] as const).map((tf) => (
+        {/* Timeframe Switcher [ 1D ] [ 1W ] [ 1M ] [ 3M ] [ ALL ] */}
+        <div className="flex items-center gap-1 bg-sentinel-surfaceMuted p-1 rounded-lg border border-sentinel-border">
+          {(['1D', '1W', '1M', '3M', 'ALL'] as const).map((tf) => (
             <button
               key={tf}
               onClick={() => setTimeframe(tf)}
-              className={`px-3 py-1 text-xs font-mono font-semibold rounded transition-colors ${
+              className={`px-3 py-1 text-xs font-mono font-semibold rounded-md transition-all cursor-pointer ${
                 timeframe === tf
-                  ? 'bg-sentinel-accent text-white shadow-sm'
+                  ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-sentinel-textMuted hover:text-white hover:bg-sentinel-surface'
               }`}
             >
@@ -151,13 +160,7 @@ export const FinancialChart: React.FC<FinancialChartProps> = ({ currentValueUsd 
       </div>
 
       {/* Chart Canvas */}
-      <div ref={chartContainerRef} className="w-full h-[240px]" />
-
-      {/* Legal Attribution required by TradingView */}
-      <div className="flex items-center justify-between text-[10px] text-sentinel-textSubtle pt-2 border-t border-sentinel-border">
-        <span>Powered by TradingView Lightweight Charts™</span>
-        <span>Solana Devnet Tokenized Equities</span>
-      </div>
+      <div ref={chartContainerRef} className="w-full h-[250px]" />
     </div>
   );
 };

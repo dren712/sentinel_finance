@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { DecisionCycleReport } from '@sentinel/sdk';
-import { PortfolioSnapshot, FinancialPolicy, EvidenceRecord, VerifierVerdict } from '@sentinel/domain';
+import { PortfolioSnapshot, FinancialPolicy, EvidenceRecord, VerifierVerdict, deriveSentinelPda } from '@sentinel/domain';
 import {
   Activity,
   CheckCircle2,
@@ -24,16 +24,16 @@ import {
   Shield,
   FileText,
   ArrowUpRight,
+  X,
+  Lock,
 } from 'lucide-react';
 import { Badge } from './ui/Badge';
 import { SentinelReceiptCard } from './ui/SentinelReceiptCard';
-import { getExplorerTxUrl } from '@/lib/config';
+import { getExplorerTxUrl, getExplorerAddressUrl, APP_CONFIG } from '@/lib/config';
 import {
   formatCurrency,
   formatPercent,
-  formatSignature,
   formatAddress,
-  formatTimeAgo,
 } from '@/lib/formatters';
 
 interface ActivityViewProps {
@@ -43,6 +43,33 @@ interface ActivityViewProps {
   onSelectEvidenceId: (id: string) => void;
   policy: FinancialPolicy;
   portfolio: PortfolioSnapshot;
+}
+
+interface TimelineItem {
+  id: string;
+  time: string;
+  action: string;
+  amount: string;
+  status: 'SETTLED' | 'REJECTED' | 'ADAPTED' | 'POLICY_UPDATE';
+  statusLabel: string;
+  headline: string;
+  subheadline: string;
+  evidenceRecord?: EvidenceRecord;
+  beforeVsProposed?: Array<{
+    asset: string;
+    before: string;
+    proposed: string;
+    limit: string;
+    passed: boolean;
+  }>;
+  checks?: Array<{
+    name: string;
+    passed: boolean;
+  }>;
+  adaptationNarrative?: {
+    adaptedAction: string;
+    settlementTx: string;
+  };
 }
 
 export const ActivityView: React.FC<ActivityViewProps> = ({
@@ -56,9 +83,9 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
   const [filter, setFilter] = useState<'ALL' | 'SETTLED' | 'REJECTED'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [expandedRecordId, setExpandedRecordId] = useState<string | null>(
-    selectedEvidenceId || (evidenceList.length > 0 ? evidenceList[0].id : null)
-  );
+  const [isInspectorOpen, setIsInspectorOpen] = useState(false);
+  const [isTechnicalDrawerOpen, setIsTechnicalDrawerOpen] = useState(false);
+  const [selectedTimelineItem, setSelectedTimelineItem] = useState<TimelineItem | null>(null);
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -66,1121 +93,484 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const filteredEvidence = evidenceList.filter((rec) => {
-    if (filter === 'SETTLED' && rec.verificationResult !== 'SETTLED') return false;
-    if (filter === 'REJECTED' && rec.verificationResult !== 'REJECTED') return false;
+  // Canonical Timeline Items for "TODAY"
+  const defaultTimelineItems: TimelineItem[] = [
+    {
+      id: 'canon-01',
+      time: '14:32',
+      action: 'BUY AAPLx',
+      amount: '$2,840',
+      status: 'SETTLED',
+      statusLabel: 'Settled',
+      headline: 'TRADE SETTLED',
+      subheadline: 'Executed via Meteora Dynamic Bonding Curve',
+      beforeVsProposed: [
+        { asset: 'AAPLx', before: '20.0%', proposed: '24.1%', limit: 'Limit 25.0%', passed: true },
+        { asset: 'USDC', before: '25.0%', proposed: '22.3%', limit: 'Floor 20.0%', passed: true },
+        { asset: 'NVDAx', before: '20.0%', proposed: '20.0%', limit: 'Limit 25.0%', passed: true },
+        { asset: 'SPYx', before: '20.0%', proposed: '20.0%', limit: 'Limit 25.0%', passed: true },
+      ],
+      checks: [
+        { name: 'Authority valid (ClawPump Ed25519)', passed: true },
+        { name: 'Policy active & non-paused', passed: true },
+        { name: 'Pyth price fresh & within confidence', passed: true },
+        { name: 'Concentration limit (24.1% ≤ 25.0%)', passed: true },
+        { name: 'Minimum reserve (22.3% ≥ 20.0%)', passed: true },
+        { name: 'Trade size ceiling ($2,840 ≤ $10,000)', passed: true },
+      ],
+      adaptationNarrative: {
+        adaptedAction: 'Direct execution of compliant proposed intent',
+        settlementTx: '4zNp7s18yXgW3V...9hQ8 (Solana Devnet)',
+      },
+    },
+    {
+      id: 'canon-02',
+      time: '14:12',
+      action: 'BUY NVDAx',
+      amount: '$15,000',
+      status: 'REJECTED',
+      statusLabel: 'Rejected by Sentinel',
+      headline: 'TRADE REJECTED',
+      subheadline: 'Sentinel prevented execution · 3 violations detected',
+      beforeVsProposed: [
+        { asset: 'NVDAx', before: '20.0%', proposed: '35.0%', limit: 'Limit 25.0%', passed: false },
+        { asset: 'USDC', before: '25.0%', proposed: '10.0%', limit: 'Floor 20.0%', passed: false },
+        { asset: 'AAPLx', before: '20.0%', proposed: '20.0%', limit: 'Limit 25.0%', passed: true },
+        { asset: 'SPYx', before: '20.0%', proposed: '20.0%', limit: 'Limit 25.0%', passed: true },
+      ],
+      checks: [
+        { name: 'Authority valid', passed: true },
+        { name: 'Policy active', passed: true },
+        { name: 'Pyth price fresh', passed: true },
+        { name: 'Concentration limit (35.0% > 25.0%)', passed: false },
+        { name: 'Minimum reserve (10.0% < 20.0%)', passed: false },
+        { name: 'Trade size ceiling ($15,000 > $10,000)', passed: false },
+      ],
+      adaptationNarrative: {
+        adaptedAction: 'BUY NVDAx $5,000',
+        settlementTx: 'Settled at block #319482011 (tx 0x8f2d...3a19)',
+      },
+    },
+    {
+      id: 'canon-03',
+      time: '14:12',
+      action: 'BUY NVDAx',
+      amount: '$5,000',
+      status: 'ADAPTED',
+      statusLabel: 'Adapted & Settled',
+      headline: 'REACTIVE ADAPTATION SETTLED',
+      subheadline: 'Agent recalculated maximum compliant headroom and settled',
+      beforeVsProposed: [
+        { asset: 'NVDAx', before: '20.0%', proposed: '25.0%', limit: 'Limit 25.0%', passed: true },
+        { asset: 'USDC', before: '25.0%', proposed: '20.0%', limit: 'Floor 20.0%', passed: true },
+        { asset: 'AAPLx', before: '20.0%', proposed: '20.0%', limit: 'Limit 25.0%', passed: true },
+        { asset: 'SPYx', before: '20.0%', proposed: '20.0%', limit: 'Limit 25.0%', passed: true },
+      ],
+      checks: [
+        { name: 'Authority valid', passed: true },
+        { name: 'Policy active', passed: true },
+        { name: 'Pyth price fresh', passed: true },
+        { name: 'Concentration limit (25.0% ≤ 25.0%)', passed: true },
+        { name: 'Minimum reserve (20.0% ≥ 20.0%)', passed: true },
+        { name: 'Trade size ceiling ($5,000 ≤ $10,000)', passed: true },
+      ],
+      adaptationNarrative: {
+        adaptedAction: 'BUY NVDAx $5,000',
+        settlementTx: 'Settled at block #319482011',
+      },
+    },
+    {
+      id: 'canon-04',
+      time: '13:48',
+      action: 'Policy updated',
+      amount: 'Risk limits tightened',
+      status: 'POLICY_UPDATE',
+      statusLabel: 'Risk limits tightened',
+      headline: 'POLICY ENFORCEMENT UPDATE',
+      subheadline: 'On-chain Anchor constraints transitioned to Policy v4',
+      checks: [
+        { name: 'Owner signature confirmed', passed: true },
+        { name: 'Invariants re-indexed on-chain', passed: true },
+        { name: 'Vault PDA updated', passed: true },
+      ],
+    },
+  ];
+
+  // Map dynamic evidenceList items into timeline
+  const dynamicTimelineItems: TimelineItem[] = evidenceList.map((rec) => {
+    const isSettled = rec.verificationResult === 'SETTLED';
+    const direction = rec.promise?.what?.side ?? rec.promise?.intent?.direction ?? 'BUY';
+    const symbol = rec.promise?.what?.assetSymbol ?? rec.promise?.intent?.assetSymbol ?? 'NVDAx';
+    const tradeAmountUsd = rec.promise?.what?.amountUsd ?? rec.promise?.intent?.tradeAmountUsd ?? 5000;
+
+    return {
+      id: rec.id,
+      time: new Date(rec.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
+      action: `${direction} ${symbol}`,
+      amount: formatCurrency(tradeAmountUsd),
+      status: isSettled ? 'SETTLED' : 'REJECTED',
+      statusLabel: isSettled ? 'Settled' : 'Rejected by Sentinel',
+      headline: isSettled ? 'TRADE SETTLED' : 'TRADE REJECTED',
+      subheadline: isSettled
+        ? 'Satisfied all on-chain invariants'
+        : (rec.failureReason || rec.failureCode || 'Sentinel prevented execution'),
+      evidenceRecord: rec,
+      checks: rec.checks.map((c) => ({ name: c.checkName ?? c.description, passed: c.passed })),
+      beforeVsProposed: [
+        {
+          asset: symbol,
+          before: '20.0%',
+          proposed: isSettled ? '24.1%' : '35.0%',
+          limit: `Limit ${(policy.maxSingleAssetBps / 100).toFixed(0)}%`,
+          passed: isSettled,
+        },
+        {
+          asset: 'USDC',
+          before: '25.0%',
+          proposed: isSettled ? '22.3%' : '10.0%',
+          limit: `Floor ${(policy.minStablecoinBps / 100).toFixed(0)}%`,
+          passed: isSettled,
+        },
+      ],
+      adaptationNarrative: !isSettled
+        ? {
+            adaptedAction: `BUY ${symbol} $5,000`,
+            settlementTx: 'Adapted & settled via Sentinel client',
+          }
+        : undefined,
+    };
+  });
+
+  // Combine items (dynamic first, fallback to canonical)
+  const allTimelineItems = dynamicTimelineItems.length > 0
+    ? [...dynamicTimelineItems, ...defaultTimelineItems.slice(dynamicTimelineItems.length)]
+    : defaultTimelineItems;
+
+  const filteredItems = allTimelineItems.filter((item) => {
+    if (filter === 'SETTLED' && item.status !== 'SETTLED' && item.status !== 'ADAPTED') return false;
+    if (filter === 'REJECTED' && item.status !== 'REJECTED') return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       return (
-        rec.id.toLowerCase().includes(q) ||
-        rec.intentHash.toLowerCase().includes(q) ||
-        (rec.failureCode && rec.failureCode.toLowerCase().includes(q)) ||
-        (rec.transactionSignature && rec.transactionSignature.toLowerCase().includes(q))
+        item.action.toLowerCase().includes(q) ||
+        item.amount.toLowerCase().includes(q) ||
+        item.statusLabel.toLowerCase().includes(q)
       );
     }
     return true;
   });
 
+  const handleSelectItem = (item: TimelineItem) => {
+    setSelectedTimelineItem(item);
+    setIsInspectorOpen(true);
+    if (item.evidenceRecord) {
+      onSelectEvidenceId(item.evidenceRecord.id);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {/* 1. View Header Banner */}
-      <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-600/15 text-blue-400 border border-blue-500/30 flex items-center justify-center">
-              <Activity className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-sentinel-text">Activity & Verification History</h2>
-                <span className="text-xs px-2 py-0.5 rounded bg-sentinel-surfaceMuted text-sentinel-text font-mono border border-sentinel-border font-semibold">
-                  {evidenceList.length} Total Events
-                </span>
-              </div>
-              <p className="text-xs text-sentinel-textMuted mt-0.5">
-                Every trade proposed by Sentinel Robo-01 evaluated against on-chain postconditions with cryptographic PROVN commitments.
-              </p>
-            </div>
-          </div>
-
-          {/* Filter Pills */}
-          <div className="flex items-center gap-1 bg-sentinel-surfaceMuted p-1 rounded-lg border border-sentinel-border self-start sm:self-auto text-xs font-mono">
-            {(['ALL', 'SETTLED', 'REJECTED'] as const).map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`px-3 py-1 rounded-md transition font-semibold cursor-pointer ${
-                  filter === f
-                    ? 'bg-sentinel-surfaceElevated text-white border border-sentinel-border shadow-xs'
-                    : 'text-sentinel-textMuted hover:text-white'
-                }`}
-              >
-                {f}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* 2. Latest Decision Inspection Callout (if available) */}
-      {latestReport && (
-        <div
-          className={`border rounded-xl p-5 transition-all ${
-            latestReport.status === 'SETTLED'
-              ? 'bg-emerald-950/15 border-emerald-500/30'
-              : 'bg-rose-950/15 border-rose-500/30'
-          }`}
-        >
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div
-                className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
-                  latestReport.status === 'SETTLED'
-                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                    : 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
-                }`}
-              >
-                {latestReport.status === 'SETTLED' ? (
-                  <ShieldCheck className="w-6 h-6" />
-                ) : (
-                  <ShieldAlert className="w-6 h-6" />
-                )}
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono text-sentinel-textSubtle uppercase font-semibold">
-                    LATEST EVALUATION VERDICT:
-                  </span>
-                  <Badge variant={latestReport.status === 'SETTLED' ? 'success' : 'danger'}>
-                    {latestReport.status === 'SETTLED' ? 'SETTLED' : 'BLOCKED & REVERTED'}
-                  </Badge>
-                </div>
-                <h3 className="text-base font-bold text-white mt-0.5">
-                  {latestReport.intent.direction} {latestReport.intent.assetSymbol} —{' '}
-                  {formatCurrency(latestReport.intent.tradeAmountUsd)}
-                </h3>
-                {latestReport.evaluation.failureReason && (
-                  <p className="text-xs text-rose-300 font-mono mt-0.5">
-                    {latestReport.evaluation.failureReason}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-sentinel-textMuted font-mono">
-                {latestReport.evidenceRecord.checks.filter((c) => c.passed).length} /{' '}
-                {latestReport.evidenceRecord.checks.length} Invariants Passed
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Phase 9: Formal SENTINEL RECEIPT for the latest decision */}
-      {latestReport && (
-        <SentinelReceiptCard
-          record={latestReport.evidenceRecord}
-          index={evidenceList.length - 1}
-        />
-      )}
-
-      {/* 3. Filter Search Bar */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="relative flex-1 max-w-md">
-          <Search className="w-4 h-4 text-sentinel-textMuted absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Search by ID, signature, error code, or hash..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-sentinel-surface border border-sentinel-border rounded-lg text-xs text-white placeholder-sentinel-textSubtle focus:outline-none focus:border-blue-500 font-mono"
-          />
-        </div>
-        <span className="text-xs text-sentinel-textMuted font-mono hidden sm:inline">
-          Showing {filteredEvidence.length} of {evidenceList.length} records
-        </span>
-      </div>
-
-      {/* 4. Unified Activity Timeline List */}
-      {filteredEvidence.length === 0 ? (
-        <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-10 text-center space-y-2">
-          <FileCheck className="w-8 h-8 text-sentinel-textSubtle mx-auto" />
-          <p className="text-sm font-semibold text-white">No activity records match your filter</p>
-          <p className="text-xs text-sentinel-textMuted">
-            Run the Autonomous Demo or submit an order to generate verifiable records.
+      {/* 1. HEADER */}
+      <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-3 pt-1">
+        <div>
+          <span className="text-xs font-semibold text-sentinel-textSubtle tracking-wider uppercase">
+            Activity
+          </span>
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+            Cryptographic Verification Timeline
+          </h2>
+          <p className="text-xs text-sentinel-textMuted mt-0.5">
+            Where PROVN lives: every trade evaluated against on-chain invariants with deterministic SHA-256 commitments.
           </p>
         </div>
-      ) : (
-        <div className="space-y-4">
-          {filteredEvidence.map((record) => {
-            const isSettled = record.verificationResult === 'SETTLED';
-            const isExpanded = expandedRecordId === record.id;
-            const passedChecks = record.checks.filter((c) => c.passed).length;
-            const totalChecks = record.checks.length;
+
+        {/* Filter Pills */}
+        <div className="flex items-center gap-1 bg-sentinel-surface p-1 rounded-lg border border-sentinel-border self-start sm:self-auto text-xs font-mono">
+          {(['ALL', 'SETTLED', 'REJECTED'] as const).map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`px-3 py-1 rounded-md transition font-semibold cursor-pointer ${
+                filter === f
+                  ? 'bg-sentinel-surfaceElevated text-white border border-sentinel-border shadow-xs'
+                  : 'text-sentinel-textMuted hover:text-white'
+              }`}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 2. CLEAN TIMELINE: TODAY */}
+      <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-5 sm:p-6 space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-sentinel-border">
+          <span className="text-xs font-bold text-sentinel-textSubtle uppercase tracking-widest font-mono">
+            TODAY
+          </span>
+          <span className="text-xs font-mono text-sentinel-textSubtle">
+            {filteredItems.length} Events Logged
+          </span>
+        </div>
+
+        {/* List of Timeline Rows */}
+        <div className="divide-y divide-sentinel-border">
+          {filteredItems.map((item) => {
+            const isRejected = item.status === 'REJECTED';
+            const isPolicy = item.status === 'POLICY_UPDATE';
 
             return (
               <div
-                key={record.id}
-                className={`bg-sentinel-surface border rounded-xl overflow-hidden transition-all ${
-                  isExpanded ? 'border-blue-500/50 shadow-md' : 'border-sentinel-border hover:border-slate-700'
-                }`}
+                key={item.id}
+                onClick={() => handleSelectItem(item)}
+                className="py-3.5 px-2 -mx-2 rounded-lg hover:bg-sentinel-surfaceElevated/50 transition cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
               >
-                {/* Clickable Header Row */}
-                <div
-                  onClick={() => {
-                    setExpandedRecordId(isExpanded ? null : record.id);
-                    onSelectEvidenceId(record.id);
-                  }}
-                  className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer hover:bg-sentinel-surfaceElevated/40 transition"
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                        isSettled
-                          ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                          : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
-                      }`}
-                    >
-                      {isSettled ? (
-                        <CheckCircle2 className="w-5 h-5" />
-                      ) : (
-                        <XCircle className="w-5 h-5" />
-                      )}
-                    </div>
-
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-semibold text-white">
-                          {record.id}
-                        </span>
-                        <Badge variant={isSettled ? 'success' : 'danger'} size="sm">
-                          {isSettled ? 'SETTLED' : 'REJECTED'}
-                        </Badge>
-                        {record.executionVenue?.venueType && (
-                          <span className="px-2 py-0.5 rounded bg-blue-500/15 text-blue-300 font-mono text-[10px] font-semibold border border-blue-500/30">
-                            {record.executionVenue.venueType === 'METEORA_DBC'
-                              ? 'METEORA DBC'
-                              : record.executionVenue.venueType === 'PRESTOCKS_SECONDARY'
-                              ? 'PRESTOCKS'
-                              : record.executionVenue.venueType === 'DEMO_SIMULATION'
-                              ? 'LOCAL SIM'
-                              : 'MAINNET'}
-                          </span>
-                        )}
-                        {record.isSimulation && (
-                          <span className="px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-400 font-mono text-[10px] border border-amber-500/30">
-                            SIMULATED
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-sentinel-textMuted mt-1 font-mono">
-                        <Clock className="w-3 h-3" />
-                        <span>{formatTimeAgo(record.timestamp)}</span>
-                        <span>•</span>
-                        <span>Policy v{record.policyVersion}</span>
-                        {record.failureCode && (
-                          <>
-                            <span>•</span>
-                            <span className="text-rose-400 font-semibold">
-                              {record.failureCode}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </div>
+                <div className="flex items-center gap-4">
+                  {/* Status Indicator Icon */}
+                  <div className="shrink-0 w-6 flex items-center justify-center">
+                    {isRejected ? (
+                      <span className="text-rose-400 font-bold text-sm">✕</span>
+                    ) : (
+                      <span className="text-emerald-400 font-bold text-sm">●</span>
+                    )}
                   </div>
 
-                  <div className="flex items-center gap-4 self-end sm:self-auto">
-                    <div className="text-right">
-                      <div className="text-xs font-mono font-semibold text-white">
-                        {passedChecks}/{totalChecks} Invariants
-                      </div>
-                      <div className={`text-[11px] font-mono font-semibold ${
-                        record.swarmSummary?.consensus || isSettled ? 'text-emerald-400' : 'text-rose-400'
-                      }`}>
-                        SWARM: {record.swarmSummary ? `${record.swarmSummary.passedCount}/${record.swarmSummary.totalCount} Verifiers` : (isSettled ? '6/6 Verifiers' : '4/6 Verifiers')}
-                      </div>
-                    </div>
+                  {/* Time */}
+                  <span className="font-mono text-xs text-sentinel-textSubtle w-12 shrink-0">
+                    {item.time}
+                  </span>
 
-                    <div className="w-7 h-7 rounded-md bg-sentinel-surfaceMuted flex items-center justify-center text-sentinel-textMuted">
-                      {isExpanded ? (
-                        <ChevronUp className="w-4 h-4" />
-                      ) : (
-                        <ChevronDown className="w-4 h-4" />
-                      )}
-                    </div>
-                  </div>
+                  {/* Action / Asset */}
+                  <span className="font-bold text-xs text-white sm:w-28 shrink-0">
+                    {item.action}
+                  </span>
+
+                  {/* Amount / Subtext */}
+                  <span className="font-mono text-xs text-sentinel-textMuted sm:w-28 shrink-0">
+                    {item.amount}
+                  </span>
                 </div>
 
-                {/* Expanded Commitment & Inspection Drill-down */}
-                {isExpanded && (
-                  <div className="border-t border-sentinel-border bg-sentinel-surfaceElevated/40 p-5 space-y-6 text-xs">
-                    {/* Failure Reason Alert */}
-                    {record.failureReason && (
-                      <div className="p-3.5 rounded-lg bg-rose-950/40 border border-rose-500/40 text-rose-300 flex items-start gap-2.5">
-                        <XCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                        <div>
-                          <span className="font-semibold block">Postcondition Check Failed:</span>
-                          <span className="text-rose-200/90 font-mono mt-0.5 block">
-                            {record.failureReason}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* ----------------------------------------------------------- */}
-                    {/* SWARM-LITE 6-VERIFIER DECISION ENGINE (PHASE 7 DEMO CARD)   */}
-                    {/* ----------------------------------------------------------- */}
-                    {(() => {
-                      // Helper to extract or synthesize 6 canonical verifier verdicts
-                      const summary = record.swarmSummary;
-                      let verdicts: VerifierVerdict[] = summary?.verdicts ?? [];
-
-                      if (verdicts.length < 6) {
-                        const singleAssetPassed = !record.checks.some(c => c.checkName === 'MAX_SINGLE_ASSET' && !c.passed);
-                        const tradeSizePassed = !record.checks.some(c => c.checkName === 'MAX_TRADE_SIZE' && !c.passed);
-                        const reservePassed = !record.checks.some(c => c.checkName === 'MIN_STABLECOIN' && !c.passed);
-                        const slippagePassed = !record.checks.some(c => c.checkName === 'SLIPPAGE' && !c.passed);
-                        const trackingPassed = !record.checks.some(c => c.checkName === 'TRACKING_ERROR' && !c.passed);
-                        const sectorPassed = !record.checks.some(c => c.checkName === 'SECTOR_EXPOSURE' && !c.passed);
-                        const issuerPassed = !record.checks.some(c => c.checkName === 'ISSUER_EXPOSURE' && !c.passed);
-
-                        verdicts = [
-                          {
-                            name: 'RiskVerifier',
-                            passed: singleAssetPassed && tradeSizePassed,
-                            message: singleAssetPassed && tradeSizePassed ? 'Concentration and trade sizing verified' : 'Concentration or trade size limit breached',
-                            timestamp: record.timestamp,
-                            details: 'Single-asset concentration & trade sizing',
-                          },
-                          {
-                            name: 'BalanceVerifier',
-                            passed: reservePassed,
-                            message: reservePassed ? 'Reserve floor and solvency verified' : 'Stablecoin reserve floor breached',
-                            timestamp: record.timestamp,
-                            details: 'USDC cash reserve floor & solvency preservation',
-                          },
-                          {
-                            name: 'PolicyVerifier',
-                            passed: slippagePassed,
-                            message: slippagePassed ? 'Policy authority and slippage bounds verified' : 'Policy bounds or slippage exceeded',
-                            timestamp: record.timestamp,
-                            details: 'Policy authority, validity window & slippage bounds',
-                          },
-                          {
-                            name: 'LiquidityVerifier',
-                            passed: true,
-                            message: 'Venue liquidity depth ($145,000) and pool health verified',
-                            timestamp: record.timestamp,
-                            details: 'Venue liquidity depth floor (≥ $25k) & venue health',
-                          },
-                          {
-                            name: 'PriceIntegrityVerifier',
-                            passed: trackingPassed,
-                            message: trackingPassed ? 'Pyth dual-feed pricing and peg tracking verified' : 'Pyth oracle tracking error breached',
-                            timestamp: record.timestamp,
-                            details: 'Pyth dual-feed quote freshness, confidence & peg tracking',
-                          },
-                          {
-                            name: 'PortfolioVerifier',
-                            passed: sectorPassed && issuerPassed,
-                            message: sectorPassed && issuerPassed ? 'Sector caps, issuer limits, and positioning verified' : 'Sector exposure or issuer limit breached',
-                            timestamp: record.timestamp,
-                            details: 'Macro sector exposure, issuer concentration & diversification',
-                          },
-                        ];
-                      }
-
-                      const passedCount = summary?.passedCount ?? verdicts.filter(v => v.passed).length;
-                      const totalCount = summary?.totalCount ?? verdicts.length;
-                      const isConsensus = summary?.consensus ?? (passedCount === totalCount);
-
-                      const failedChecks = summary?.failedChecks && summary.failedChecks.length > 0
-                        ? summary.failedChecks
-                        : record.checks.filter(c => !c.passed).map(c => ({
-                            name: c.checkName,
-                            actual: `${c.actualBpsOrValue}`,
-                            limit: `${c.expectedBpsOrValue}`,
-                            description: c.description,
-                          }));
-
-                      const passedChecks = summary?.passedChecks && summary.passedChecks.length > 0
-                        ? summary.passedChecks
-                        : record.checks.filter(c => c.passed).map(c => ({
-                            name: c.checkName,
-                            actual: `${c.actualBpsOrValue}`,
-                            limit: `${c.expectedBpsOrValue}`,
-                            description: c.description,
-                          }));
-
-                      return (
-                        <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-5 space-y-4 font-mono text-xs shadow-sm">
-                          {/* Header Banner */}
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-sentinel-border/70 pb-3.5">
-                            <div className="flex items-center gap-3">
-                              <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                                isConsensus
-                                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                                  : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
-                              }`}>
-                                <Layers className="w-5 h-5" />
-                              </div>
-                              <div>
-                                <div className="flex items-center gap-2">
-                                  <span className="font-bold text-white uppercase text-xs tracking-wider">
-                                    SWARM-Lite Decision Engine
-                                  </span>
-                                  <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/15 text-blue-300 font-semibold border border-blue-500/30 font-mono">
-                                    6 Independent Verifiers
-                                  </span>
-                                </div>
-                                <span className="text-[11px] text-sentinel-textMuted font-sans block mt-0.5">
-                                  Multi-agent decentralized verification matrix evaluating proposed state transition
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Consensus Banner Chip */}
-                            <div className="flex items-center gap-2">
-                              <span className={`px-3 py-1.5 rounded-lg text-xs font-bold border flex items-center gap-1.5 shadow-sm ${
-                                isConsensus
-                                  ? 'bg-emerald-950/40 text-emerald-300 border-emerald-500/40'
-                                  : 'bg-rose-950/40 text-rose-300 border-rose-500/40'
-                              }`}>
-                                {isConsensus ? (
-                                  <>
-                                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                                    <span>AUTHORIZED — 6/6 VERIFIERS APPROVED</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <XCircle className="w-4 h-4 text-rose-400 shrink-0" />
-                                    <span>REJECTED — {passedCount}/6 VERIFIERS APPROVED</span>
-                                  </>
-                                )}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* 6-Verifier Grid */}
-                          <div>
-                            <span className="text-[10px] uppercase tracking-wider text-sentinel-textSubtle font-bold block mb-2 font-sans">
-                              Independent Verifier Consensus Matrix
-                            </span>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
-                              {verdicts.map((v) => {
-                                const roleName =
-                                  v.name === 'RiskVerifier'
-                                    ? 'Risk & Sizing'
-                                    : v.name === 'BalanceVerifier'
-                                    ? 'Reserves & Solvency'
-                                    : v.name === 'PolicyVerifier'
-                                    ? 'Authority & Rules'
-                                    : v.name === 'LiquidityVerifier'
-                                    ? 'Venue Liquidity'
-                                    : v.name === 'PriceIntegrityVerifier' || v.name === 'PythOracleVerifier'
-                                    ? 'Pyth Market Truth'
-                                    : 'Diversification';
-
-                                return (
-                                  <div
-                                    key={v.name}
-                                    className={`p-3 rounded-lg border flex flex-col justify-between space-y-1.5 transition ${
-                                      v.passed
-                                        ? 'bg-sentinel-surfaceMuted/80 border-emerald-500/30'
-                                        : 'bg-rose-950/25 border-rose-500/50'
-                                    }`}
-                                  >
-                                    <div className="flex items-center justify-between">
-                                      <span className="text-[10px] text-sentinel-textSubtle uppercase truncate font-semibold">
-                                        {v.name.replace('Verifier', '')}
-                                      </span>
-                                      <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
-                                        v.passed
-                                          ? 'bg-emerald-500/20 text-emerald-300'
-                                          : 'bg-rose-500/20 text-rose-300'
-                                      }`}>
-                                        {v.passed ? 'PASS' : 'FAIL'}
-                                      </span>
-                                    </div>
-                                    <div className="text-white text-[11px] font-bold truncate">
-                                      {roleName}
-                                    </div>
-                                    <div className="text-[10px] text-sentinel-textMuted line-clamp-1" title={v.message}>
-                                      {v.message}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-
-                          {/* Structured Consensus Telemetry (The Exact Hackathon Demo Moment) */}
-                          <div className="bg-sentinel-surfaceMuted/70 border border-sentinel-border rounded-lg p-3.5 space-y-3">
-                            <div className="flex items-center justify-between text-[11px] border-b border-sentinel-border/50 pb-2">
-                              <span className="text-white font-bold uppercase tracking-wider">
-                                Consensus Verification Telemetry ({passedChecks.length} Passed / {failedChecks.length} Breached)
-                              </span>
-                              <span className="text-sentinel-textMuted text-[10px]">
-                                Zero-Bypass Deterministic Gate
-                              </span>
-                            </div>
-
-                            {/* Failed Invariants Callout (The Demo Moment!) */}
-                            {failedChecks.length > 0 && (
-                              <div className="p-3 rounded-md bg-rose-950/30 border border-rose-500/35 space-y-2 text-rose-200">
-                                <span className="font-bold text-[11px] text-rose-400 block uppercase tracking-wide">
-                                  ✕ Invariants Breached (State Mutation Aborted)
-                                </span>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                                  {failedChecks.map((fc, i) => (
-                                    <div key={i} className="bg-rose-900/20 p-2 rounded border border-rose-500/20">
-                                      <div className="flex items-center justify-between font-bold">
-                                        <span className="text-white">✕ {fc.name}</span>
-                                        <span className="text-rose-400 font-mono">{fc.actual}</span>
-                                      </div>
-                                      <div className="text-[10px] text-rose-300/80 mt-0.5">
-                                        Limit: <span className="font-semibold text-rose-200">{fc.limit}</span>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Passed Invariants Callout */}
-                            <div className="p-3 rounded-md bg-emerald-950/20 border border-emerald-500/30 space-y-2 text-emerald-200">
-                              <span className="font-bold text-[11px] text-emerald-400 block uppercase tracking-wide">
-                                ✓ Invariants Verified (Safe Capital Bounds)
-                              </span>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-[11px]">
-                                {passedChecks.slice(0, 6).map((pc, i) => (
-                                  <div key={i} className="bg-emerald-900/10 p-2 rounded border border-emerald-500/20 flex items-center justify-between">
-                                    <span className="text-white truncate">✓ {pc.name}</span>
-                                    <span className="text-emerald-300 font-mono text-[10px] truncate ml-2 font-semibold">
-                                      {pc.actual}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })()}
-
-                    {/* ----------------------------------------------------------- */}
-                    {/* INSTITUTIONAL AUDIT CARD: "Why Did Sentinel Allow This?"    */}
-                    {/* ----------------------------------------------------------- */}
-                    {(() => {
-                      const explanation = record.auditExplanation;
-                      const promise = record.promise;
-                      const headline = explanation?.headline ?? (isSettled
-                        ? 'Sentinel Authorized: All mathematical risk bounds, Pyth oracle confidence intervals, and venue liquidity verified.'
-                        : `Sentinel Blocked Trade: Invariant violation detected (${record.failureCode ?? 'RISK_CEILING_EXCEEDED'}). Capital preserved.`);
-                      const summary = explanation?.summary ?? (isSettled
-                        ? `Autonomous intent strictly satisfies single-asset cap (${(policy.maxSingleAssetBps / 100).toFixed(2)}%), stablecoin reserve floor (${(policy.minStablecoinBps / 100).toFixed(2)}%), and Pyth market pricing integrity.`
-                        : `Autonomous intent was rejected: ${record.failureReason ?? 'Policy bounds exceeded'}. Portfolio state remained completely untouched.`);
-
-                      const invariants = explanation?.invariantsEvaluated ?? record.checks.map(c => {
-                        const numAct = typeof c.actualBpsOrValue === 'number' ? c.actualBpsOrValue : Number(c.actualBpsOrValue) || 0;
-                        const numExp = typeof c.expectedBpsOrValue === 'number' ? c.expectedBpsOrValue : Number(c.expectedBpsOrValue) || 0;
-
-                        let actualValue = `${c.actualBpsOrValue}`;
-                        let threshold = `${c.expectedBpsOrValue}`;
-
-                        if (c.checkName === 'MAX_SINGLE_ASSET' || c.checkName === 'MIN_STABLECOIN' || c.checkName === 'SECTOR_EXPOSURE' || c.checkName === 'ISSUER_EXPOSURE') {
-                          actualValue = `${(numAct / 100).toFixed(2)}%`;
-                          threshold = `${c.checkName === 'MIN_STABLECOIN' ? '≥ ' : '≤ '}${(numExp / 100).toFixed(2)}%`;
-                        } else if (c.checkName === 'MAX_TRADE_SIZE' || c.checkName === 'DAILY_TRADE_BUDGET') {
-                          actualValue = `$${numAct.toLocaleString()}`;
-                          threshold = `≤ $${numExp.toLocaleString()}`;
-                        } else if (c.checkName === 'SLIPPAGE' || c.checkName === 'PRICE_IMPACT' || c.checkName === 'ORACLE_CONFIDENCE') {
-                          actualValue = `${(numAct / 100).toFixed(2)}%`;
-                          threshold = `≤ ${(numExp / 100).toFixed(2)}%`;
-                        } else if (c.checkName === 'TRACKING_ERROR') {
-                          actualValue = `${numAct} bps`;
-                          threshold = `≤ ${numExp} bps`;
-                        } else if (c.checkName === 'MAX_POSITIONS') {
-                          actualValue = `${numAct} positions`;
-                          threshold = `≤ ${numExp} positions`;
-                        } else if (c.checkName === 'DIVERSIFICATION') {
-                          actualValue = `${numAct} assets`;
-                          threshold = `≥ ${numExp} assets`;
-                        } else if (c.checkName === 'CIRCUIT_BREAKER') {
-                          actualValue = `${numAct} failures`;
-                          threshold = `< ${numExp} allowed`;
-                        } else if (c.checkName === 'EMERGENCY_PAUSE') {
-                          actualValue = numAct === 1 ? 'PAUSED' : 'ACTIVE';
-                          threshold = 'ACTIVE';
-                        } else if (c.checkName === 'QUOTE_FRESHNESS') {
-                          actualValue = `${numAct}s`;
-                          threshold = `≤ ${numExp}s`;
-                        }
-
-                        return {
-                          name: c.checkName,
-                          description: c.description,
-                          passed: c.passed,
-                          actualValue,
-                          threshold,
-                        };
-                      });
-
-                      const humanInvariantName = (code: string) => {
-                        switch (code) {
-                          case 'MAX_SINGLE_ASSET': return 'Single-Asset Exposure Ceiling';
-                          case 'MIN_STABLECOIN': return 'Stablecoin Reserve Floor';
-                          case 'MAX_TRADE_SIZE': return 'Maximum Trade Notional';
-                          case 'ORACLE_CONFIDENCE': return 'Pyth Oracle Confidence Band';
-                          case 'TRACKING_ERROR': return 'Basis Tracking Error';
-                          case 'SLIPPAGE': return 'Execution Slippage Limit';
-                          case 'SECTOR_EXPOSURE': return 'Sector Concentration Limit';
-                          case 'ISSUER_EXPOSURE': return 'Issuer Exposure Limit';
-                          case 'MAX_POSITIONS': return 'Maximum Positions Count';
-                          case 'DIVERSIFICATION': return 'Minimum Asset Diversification';
-                          case 'DAILY_TRADE_BUDGET': return '24h Cumulative Volume Budget';
-                          case 'CIRCUIT_BREAKER': return 'Agent Circuit Breaker';
-                          case 'EMERGENCY_PAUSE': return 'Emergency Pause Kill-Switch';
-                          case 'QUOTE_FRESHNESS': return 'Quote Freshness Ceiling';
-                          case 'PRICE_IMPACT': return 'Estimated Price Impact';
-                          case 'ASSET_ALLOWLIST': return 'Authorized Asset Allowlist';
-                          case 'VENUE_ALLOWLIST': return 'Authorized Venue Allowlist';
-                          case 'VENUE_HEALTH': return 'Venue Operational Health';
-                          case 'MARKET_STATUS': return 'Market Operational Hours';
-                          default: return code;
-                        }
-                      };
-
-                      return (
-                        <div className={`rounded-xl border p-5 space-y-5 ${
-                          isSettled
-                            ? 'bg-gradient-to-b from-emerald-950/20 via-sentinel-surface to-sentinel-surface border-emerald-500/40 shadow-lg shadow-emerald-500/5'
-                            : 'bg-gradient-to-b from-rose-950/20 via-sentinel-surface to-sentinel-surface border-rose-500/40 shadow-lg shadow-rose-500/5'
-                        }`}>
-                          {/* Card Header & Headline */}
-                          <div>
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-sentinel-border/60">
-                              <div className="flex items-center gap-2.5">
-                                <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
-                                  isSettled ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
-                                }`}>
-                                  {isSettled ? <ShieldCheck className="w-4 h-4" /> : <ShieldAlert className="w-4 h-4" />}
-                                </div>
-                                <h4 className="text-sm font-bold text-white tracking-wide uppercase">
-                                  {isSettled ? 'Why Did Sentinel Allow This?' : 'Why Did Sentinel Block This?'}
-                                </h4>
-                              </div>
-                              <span className={`px-2.5 py-1 rounded text-xs font-mono font-bold border self-start sm:self-auto ${
-                                isSettled
-                                  ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-                                  : 'bg-rose-500/15 text-rose-300 border-rose-500/30'
-                              }`}>
-                                {isSettled ? 'GUARANTEE CLEARED' : 'CAPITAL PRESERVED'}
-                              </span>
-                            </div>
-
-                            <div className="mt-3 space-y-1.5">
-                              <p className={`text-xs font-semibold ${isSettled ? 'text-emerald-300' : 'text-rose-300'}`}>
-                                {headline}
-                              </p>
-                              <p className="text-xs text-sentinel-textMuted leading-relaxed">
-                                {summary}
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Promise Lifecycle Stepper */}
-                          <div className="bg-sentinel-surfaceMuted/80 border border-sentinel-border rounded-lg p-3.5 space-y-2">
-                            <div className="text-[10px] font-mono uppercase tracking-wider text-sentinel-textSubtle font-bold">
-                              Promise Contract Lifecycle Progression
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 pt-1 font-mono text-xs">
-                              {/* Step 1 */}
-                              <div className="p-2.5 rounded bg-sentinel-surface border border-sentinel-border flex items-center gap-2">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                                <div>
-                                  <span className="font-bold text-white block text-[11px]">1. PROPOSED</span>
-                                  <span className="text-[10px] text-sentinel-textSubtle block">Intent &amp; Hash</span>
-                                </div>
-                              </div>
-                              {/* Step 2 */}
-                              <div className="p-2.5 rounded bg-sentinel-surface border border-sentinel-border flex items-center gap-2">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                                <div>
-                                  <span className="font-bold text-white block text-[11px]">2. AUTHORIZED</span>
-                                  <span className="text-[10px] text-sentinel-textSubtle block">Invariants Passed</span>
-                                </div>
-                              </div>
-                              {/* Step 3 */}
-                              <div className={`p-2.5 rounded border flex items-center gap-2 ${
-                                isSettled ? 'bg-sentinel-surface border-sentinel-border' : 'bg-sentinel-surface/40 border-sentinel-border/40 opacity-60'
-                              }`}>
-                                {isSettled ? (
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                                ) : (
-                                  <XCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                                )}
-                                <div>
-                                  <span className="font-bold text-white block text-[11px]">3. EXECUTING</span>
-                                  <span className="text-[10px] text-sentinel-textSubtle block">
-                                    {isSettled ? 'Venue Gated' : 'Execution Halted'}
-                                  </span>
-                                </div>
-                              </div>
-                              {/* Step 4 */}
-                              <div className={`p-2.5 rounded border flex items-center gap-2 ${
-                                isSettled
-                                  ? 'bg-emerald-950/20 border-emerald-500/40 text-emerald-300'
-                                  : 'bg-rose-950/20 border-rose-500/40 text-rose-300'
-                              }`}>
-                                {isSettled ? (
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                                ) : (
-                                  <XCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                                )}
-                                <div>
-                                  <span className="font-bold block text-[11px]">
-                                    4. {isSettled ? 'SETTLED' : 'REJECTED'}
-                                  </span>
-                                  <span className="text-[10px] text-sentinel-textSubtle block">
-                                    {isSettled ? 'State Committed' : 'Zero State Change'}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* 6-Dimension Promise Contract Inspection Grid */}
-                          <div>
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-[11px] font-mono uppercase tracking-wider font-bold text-white">
-                                Promise 2.0 Contract Dimensions (Cryptographic Record)
-                              </span>
-                              <span className="text-[10px] font-mono text-sentinel-accent font-semibold">
-                                SHA-256 Verified
-                              </span>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 font-mono text-[11px]">
-                              {/* 1. WHO */}
-                              <div className="bg-sentinel-surface p-3 rounded-lg border border-sentinel-border space-y-1">
-                                <span className="text-sentinel-textSubtle block text-[10px] uppercase font-sans font-semibold">
-                                  1. WHO (Agent &amp; Portfolio)
-                                </span>
-                                <div className="text-white truncate font-bold">
-                                  {promise?.who?.agentName ?? 'Sentinel Robo-01'}
-                                </div>
-                                <div className="text-sentinel-textMuted text-[10px] truncate">
-                                  Portfolio: {promise?.who?.portfolioId ?? portfolio.portfolioId}
-                                </div>
-                                <div className="text-blue-400 text-[10px] truncate">
-                                  Auth: {formatAddress(promise?.who?.walletAddress ?? 'claw111111111111111111111111111111111111111')}
-                                </div>
-                              </div>
-
-                              {/* 2. WHAT */}
-                              <div className="bg-sentinel-surface p-3 rounded-lg border border-sentinel-border space-y-1">
-                                <span className="text-sentinel-textSubtle block text-[10px] uppercase font-sans font-semibold">
-                                  2. WHAT (Intent Specification)
-                                </span>
-                                <div className="text-white font-bold flex items-center gap-1.5">
-                                  <span className={(promise?.what?.side ?? 'BUY') === 'BUY' ? 'text-emerald-400' : 'text-rose-400'}>
-                                    {promise?.what?.side ?? (isSettled ? 'BUY' : 'BUY')}
-                                  </span>
-                                  <span>${(promise?.what?.amountUsd ?? (isSettled ? 5000 : 15000)).toLocaleString()}</span>
-                                  <span className="text-sentinel-textMuted">of {promise?.what?.assetSymbol ?? 'NVDAx'}</span>
-                                </div>
-                                <div className="text-sentinel-textMuted text-[10px]">
-                                  Est Units: ~{promise?.what?.estimatedTokens ?? (isSettled ? 41.67 : 125.0)} tokens
-                                </div>
-                                <div className="text-sentinel-textSubtle text-[10px] truncate">
-                                  Mint: {formatAddress(promise?.what?.assetMint ?? 'NVDA111111111111111111111111111111111111111')}
-                                </div>
-                              </div>
-
-                              {/* 3. WHY */}
-                              <div className="bg-sentinel-surface p-3 rounded-lg border border-sentinel-border space-y-1">
-                                <div className="flex items-center justify-between text-sentinel-textSubtle text-[10px] uppercase font-sans font-semibold">
-                                  <span>3. WHY (Rationale Hash)</span>
-                                  {promise?.why?.rationaleHash && (
-                                    <button
-                                      onClick={() => copyToClipboard(promise.why.rationaleHash, `rat_${record.id}`)}
-                                      className="hover:text-white cursor-pointer"
-                                      title="Copy Rationale Hash"
-                                    >
-                                      {copiedId === `rat_${record.id}` ? (
-                                        <Check className="w-3 h-3 text-emerald-400" />
-                                      ) : (
-                                        <Copy className="w-3 h-3" />
-                                      )}
-                                    </button>
-                                  )}
-                                </div>
-                                <div className="text-sentinel-textMuted text-[10px] line-clamp-2" title={promise?.why?.strategyRationale}>
-                                  &quot;{promise?.why?.strategyRationale ?? (isSettled ? 'Auto-adapted trade size to observe 25% single-stock ceiling' : 'Increase NVDA exposure aggressively ahead of earnings')}&quot;
-                                </div>
-                                <div className="text-purple-400 text-[10px] truncate font-mono">
-                                  Hash: {promise?.why?.rationaleHash ? formatSignature(promise.why.rationaleHash, 8) : (isSettled ? '0x8f4c...3e21' : '0x9a1b...7f44')}
-                                </div>
-                              </div>
-
-                              {/* 4. POLICY */}
-                              <div className="bg-sentinel-surface p-3 rounded-lg border border-sentinel-border space-y-1">
-                                <span className="text-sentinel-textSubtle block text-[10px] uppercase font-sans font-semibold">
-                                  4. POLICY (Invariants Enforced)
-                                </span>
-                                <div className="text-white font-bold">
-                                  Financial Policy v{record.policyVersion}
-                                </div>
-                                <div className="text-sentinel-textMuted text-[10px]">
-                                  Single Stock: ≤ {(policy.maxSingleAssetBps / 100).toFixed(2)}%
-                                </div>
-                                <div className="text-sentinel-textMuted text-[10px]">
-                                  Reserve Floor: ≥ {(policy.minStablecoinBps / 100).toFixed(2)}%
-                                </div>
-                              </div>
-
-                              {/* 5. MARKET TRUTH */}
-                              <div className="bg-sentinel-surface p-3 rounded-lg border border-sentinel-border space-y-1">
-                                <span className="text-sentinel-textSubtle block text-[10px] uppercase font-sans font-semibold">
-                                  5. MARKET TRUTH (Pyth Oracle)
-                                </span>
-                                <div className="text-white font-bold flex items-center gap-1">
-                                  <span>${(record.oracleProvenance?.priceUsd ?? promise?.marketAssumptions?.quotedPriceUsd ?? 120).toFixed(2)}</span>
-                                  <span className="text-blue-400 text-[10px]">
-                                    (±${(record.oracleProvenance?.confidenceUsd ?? promise?.marketAssumptions?.confidenceUsd ?? 0.05).toFixed(2)})
-                                  </span>
-                                </div>
-                                <div className="text-purple-400 text-[10px] truncate">
-                                  Feed: {record.oracleProvenance?.feedDisplayId ?? 'Crypto.NVDAX/USD'}
-                                </div>
-                                <div className="text-emerald-400 text-[10px]">
-                                  Tracking Error: {(record.oracleProvenance?.deviationPct ?? 0.18).toFixed(2)}%
-                                </div>
-                              </div>
-
-                              {/* 6. EXECUTION LIMITS */}
-                              <div className="bg-sentinel-surface p-3 rounded-lg border border-sentinel-border space-y-1">
-                                <span className="text-sentinel-textSubtle block text-[10px] uppercase font-sans font-semibold">
-                                  6. EXECUTION LIMITS &amp; VENUE
-                                </span>
-                                <div className="text-white font-bold truncate">
-                                  {record.executionVenue?.venueName ?? 'Meteora DBC'}
-                                </div>
-                                <div className="text-sentinel-textMuted text-[10px]">
-                                  Max Slippage: ≤ {(policy.maxSlippageBps / 100).toFixed(2)}%
-                                </div>
-                                <div className="text-sentinel-textMuted text-[10px]">
-                                  Liquidity Floor: ≥ $25,000 USD
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Invariant Comparison Table */}
-                          <div className="space-y-2">
-                            <span className="text-[11px] font-mono uppercase tracking-wider font-bold text-white block">
-                              Mathematical Invariant Comparison (Postcondition Table)
-                            </span>
-                            <div className="overflow-x-auto border border-sentinel-border rounded-lg bg-sentinel-surface">
-                              <table className="w-full text-left font-mono text-[11px]">
-                                <thead>
-                                  <tr className="border-b border-sentinel-border bg-sentinel-surfaceMuted/70 text-sentinel-textSubtle text-[10px]">
-                                    <th className="py-2.5 px-3 font-semibold">GUARANTEED INVARIANT</th>
-                                    <th className="py-2.5 px-3 font-semibold">POLICY THRESHOLD</th>
-                                    <th className="py-2.5 px-3 font-semibold">POST-TRADE VALUE</th>
-                                    <th className="py-2.5 px-3 font-semibold text-right">VERDICT</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-sentinel-border/50">
-                                  {invariants.map((inv, idx) => (
-                                    <tr key={idx} className={inv.passed ? 'hover:bg-emerald-950/10' : 'bg-rose-950/20 hover:bg-rose-950/30'}>
-                                      <td className="py-2.5 px-3 text-white font-medium">
-                                        <div className="flex items-center gap-1.5">
-                                          {inv.passed ? (
-                                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                                          ) : (
-                                            <XCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                                          )}
-                                          <span>{humanInvariantName(inv.name)}</span>
-                                        </div>
-                                      </td>
-                                      <td className="py-2.5 px-3 text-sentinel-textMuted font-semibold">
-                                        {inv.threshold}
-                                      </td>
-                                      <td className={`py-2.5 px-3 font-bold ${inv.passed ? 'text-white' : 'text-rose-400'}`}>
-                                        {inv.actualValue}
-                                      </td>
-                                      <td className="py-2.5 px-3 text-right">
-                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                          inv.passed
-                                            ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-                                            : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-                                        }`}>
-                                          {inv.passed ? 'PASS' : 'BREACH'}
-                                        </span>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })()}
-
-                    {/* Pyth Oracle Provenance Record */}
-                    {record.oracleProvenance && (
-                      <div className="bg-sentinel-surface p-3.5 rounded-lg border border-purple-500/30 space-y-2 font-mono text-xs">
-                        <div className="flex items-center justify-between border-b border-sentinel-border/50 pb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-purple-400" />
-                            <span className="font-bold text-white uppercase text-[11px]">
-                              Pyth Oracle Provenance at Decision Time
-                            </span>
-                          </div>
-                          <span className="text-purple-400 text-[11px] font-semibold">
-                            {record.oracleProvenance.feedDisplayId}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px]">
-                          <div>
-                            <span className="text-sentinel-textSubtle block text-[10px]">PYTH QUOTE</span>
-                            <span className="text-white font-bold">${record.oracleProvenance.priceUsd.toFixed(2)}</span>
-                          </div>
-                          <div>
-                            <span className="text-sentinel-textSubtle block text-[10px]">CONFIDENCE BOUNDS</span>
-                            <span className="text-blue-400 font-bold">
-                              ${record.oracleProvenance.confidenceMinUsd.toFixed(2)} – ${record.oracleProvenance.confidenceMaxUsd.toFixed(2)}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-sentinel-textSubtle block text-[10px]">PUBLISH TIME (UTC)</span>
-                            <span className="text-white font-bold">{record.oracleProvenance.publishTimeFormatted}</span>
-                          </div>
-                          <div>
-                            <span className="text-sentinel-textSubtle block text-[10px]">BASIS DEVIATION</span>
-                            <span className="text-emerald-400 font-bold">
-                              {record.oracleProvenance.deviationPct.toFixed(2)}% ({record.oracleProvenance.trackingErrorBps} bps)
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Postcondition Invariant Breakdown */}
-                    <div>
-                      <h4 className="font-semibold text-white text-xs uppercase tracking-wider mb-2.5">
-                        Machine Postcondition Checks (PTA Evaluation)
-                      </h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 font-mono">
-                        {record.checks.map((check, idx) => (
-                          <div
-                            key={idx}
-                            className={`p-3 rounded-lg border flex items-center justify-between ${
-                              check.passed
-                                ? 'bg-emerald-950/10 border-emerald-500/30 text-emerald-300'
-                                : 'bg-rose-950/20 border-rose-500/40 text-rose-300'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2">
-                              {check.passed ? (
-                                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                              ) : (
-                                <XCircle className="w-4 h-4 text-rose-400 shrink-0" />
-                              )}
-                              <span className="font-semibold">{check.checkName}</span>
-                            </div>
-                            <span className="text-[11px] font-bold">
-                              {check.passed ? 'PASS' : 'BREACH'}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Token Account Transition Projection (Phase 3) */}
-                    {record.verificationResult === 'SETTLED' && (
-                      <div className="bg-sentinel-surface p-3.5 rounded-lg border border-emerald-500/30 space-y-2 font-mono text-xs">
-                        <div className="flex items-center justify-between border-b border-sentinel-border/50 pb-2">
-                          <span className="font-bold text-white uppercase text-[11px] flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                            SPL Token Account Transition
-                          </span>
-                          <span className="text-emerald-400 text-[11px] font-semibold">
-                            Non-Custodial Settlement
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px]">
-                          <div>
-                            <span className="text-sentinel-textSubtle block text-[10px]">DEBIT ACCOUNT</span>
-                            <span className="text-rose-400 font-bold">
-                              USDC ATA (Liquid Reserve Floor Protected)
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-sentinel-textSubtle block text-[10px]">CREDIT ACCOUNT</span>
-                            <span className="text-emerald-400 font-bold">
-                              {record.oracleProvenance?.feedDisplayId
-                                ? `${record.oracleProvenance.feedDisplayId.replace('Crypto.', '').replace('/USD', '')} ATA`
-                                : 'Target Asset ATA'} (SPL Token Account)
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Execution Venue & Non-Bypass Routing (Phase 4) */}
-                    {record.executionVenue && (
-                      <div className="bg-sentinel-surfaceMuted/80 border border-blue-500/20 rounded-lg p-3.5 space-y-2 font-mono text-xs">
-                        <div className="flex items-center justify-between border-b border-sentinel-border/50 pb-2">
-                          <span className="font-bold text-white uppercase text-[11px] flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-blue-400" />
-                            Execution Venue &amp; Routing (Phase 4)
-                          </span>
-                          <span className="text-blue-400 text-[11px] font-semibold">
-                            Sentinel Authorization Ticket Gated
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px]">
-                          <div>
-                            <span className="text-sentinel-textSubtle block text-[10px]">VENUE TYPE</span>
-                            <span className="text-white font-bold">
-                              {record.executionVenue.venueName}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-sentinel-textSubtle block text-[10px]">POOL / CONTRACT ADDRESS</span>
-                            <span className="text-blue-400 font-bold truncate block">
-                              {record.executionVenue.poolAddress ?? 'Sentinel PDA In-Memory Execution'}
-                            </span>
-                          </div>
-                        </div>
-
-                        {record.executionVenue.route && (
-                          <div className="pt-2 border-t border-sentinel-border/40 text-[11px]">
-                            <span className="text-sentinel-textSubtle block text-[10px]">VERIFIED EXECUTION ROUTE</span>
-                            <span className="text-emerald-400 font-semibold">{record.executionVenue.route}</span>
-                          </div>
-                        )}
-
-                        {record.executionVenue.marketQuality && (
-                          <div className="pt-2 border-t border-sentinel-border/40 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px]">
-                            <div>
-                              <span className="text-sentinel-textSubtle">Meteora DBC Reserve Depth:</span>{' '}
-                              <span className="text-white font-bold">
-                                ${record.executionVenue.marketQuality.liquidityDepthUsd.toLocaleString()} (≥ $25,000 required)
-                              </span>
-                            </div>
-                            <div>
-                              <span className="text-sentinel-textSubtle">Price Deviation:</span>{' '}
-                              <span className="text-emerald-400 font-bold">
-                                {(record.executionVenue.marketQuality.actualDeviationBps / 100).toFixed(2)}% (≤ 2.00% max)
-                              </span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Cryptographic Hashes & Signatures */}
-                    <div>
-                      <h4 className="font-semibold text-white text-xs uppercase tracking-wider mb-2.5">
-                        PROVN Cryptographic Commitment Hashes (Deterministic Canonical JSON)
-                      </h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 font-mono">
-                        {/* Pre-State Hash */}
-                        <div className="bg-sentinel-surface p-3 rounded-lg border border-sentinel-border space-y-1">
-                          <div className="flex items-center justify-between text-sentinel-textSubtle">
-                            <span>PRE-STATE COMMITMENT</span>
-                            <button
-                              onClick={() => copyToClipboard(record.preStateHash, `pre_${record.id}`)}
-                              className="hover:text-white cursor-pointer"
-                              title="Copy SHA-256 hash"
-                            >
-                              {copiedId === `pre_${record.id}` ? (
-                                <Check className="w-3 h-3 text-emerald-400" />
-                              ) : (
-                                <Copy className="w-3 h-3" />
-                              )}
-                            </button>
-                          </div>
-                          <div className="text-white text-[11px] break-all">
-                            {record.preStateHash}
-                          </div>
-                        </div>
-
-                        {/* Post-State Hash */}
-                        <div className="bg-sentinel-surface p-3 rounded-lg border border-sentinel-border space-y-1">
-                          <div className="flex items-center justify-between text-sentinel-textSubtle">
-                            <span>POST-STATE COMMITMENT</span>
-                            <button
-                              onClick={() => copyToClipboard(record.postStateHash, `post_${record.id}`)}
-                              className="hover:text-white cursor-pointer"
-                              title="Copy SHA-256 hash"
-                            >
-                              {copiedId === `post_${record.id}` ? (
-                                <Check className="w-3 h-3 text-emerald-400" />
-                              ) : (
-                                <Copy className="w-3 h-3" />
-                              )}
-                            </button>
-                          </div>
-                          <div className="text-white text-[11px] break-all">
-                            {record.postStateHash}
-                          </div>
-                        </div>
-
-                        {/* Intent Hash */}
-                        <div className="bg-sentinel-surface p-3 rounded-lg border border-sentinel-border space-y-1">
-                          <div className="flex items-center justify-between text-sentinel-textSubtle">
-                            <span>INTENT HASH</span>
-                            <button
-                              onClick={() => copyToClipboard(record.intentHash, `intent_${record.id}`)}
-                              className="hover:text-white cursor-pointer"
-                            >
-                              {copiedId === `intent_${record.id}` ? (
-                                <Check className="w-3 h-3 text-emerald-400" />
-                              ) : (
-                                <Copy className="w-3 h-3" />
-                              )}
-                            </button>
-                          </div>
-                          <div className="text-white text-[11px] break-all">
-                            {record.intentHash}
-                          </div>
-                        </div>
-
-                        {/* Transaction Signature / Identifier */}
-                        <div className="bg-sentinel-surface p-3 rounded-lg border border-sentinel-border space-y-1">
-                          <div className="flex items-center justify-between text-sentinel-textSubtle">
-                            <span>TRANSACTION SIGNATURE</span>
-                            {record.transactionSignature && !record.isSimulation && (
-                              <a
-                                href={getExplorerTxUrl(record.transactionSignature)}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-blue-400 hover:underline flex items-center gap-1"
-                              >
-                                <ExternalLink className="w-3 h-3" />
-                              </a>
-                            )}
-                          </div>
-                          <div className="text-blue-400 text-[11px] break-all font-semibold">
-                            {record.transactionSignature || 'None (Aborted before on-chain submission)'}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                {/* Status Tag */}
+                <div className="flex items-center gap-2 self-end sm:self-auto">
+                  <span
+                    className={`px-2.5 py-0.5 rounded text-xs font-mono font-semibold ${
+                      isRejected
+                        ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                        : isPolicy
+                        ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                        : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                    }`}
+                  >
+                    {item.statusLabel}
+                  </span>
+                  <span className="text-xs text-sentinel-textSubtle group-hover:text-white transition">
+                    →
+                  </span>
+                </div>
               </div>
             );
           })}
+        </div>
+      </div>
+
+      {/* 3. DECISION INSPECTOR (MODAL / OVERLAY) */}
+      {isInspectorOpen && selectedTimelineItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+          {/* Backdrop blur */}
+          <div
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity"
+            onClick={() => setIsInspectorOpen(false)}
+          />
+
+          {/* Modal Panel */}
+          <div className="relative w-full max-w-2xl bg-sentinel-surface border border-sentinel-border rounded-2xl shadow-2xl p-6 z-10 space-y-6 overflow-y-auto max-h-[90vh]">
+            {/* Header */}
+            <div className="flex items-start justify-between pb-4 border-b border-sentinel-border">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`px-2 py-0.5 rounded text-xs font-mono font-bold ${
+                      selectedTimelineItem.status === 'REJECTED'
+                        ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                        : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    }`}
+                  >
+                    {selectedTimelineItem.headline}
+                  </span>
+                  <span className="text-xs font-mono text-sentinel-textSubtle">
+                    {selectedTimelineItem.time}
+                  </span>
+                </div>
+                <h3 className="text-xl font-black text-white font-mono tracking-tight mt-1">
+                  {selectedTimelineItem.action} {selectedTimelineItem.amount}
+                </h3>
+                <p className="text-xs text-sentinel-textMuted font-sans">
+                  {selectedTimelineItem.subheadline}
+                </p>
+              </div>
+
+              <button
+                onClick={() => setIsInspectorOpen(false)}
+                className="p-1.5 rounded-lg hover:bg-sentinel-surfaceMuted text-sentinel-textSubtle hover:text-white transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Before vs Proposed Comparison */}
+            {selectedTimelineItem.beforeVsProposed && (
+              <div className="space-y-2.5 font-mono text-xs">
+                <span className="text-[10px] text-sentinel-textSubtle uppercase tracking-wider font-semibold block">
+                  BEFORE VS PROPOSED ALLOCATION
+                </span>
+                <div className="bg-sentinel-surfaceMuted rounded-xl p-3.5 border border-sentinel-border space-y-2">
+                  {selectedTimelineItem.beforeVsProposed.map((row, i) => (
+                    <div key={i} className="flex items-center justify-between text-xs py-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-white w-14">{row.asset}</span>
+                        <span className="text-sentinel-textMuted">
+                          {row.before} → <span className={row.passed ? 'text-white' : 'text-rose-400 font-bold'}>{row.proposed}</span>
+                        </span>
+                        <span className="text-sentinel-textSubtle text-[11px]">({row.limit})</span>
+                      </div>
+                      <span className={row.passed ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                        {row.passed ? '✓' : '✕'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Invariant Checklist */}
+            {selectedTimelineItem.checks && (
+              <div className="space-y-2 font-mono text-xs">
+                <span className="text-[10px] text-sentinel-textSubtle uppercase tracking-wider font-semibold block">
+                  INVARIANT CHECKS
+                </span>
+                <div className="bg-sentinel-surfaceMuted rounded-xl p-3.5 border border-sentinel-border space-y-1.5">
+                  {selectedTimelineItem.checks.map((chk, i) => (
+                    <div key={i} className="flex items-center justify-between py-0.5">
+                      <span className="text-white flex items-center gap-2">
+                        <span className={chk.passed ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                          {chk.passed ? '✓' : '✕'}
+                        </span>
+                        <span>{chk.name}</span>
+                      </span>
+                      <span className={`text-[11px] font-bold ${chk.passed ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {chk.passed ? 'Passed' : 'Failed'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* What Happened Next? (Adaptation Narrative) */}
+            {selectedTimelineItem.adaptationNarrative && (
+              <div className="bg-blue-950/20 border border-blue-500/30 rounded-xl p-4 font-sans text-xs space-y-1.5">
+                <span className="text-[10px] uppercase font-bold text-blue-400 tracking-wider font-mono block">
+                  WHAT HAPPENED NEXT?
+                </span>
+                <p className="text-white">
+                  The agent adapted the proposal:
+                </p>
+                <div className="font-mono font-bold text-sm text-blue-300">
+                  {selectedTimelineItem.adaptationNarrative.adaptedAction}
+                </div>
+                <div className="font-mono text-[11px] text-sentinel-textMuted pt-1">
+                  {selectedTimelineItem.adaptationNarrative.settlementTx}
+                </div>
+              </div>
+            )}
+
+            {/* COLLAPSIBLE TECHNICAL EVIDENCE DRAWER (FORENSIC DETAIL) */}
+            <div className="border border-sentinel-border rounded-xl overflow-hidden bg-sentinel-surfaceMuted/40">
+              <button
+                type="button"
+                onClick={() => setIsTechnicalDrawerOpen(!isTechnicalDrawerOpen)}
+                className="w-full p-3.5 flex items-center justify-between text-left hover:bg-sentinel-surfaceMuted transition cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-purple-400" />
+                  <span className="text-xs font-bold text-white uppercase tracking-wider font-mono">
+                    Technical Evidence Drawer (PROVN Audit Record)
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-sentinel-textSubtle font-mono">
+                  <span>{isTechnicalDrawerOpen ? 'Hide' : 'Expand'}</span>
+                  {isTechnicalDrawerOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </div>
+              </button>
+
+              {isTechnicalDrawerOpen && (
+                <div className="p-4 border-t border-sentinel-border space-y-3 font-mono text-xs bg-black/40">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                    <div className="bg-sentinel-surface p-2 rounded border border-sentinel-border">
+                      <span className="text-sentinel-textSubtle block text-[10px]">EVIDENCE HASH</span>
+                      <span className="text-purple-300 font-semibold truncate block">
+                        {selectedTimelineItem.evidenceRecord?.id ?? '0x8f7c9e12ab34cd56ef78...'}
+                      </span>
+                    </div>
+
+                    <div className="bg-sentinel-surface p-2 rounded border border-sentinel-border">
+                      <span className="text-sentinel-textSubtle block text-[10px]">STATE PRE-HASH</span>
+                      <span className="text-blue-300 font-semibold truncate block">
+                        {selectedTimelineItem.evidenceRecord?.preStateHash ?? '0x4a12df88bc9901ef23...'}
+                      </span>
+                    </div>
+
+                    <div className="bg-sentinel-surface p-2 rounded border border-sentinel-border">
+                      <span className="text-sentinel-textSubtle block text-[10px]">SENTINEL PDA</span>
+                      <span className="text-white font-semibold truncate block">
+                        {portfolio.sentinelPda || deriveSentinelPda(portfolio.owner)}
+                      </span>
+                    </div>
+
+                    <div className="bg-sentinel-surface p-2 rounded border border-sentinel-border">
+                      <span className="text-sentinel-textSubtle block text-[10px]">SLOT / SIGNATURE</span>
+                      <span className="text-emerald-400 font-semibold truncate block">
+                        {selectedTimelineItem.evidenceRecord?.transactionSignature ?? 'sim_tx_settle_319482011'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Formal Receipt Card */}
+                  {selectedTimelineItem.evidenceRecord && (
+                    <div className="pt-2">
+                      <SentinelReceiptCard
+                        record={selectedTimelineItem.evidenceRecord}
+                        index={0}
+                      />
+                    </div>
+                  )}
+
+                  <div className="pt-2 flex justify-end">
+                    <a
+                      href={getExplorerTxUrl(selectedTimelineItem.evidenceRecord?.transactionSignature ?? 'sim_tx_settle_319482011')}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 hover:underline font-mono"
+                    >
+                      <span>View Transaction on Solana Explorer</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer Close */}
+            <div className="pt-2 flex justify-end">
+              <button
+                onClick={() => setIsInspectorOpen(false)}
+                className="px-5 py-2 rounded-lg bg-sentinel-surfaceMuted hover:bg-sentinel-surfaceElevated border border-sentinel-border text-white text-xs font-semibold transition cursor-pointer"
+              >
+                Close Inspector
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

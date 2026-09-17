@@ -44,4 +44,37 @@ export const PORTFOLIO_1M_DATA: ChartDataPoint[] = [
 ];
 
 export const PORTFOLIO_1W_DATA: ChartDataPoint[] = PORTFOLIO_1M_DATA.slice(-7);
-export const PORTFOLIO_1D_DATA: ChartDataPoint[] = PORTFOLIO_1M_DATA.slice(-2);
+export const PORTFOLIO_1D_DATA: ChartDataPoint[] = [
+  { time: '2026-09-15', value: 100800.00 },
+  { time: '2026-09-16', value: 101420.00 },
+];
+
+export const PORTFOLIO_3M_DATA: ChartDataPoint[] = [
+  { time: '2026-06-15', value: 91200.00 },
+  { time: '2026-06-25', value: 92450.00 },
+  { time: '2026-07-05', value: 93800.00 },
+  { time: '2026-07-15', value: 94600.00 },
+  { time: '2026-07-25', value: 95500.00 },
+  { time: '2026-08-05', value: 95900.00 },
+  ...PORTFOLIO_1M_DATA,
+];
+
+export const PORTFOLIO_ALL_DATA: ChartDataPoint[] = [
+  { time: '2026-01-01', value: 85000.00 },
+  { time: '2026-02-01', value: 86800.00 },
+  { time: '2026-03-01', value: 88500.00 },
+  { time: '2026-04-01', value: 89400.00 },
+  { time: '2026-05-01', value: 90200.00 },
+  ...PORTFOLIO_3M_DATA,
+];
+
+export function getScaledChartData(data: ChartDataPoint[], targetCurrentValue: number): ChartDataPoint[] {
+  if (!data || data.length === 0) return [];
+  const lastVal = data[data.length - 1].value;
+  if (!lastVal || lastVal <= 0) return data;
+  const ratio = targetCurrentValue / lastVal;
+  return data.map(pt => ({
+    time: pt.time,
+    value: Math.round(pt.value * ratio * 100) / 100,
+  }));
+}

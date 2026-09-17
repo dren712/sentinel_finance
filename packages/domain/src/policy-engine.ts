@@ -1130,8 +1130,8 @@ export const BALANCED_MULTI_ASSET_POLICY: FinancialPolicy = {
   policyId: 'policy_balanced_multi_asset',
   owner: 'SentinelRiskCommittee111111111111111111111',
   maxSingleAssetBps: 2500, // 25.00%
-  minStablecoinBps: 1000,  // 10.00%
-  maxPublicEquitiesExposureBps: 7000, // 70.00%
+  minStablecoinBps: 2000,  // 20.00%
+  maxPublicEquitiesExposureBps: 8000, // 80.00%
   maxPreIpoExposureBps: 2000,         // 20.00%
   maxAgentTokenExposureBps: 500,      // 5.00% cap on agent's own token
   maxTesseraNavPremiumBps: 1500,      // 15.00% max secondary premium over NAV
@@ -1157,7 +1157,7 @@ export const HIGH_ALPHA_GROWTH_POLICY: FinancialPolicy = {
   policyId: 'policy_high_alpha_growth',
   owner: 'SentinelRiskCommittee111111111111111111111',
   maxSingleAssetBps: 3500, // 35.00%
-  minStablecoinBps: 1000,  // 10.00%
+  minStablecoinBps: 1500,  // 15.00%
   maxPublicEquitiesExposureBps: 7500, // 75.00%
   maxPreIpoExposureBps: 2500,         // 25.00%
   maxAgentTokenExposureBps: 1000,     // 10.00% cap on agent's own token

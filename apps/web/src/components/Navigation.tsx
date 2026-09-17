@@ -2,13 +2,10 @@
 
 import React from 'react';
 import {
-  LayoutDashboard,
   PieChart,
   Bot,
   ShieldCheck,
-  Scale,
   FileCheck,
-  Sparkles,
 } from 'lucide-react';
 
 export type NavTab =
@@ -28,7 +25,6 @@ interface TabItem {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   count?: number;
-  badge?: string;
 }
 
 export const Navigation: React.FC<NavigationProps> = ({
@@ -44,39 +40,68 @@ export const Navigation: React.FC<NavigationProps> = ({
   ];
 
   return (
-    <div className="border-b border-sentinel-border bg-sentinel-bg/80 backdrop-blur sticky top-16 z-30">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <nav className="flex space-x-1 sm:space-x-3 overflow-x-auto py-2 no-scrollbar">
+    <>
+      {/* Desktop Navigation (Top Tab Bar) */}
+      <div className="border-b border-sentinel-border bg-sentinel-bg/80 backdrop-blur sticky top-16 z-30 hidden md:block">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <nav className="flex space-x-2 py-2.5">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => onSelectTab(tab.id)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold tracking-wide transition-all cursor-pointer ${
+                    isActive
+                      ? 'bg-sentinel-surfaceElevated text-blue-400 border border-blue-500/30 shadow-xs'
+                      : 'text-sentinel-textMuted hover:text-white hover:bg-sentinel-surface'
+                  }`}
+                >
+                  <Icon className={`w-4 h-4 ${isActive ? 'text-blue-400' : 'text-sentinel-textSubtle'}`} />
+                  <span>{tab.label}</span>
+                  {tab.count !== undefined && tab.count > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full bg-sentinel-surfaceMuted text-sentinel-textMuted text-[10px] font-mono border border-sentinel-border">
+                      {tab.count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+      </div>
+
+      {/* Mobile Bottom Navigation Bar (Non-negotiable) */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-sentinel-surface/95 backdrop-blur border-t border-sentinel-border px-3 py-1.5 shadow-2xl">
+        <nav className="grid grid-cols-4 gap-1">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
-                onClick={() => onSelectTab(tab.id as NavTab)}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all whitespace-nowrap cursor-pointer ${
+                onClick={() => onSelectTab(tab.id)}
+                className={`flex flex-col items-center justify-center py-1.5 px-1 rounded-lg transition-all cursor-pointer ${
                   isActive
-                    ? 'bg-sentinel-surfaceElevated text-blue-400 border border-blue-500/30 shadow-sm'
-                    : 'text-sentinel-textMuted hover:text-white hover:bg-sentinel-surface'
+                    ? 'text-blue-400 bg-blue-500/10 font-bold'
+                    : 'text-sentinel-textMuted hover:text-white'
                 }`}
               >
-                <Icon className={`w-4 h-4 ${isActive ? 'text-blue-400' : 'text-sentinel-textSubtle'}`} />
-                <span>{tab.label}</span>
-                {tab.badge && (
-                  <span className="px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 text-[10px] font-mono font-bold border border-indigo-500/30">
-                    {tab.badge}
-                  </span>
-                )}
-                {tab.count !== undefined && tab.count > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full bg-sentinel-surfaceMuted text-sentinel-textMuted text-[10px] font-mono border border-sentinel-border">
-                    {tab.count}
-                  </span>
-                )}
+                <div className="relative">
+                  <Icon className={`w-5 h-5 ${isActive ? 'text-blue-400' : 'text-sentinel-textSubtle'}`} />
+                  {tab.count !== undefined && tab.count > 0 && (
+                    <span className="absolute -top-1 -right-2 px-1 py-0.2 rounded-full bg-blue-600 text-white text-[9px] font-mono font-bold leading-none">
+                      {tab.count}
+                    </span>
+                  )}
+                </div>
+                <span className="text-[10px] mt-1 font-medium">{tab.label}</span>
               </button>
             );
           })}
         </nav>
       </div>
-    </div>
+    </>
   );
 };

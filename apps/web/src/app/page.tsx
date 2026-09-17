@@ -263,7 +263,7 @@ export default function Home() {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-12">
         {activeTab === 'portfolio' && (
           <PortfolioView
             portfolio={portfolio}
@@ -272,6 +272,8 @@ export default function Home() {
             marketPrices={marketPrices}
             onSelectEvidence={handleSelectEvidenceRecord}
             onNavigateToDecisions={() => setActiveTab('activity')}
+            onNavigateToAgent={() => setActiveTab('agent')}
+            onNavigateToProtection={() => setActiveTab('protection')}
             onBuildPortfolio={handleBuildPortfolio}
           />
         )}
@@ -326,7 +328,7 @@ export default function Home() {
       />
 
       {/* Clean Institutional Footer with Devnet Identifier */}
-      <footer className="border-t border-sentinel-border bg-sentinel-surface/60 py-6 mt-12">
+      <footer className="border-t border-sentinel-border bg-sentinel-surface/60 py-6 mb-16 md:mb-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-sentinel-textMuted">
           <div className="flex items-center gap-2">
             <span className="font-semibold text-white">Sentinel Finance</span>
