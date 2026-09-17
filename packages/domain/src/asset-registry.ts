@@ -151,3 +151,63 @@ export function getAssetsByClass(assetClass: AssetClass): TokenizedAssetMetadata
 export function getAllSupportedAssets(): TokenizedAssetMetadata[] {
   return Object.values(ASSET_REGISTRY);
 }
+
+// -----------------------------------------------------------------------------
+// Phase 11: PreStocks Asset Universe Taxonomy
+// -----------------------------------------------------------------------------
+
+export type AssetUniverseCategory = 'PUBLIC_EQUITIES' | 'PRE_IPO' | 'STABLE';
+
+export interface AssetUniverseGroup {
+  category: AssetUniverseCategory;
+  displayName: string;
+  description: string;
+  defaultMaxExposureBps: number;
+  assets: TokenizedAssetMetadata[];
+}
+
+/**
+ * Returns the tripartite Asset Universe: Public Equities, PreStocks Pre-IPO, and Stablecoin
+ */
+export function getAssetUniverse(): Record<AssetUniverseCategory, AssetUniverseGroup> {
+  return {
+    PUBLIC_EQUITIES: {
+      category: 'PUBLIC_EQUITIES',
+      displayName: 'Public Equities',
+      description: 'Tokenized US equities and market indices with dual-feed Pyth valuation',
+      defaultMaxExposureBps: 7000, // ≤ 70%
+      assets: [ASSET_REGISTRY.AAPLx, ASSET_REGISTRY.NVDAx, ASSET_REGISTRY.SPYx],
+    },
+    PRE_IPO: {
+      category: 'PRE_IPO',
+      displayName: 'Pre-IPO (PreStocks)',
+      description: 'Tokenized private equity for late-stage technology unicorns on Solana via PreStocks',
+      defaultMaxExposureBps: 2000, // ≤ 20%
+      assets: [ASSET_REGISTRY.SPACEXx, ASSET_REGISTRY.OPENAIx, ASSET_REGISTRY.STRIPEx],
+    },
+    STABLE: {
+      category: 'STABLE',
+      displayName: 'Stablecoin Reserve',
+      description: 'Collateralized USD cash reserve protecting liquidity and solvency',
+      defaultMaxExposureBps: 10000, // Floor: min 10% (1000 bps)
+      assets: [ASSET_REGISTRY.USDC],
+    },
+  };
+}
+
+/**
+ * Categorizes an asset symbol into its macro asset universe category
+ */
+export function getAssetCategory(symbol: string): AssetUniverseCategory {
+  const meta = ASSET_REGISTRY[symbol];
+  if (!meta) {
+    if (symbol === 'USDC') return 'STABLE';
+    if (symbol.includes('SPACEX') || symbol.includes('OPENAI') || symbol.includes('STRIPE')) {
+      return 'PRE_IPO';
+    }
+    return 'PUBLIC_EQUITIES';
+  }
+  if (meta.isStablecoin || meta.assetClass === 'STABLECOIN') return 'STABLE';
+  if (meta.assetClass === 'PRE_IPO') return 'PRE_IPO';
+  return 'PUBLIC_EQUITIES';
+}

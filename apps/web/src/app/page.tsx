@@ -227,6 +227,23 @@ export default function Home() {
     }));
   };
 
+  // Phase 11: Build Your Portfolio custom multi-asset projection handler
+  const handleBuildPortfolio = (allocations: Record<string, number>) => {
+    const hasPreIpo = Object.keys(allocations).some(
+      sym => ['SPACEXx', 'OPENAIx', 'STRIPEx'].includes(sym) && allocations[sym] > 0
+    );
+    if (hasPreIpo && !policy.maxPreIpoExposureBps) {
+      setPolicy(prev => ({
+        ...prev,
+        maxPreIpoExposureBps: 2000,
+        maxPublicEquitiesExposureBps: 7000,
+      }));
+    }
+    const totalNAV = Object.values(allocations).reduce((sum, val) => sum + val, 0);
+    const newPort = client.buildPortfolio(allocations, totalNAV > 0 ? totalNAV : 100_000, portfolio.owner);
+    setPortfolio(newPort);
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-sentinel-bg text-sentinel-text">
       {/* Header Bar with Devnet Badge & Mode Switch */}
@@ -255,6 +272,7 @@ export default function Home() {
             marketPrices={marketPrices}
             onSelectEvidence={handleSelectEvidenceRecord}
             onNavigateToDecisions={() => setActiveTab('activity')}
+            onBuildPortfolio={handleBuildPortfolio}
           />
         )}
 

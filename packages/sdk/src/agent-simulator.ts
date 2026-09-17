@@ -19,6 +19,8 @@ import {
   hashPortfolioState,
   FailureCode,
   AgentRiskState,
+  getAssetCategory,
+  ASSET_REGISTRY,
 } from '@sentinel/domain';
 import {
   ExecutionAdapter,
@@ -107,7 +109,34 @@ export class AutonomousRoboAgent {
   }
 
   /**
+   * Generates a trade intent specifically targeting PreStocks Pre-IPO tech unicorns
+   * Phase 11: PreStocks Asset Universe
+   */
+  proposePreIpoIntent(params: {
+    assetSymbol: string;
+    tradeAmountUsd: number;
+    referencePriceUsd?: number;
+    rationale?: string;
+  }): TradeIntent {
+    const meta = ASSET_REGISTRY[params.assetSymbol];
+    const price = params.referencePriceUsd ?? meta?.basePriceUsd ?? 140.0;
+    const mint = meta?.mint ?? `${params.assetSymbol}111111111111111111111111111111111111`;
+    const rationale = params.rationale ??
+      `Alpha allocation into PreStocks ${meta?.name ?? params.assetSymbol} private equity secondary liquidity under 20% Pre-IPO cap`;
+
+    return this.proposeIntent({
+      assetSymbol: params.assetSymbol,
+      assetMint: mint,
+      direction: 'BUY',
+      tradeAmountUsd: params.tradeAmountUsd,
+      referencePriceUsd: price,
+      strategyRationale: rationale,
+    });
+  }
+
+  /**
    * Computes the maximum compliant trade amount that strictly satisfies all policy invariants
+   * (including single asset cap, trade size, reserve floor, and asset class ceilings)
    */
   calculateCompliantTradeAmount(
     preState: PortfolioSnapshot,
@@ -134,8 +163,26 @@ export class AutonomousRoboAgent {
     const minRequiredUsdc = (policy.minStablecoinBps / 10_000) * totalValue;
     const limitByReserve = Math.max(0, currentUsdcValue - minRequiredUsdc);
 
+    // Constraint 4: Asset Class exposure ceiling (Phase 11 PreStocks Asset Universe)
+    let limitByAssetClass = Infinity;
+    const category = getAssetCategory(targetSymbol);
+
+    if (category === 'PRE_IPO' && policy.maxPreIpoExposureBps !== undefined) {
+      const currentPreIpoValue = preState.assets
+        .filter(a => getAssetCategory(a.symbol) === 'PRE_IPO' || a.assetClass === 'PRE_IPO')
+        .reduce((sum, a) => sum + a.valueUsd, 0);
+      const maxAllowedPreIpo = (policy.maxPreIpoExposureBps / 10_000) * totalValue;
+      limitByAssetClass = Math.max(0, maxAllowedPreIpo - currentPreIpoValue);
+    } else if (category === 'PUBLIC_EQUITIES' && policy.maxPublicEquitiesExposureBps !== undefined) {
+      const currentPublicValue = preState.assets
+        .filter(a => getAssetCategory(a.symbol) === 'PUBLIC_EQUITIES')
+        .reduce((sum, a) => sum + a.valueUsd, 0);
+      const maxAllowedPublic = (policy.maxPublicEquitiesExposureBps / 10_000) * totalValue;
+      limitByAssetClass = Math.max(0, maxAllowedPublic - currentPublicValue);
+    }
+
     // Safe integer dollar amount
-    const compliantAmount = Math.floor(Math.min(limitByTradeSize, limitByExposure, limitByReserve));
+    const compliantAmount = Math.floor(Math.min(limitByTradeSize, limitByExposure, limitByReserve, limitByAssetClass));
     return Math.max(0, compliantAmount);
   }
 

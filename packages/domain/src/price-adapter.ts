@@ -66,8 +66,8 @@ export const PYTH_METADATA_REGISTRY: Record<string, FeedMetadata> = {
     underlyingFeedId: '0x79f6b657ede6b7e024e883494747e7eb16752765377f0a67272b1660d2b27001',
     underlyingDisplayId: 'PreStocks.Secondary.SpaceX/USD',
     underlyingSymbol: 'SPACEX',
-    defaultPriceUsd: 112.00,
-    defaultUnderlyingUsd: 112.00,
+    defaultPriceUsd: 140.00,
+    defaultUnderlyingUsd: 140.00,
     confidenceUsd: 0.50,
   },
   OPENAIx: {
@@ -76,8 +76,8 @@ export const PYTH_METADATA_REGISTRY: Record<string, FeedMetadata> = {
     underlyingFeedId: '0x89f6b657ede6b7e024e883494747e7eb16752765377f0a67272b1660d2b27002',
     underlyingDisplayId: 'PreStocks.Secondary.OpenAI/USD',
     underlyingSymbol: 'OPENAI',
-    defaultPriceUsd: 155.00,
-    defaultUnderlyingUsd: 155.00,
+    defaultPriceUsd: 210.00,
+    defaultUnderlyingUsd: 210.00,
     confidenceUsd: 0.75,
   },
   STRIPEx: {
@@ -86,8 +86,8 @@ export const PYTH_METADATA_REGISTRY: Record<string, FeedMetadata> = {
     underlyingFeedId: '0x99f6b657ede6b7e024e883494747e7eb16752765377f0a67272b1660d2b27003',
     underlyingDisplayId: 'PreStocks.Secondary.Stripe/USD',
     underlyingSymbol: 'STRIPE',
-    defaultPriceUsd: 38.50,
-    defaultUnderlyingUsd: 38.50,
+    defaultPriceUsd: 85.00,
+    defaultUnderlyingUsd: 85.00,
     confidenceUsd: 0.25,
   },
 };
@@ -150,9 +150,9 @@ export class PythPriceAdapter {
   }
 
   /**
-   * Retrieves NormalizedMarketPrice with Pyth provenance
+   * Retrieves NormalizedMarketPrice with Pyth provenance synchronously
    */
-  async getNormalizedMarketPrice(symbol: string): Promise<NormalizedMarketPrice> {
+  getNormalizedMarketPriceSync(symbol: string): NormalizedMarketPrice {
     const meta = PYTH_METADATA_REGISTRY[symbol];
     const assetMeta = ASSET_REGISTRY[symbol];
 
@@ -195,16 +195,30 @@ export class PythPriceAdapter {
   }
 
   /**
-   * Retrieves all normalized market prices across the entire asset universe
+   * Retrieves all normalized market prices across the entire asset universe synchronously
    */
-  async getAllNormalizedMarketPrices(): Promise<Record<string, NormalizedMarketPrice>> {
+  getAllNormalizedMarketPricesSync(): Record<string, NormalizedMarketPrice> {
     const results: Record<string, NormalizedMarketPrice> = {};
     const symbols = Object.keys(PYTH_METADATA_REGISTRY);
 
     for (const sym of symbols) {
-      results[sym] = await this.getNormalizedMarketPrice(sym);
+      results[sym] = this.getNormalizedMarketPriceSync(sym);
     }
 
     return results;
+  }
+
+  /**
+   * Retrieves NormalizedMarketPrice with Pyth provenance
+   */
+  async getNormalizedMarketPrice(symbol: string): Promise<NormalizedMarketPrice> {
+    return this.getNormalizedMarketPriceSync(symbol);
+  }
+
+  /**
+   * Retrieves all normalized market prices across the entire asset universe
+   */
+  async getAllNormalizedMarketPrices(): Promise<Record<string, NormalizedMarketPrice>> {
+    return this.getAllNormalizedMarketPricesSync();
   }
 }

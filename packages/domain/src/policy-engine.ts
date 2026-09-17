@@ -10,7 +10,7 @@ import {
   NormalizedMarketPrice,
   AgentRiskState,
 } from './types';
-import { getAssetMetadata } from './asset-registry';
+import { getAssetMetadata, getAssetCategory } from './asset-registry';
 import { hashPortfolioProjection } from './portfolio-reader';
 
 /**
@@ -256,20 +256,21 @@ export function checkSlippage(
 }
 
 /**
- * Checks Pre-IPO aggregate exposure cap (if configured in policy)
+ * Checks Pre-IPO aggregate exposure cap (Phase 11: PreStocks Asset Universe)
+ * Enforces Pre-IPO private equity allocation <= maxPreIpoExposureBps (e.g. 2000 for 20.00%)
  */
 export function checkPreIpoExposure(
   postState: PortfolioSnapshot,
   maxPreIpoBps: number
 ): PostconditionCheckResult {
   const preIpoValue = postState.assets
-    .filter(a => a.assetClass === 'PRE_IPO' || a.symbol.includes('SPACEX') || a.symbol.includes('OPENAI') || a.symbol.includes('STRIPE'))
+    .filter(a => getAssetCategory(a.symbol) === 'PRE_IPO' || a.assetClass === 'PRE_IPO')
     .reduce((sum, a) => sum + a.valueUsd, 0);
   const preIpoExposureBps = calculateAssetExposureBps(preIpoValue, postState.totalValueUsd);
   const passed = preIpoExposureBps <= maxPreIpoBps;
 
   return {
-    checkName: 'MAX_SINGLE_ASSET',
+    checkName: 'MAX_PRE_IPO_EXPOSURE',
     passed,
     expectedBpsOrValue: maxPreIpoBps,
     actualBpsOrValue: preIpoExposureBps,
@@ -277,6 +278,114 @@ export function checkPreIpoExposure(
       ? `Pre-IPO aggregate exposure is within authorized limit (${(preIpoExposureBps / 100).toFixed(2)}% <= ${(maxPreIpoBps / 100).toFixed(2)}%)`
       : `Pre-IPO exposure ceiling exceeded: ${(preIpoExposureBps / 100).toFixed(2)}% exceeds max ${(maxPreIpoBps / 100).toFixed(2)}%`,
     failureCode: passed ? undefined : 'ERR_EXPOSURE_EXCEEDED',
+  };
+}
+
+/**
+ * Checks Public Equities aggregate exposure cap (Phase 11: Public Equities Asset Universe)
+ * Enforces Public equities allocation <= maxPublicEquitiesBps (e.g. 7000 for 70.00%)
+ */
+export function checkPublicEquitiesExposure(
+  postState: PortfolioSnapshot,
+  maxPublicEquitiesBps: number
+): PostconditionCheckResult {
+  const publicValue = postState.assets
+    .filter(a => getAssetCategory(a.symbol) === 'PUBLIC_EQUITIES')
+    .reduce((sum, a) => sum + a.valueUsd, 0);
+  const publicExposureBps = calculateAssetExposureBps(publicValue, postState.totalValueUsd);
+  const passed = publicExposureBps <= maxPublicEquitiesBps;
+
+  return {
+    checkName: 'MAX_PUBLIC_EQUITIES_EXPOSURE',
+    passed,
+    expectedBpsOrValue: maxPublicEquitiesBps,
+    actualBpsOrValue: publicExposureBps,
+    description: passed
+      ? `Public equities aggregate exposure is within authorized limit (${(publicExposureBps / 100).toFixed(2)}% <= ${(maxPublicEquitiesBps / 100).toFixed(2)}%)`
+      : `Public equities exposure ceiling exceeded: ${(publicExposureBps / 100).toFixed(2)}% exceeds max ${(maxPublicEquitiesBps / 100).toFixed(2)}%`,
+    failureCode: passed ? undefined : 'ERR_PUBLIC_EQUITIES_EXCEEDED',
+  };
+}
+
+/**
+ * Comprehensive tripartite Asset Class Allocation Report
+ * Evaluates Public Equities (<= 70%), Pre-IPO (<= 20%), Stablecoin (>= 10%)
+ */
+export interface AssetClassAllocationReport {
+  publicEquities: {
+    valueUsd: number;
+    exposureBps: number;
+    maxBps: number;
+    passed: boolean;
+  };
+  preIpo: {
+    valueUsd: number;
+    exposureBps: number;
+    maxBps: number;
+    passed: boolean;
+  };
+  stable: {
+    valueUsd: number;
+    exposureBps: number;
+    minBps: number;
+    passed: boolean;
+  };
+  allPassed: boolean;
+}
+
+export function evaluateAssetClassAllocations(
+  portfolio: PortfolioSnapshot,
+  policy: FinancialPolicy
+): AssetClassAllocationReport {
+  const totalValue = portfolio.totalValueUsd;
+
+  let publicValue = 0;
+  let preIpoValue = 0;
+  let stableValue = 0;
+
+  for (const asset of portfolio.assets) {
+    const cat = getAssetCategory(asset.symbol);
+    if (cat === 'PRE_IPO') {
+      preIpoValue += asset.valueUsd;
+    } else if (cat === 'STABLE') {
+      stableValue += asset.valueUsd;
+    } else {
+      publicValue += asset.valueUsd;
+    }
+  }
+
+  const publicExposureBps = calculateAssetExposureBps(publicValue, totalValue);
+  const preIpoExposureBps = calculateAssetExposureBps(preIpoValue, totalValue);
+  const stableExposureBps = calculateAssetExposureBps(stableValue, totalValue);
+
+  const maxPublicBps = policy.maxPublicEquitiesExposureBps ?? 7000;
+  const maxPreIpoBps = policy.maxPreIpoExposureBps ?? 2000;
+  const minStableBps = policy.minStablecoinBps;
+
+  const publicPassed = publicExposureBps <= maxPublicBps;
+  const preIpoPassed = preIpoExposureBps <= maxPreIpoBps;
+  const stablePassed = stableExposureBps >= minStableBps;
+
+  return {
+    publicEquities: {
+      valueUsd: Math.round(publicValue * 100) / 100,
+      exposureBps: publicExposureBps,
+      maxBps: maxPublicBps,
+      passed: publicPassed,
+    },
+    preIpo: {
+      valueUsd: Math.round(preIpoValue * 100) / 100,
+      exposureBps: preIpoExposureBps,
+      maxBps: maxPreIpoBps,
+      passed: preIpoPassed,
+    },
+    stable: {
+      valueUsd: Math.round(stableValue * 100) / 100,
+      exposureBps: stableExposureBps,
+      minBps: minStableBps,
+      passed: stablePassed,
+    },
+    allPassed: publicPassed && preIpoPassed && stablePassed,
   };
 }
 
@@ -836,6 +945,10 @@ export function evaluatePostconditions(
     checks.push(checkPreIpoExposure(postState, policy.maxPreIpoExposureBps));
   }
 
+  if (policy.maxPublicEquitiesExposureBps !== undefined) {
+    checks.push(checkPublicEquitiesExposure(postState, policy.maxPublicEquitiesExposureBps));
+  }
+
   // Tier 3: Trading Constraints
   if (policy.maxQuoteAgeSeconds !== undefined && priceSource) {
     checks.push(checkQuoteFreshness(priceSource, policy.maxQuoteAgeSeconds, currentTime));
@@ -905,7 +1018,7 @@ export function evaluatePostconditions(
 }
 
 // -----------------------------------------------------------------------------
-// Canonical Risk-Policy DSL Profiles
+// Canonical Risk-Policy DSL Profiles (with Phase 11 PreStocks Asset Classes)
 // -----------------------------------------------------------------------------
 
 export const CONSERVATIVE_INSTITUTIONAL_POLICY: FinancialPolicy = {
@@ -913,6 +1026,8 @@ export const CONSERVATIVE_INSTITUTIONAL_POLICY: FinancialPolicy = {
   owner: 'SentinelRiskCommittee111111111111111111111',
   maxSingleAssetBps: 1500, // 15.00%
   minStablecoinBps: 3000,  // 30.00%
+  maxPublicEquitiesExposureBps: 6000, // 60.00%
+  maxPreIpoExposureBps: 1000,         // 10.00%
   maxTradeValueUsd: 5000,  // $5,000
   maxSlippageBps: 50,      // 0.50%
   maxSectorExposureBps: 3000, // 30.00%
@@ -935,7 +1050,9 @@ export const BALANCED_MULTI_ASSET_POLICY: FinancialPolicy = {
   policyId: 'policy_balanced_multi_asset',
   owner: 'SentinelRiskCommittee111111111111111111111',
   maxSingleAssetBps: 2500, // 25.00%
-  minStablecoinBps: 2000,  // 20.00%
+  minStablecoinBps: 1000,  // 10.00%
+  maxPublicEquitiesExposureBps: 7000, // 70.00%
+  maxPreIpoExposureBps: 2000,         // 20.00%
   maxTradeValueUsd: 10000, // $10,000
   maxSlippageBps: 100,     // 1.00%
   maxSectorExposureBps: 4500, // 45.00%
@@ -958,7 +1075,9 @@ export const HIGH_ALPHA_GROWTH_POLICY: FinancialPolicy = {
   policyId: 'policy_high_alpha_growth',
   owner: 'SentinelRiskCommittee111111111111111111111',
   maxSingleAssetBps: 3500, // 35.00%
-  minStablecoinBps: 1500,  // 15.00%
+  minStablecoinBps: 1000,  // 10.00%
+  maxPublicEquitiesExposureBps: 7500, // 75.00%
+  maxPreIpoExposureBps: 2500,         // 25.00%
   maxTradeValueUsd: 25000, // $25,000
   maxSlippageBps: 150,     // 1.50%
   maxSectorExposureBps: 6000, // 60.00%

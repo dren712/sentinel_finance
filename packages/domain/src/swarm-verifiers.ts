@@ -26,6 +26,7 @@ import {
   checkQuoteFreshness,
   checkPriceImpact,
   checkPreIpoExposure,
+  checkPublicEquitiesExposure,
 } from './policy-engine';
 
 /**
@@ -532,6 +533,20 @@ export function evaluatePortfolioVerifier(
       limit: `≤ ${(policy.maxPreIpoExposureBps / 100).toFixed(1)}%`,
       description: preIpoCheck.description,
       failureCode: preIpoCheck.failureCode,
+    });
+  }
+
+  // F. Public Equities Exposure Cap (if configured)
+  if (policy.maxPublicEquitiesExposureBps !== undefined) {
+    const publicEqCheck = checkPublicEquitiesExposure(postState, policy.maxPublicEquitiesExposureBps);
+    const publicEqBps = typeof publicEqCheck.actualBpsOrValue === 'number' ? publicEqCheck.actualBpsOrValue : 0;
+    subChecks.push({
+      name: 'Public Equities Exposure',
+      passed: publicEqCheck.passed,
+      actual: `${(publicEqBps / 100).toFixed(1)}% projected`,
+      limit: `≤ ${(policy.maxPublicEquitiesExposureBps / 100).toFixed(1)}%`,
+      description: publicEqCheck.description,
+      failureCode: publicEqCheck.failureCode,
     });
   }
 

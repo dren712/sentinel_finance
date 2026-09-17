@@ -133,6 +133,54 @@ export function createCanonicalTokenHoldings(owner: string = 'GR9CtiUswZtay68U2f
 }
 
 /**
+ * Generates custom token holdings from target asset allocation amounts in USD
+ * Phase 11: PreStocks Asset Universe & Portfolio Builder
+ */
+export function createCustomTokenHoldings(
+  allocations: Record<string, number>,
+  owner: string = 'GR9CtiUswZtay68U2fGqcDeB1dg8sHtpVi9kk2nCEwzw',
+  prices?: Record<string, number>
+): TokenHolding[] {
+  const holdings: TokenHolding[] = [];
+
+  for (const [symbol, valUsd] of Object.entries(allocations)) {
+    if (valUsd <= 0) continue;
+    const meta = ASSET_REGISTRY[symbol];
+    if (!meta) continue;
+
+    const price = prices?.[symbol] ?? meta.basePriceUsd ?? 1.0;
+    const balanceUi = price > 0 ? valUsd / price : 0;
+
+    holdings.push(
+      createTokenHolding({
+        mint: meta.mint,
+        symbol: meta.symbol,
+        name: meta.name,
+        decimals: meta.decimals,
+        balanceUi,
+        owner,
+      })
+    );
+  }
+
+  // Ensure USDC is always present for reserve accounting
+  if (!holdings.some(h => h.symbol === 'USDC')) {
+    holdings.unshift(
+      createTokenHolding({
+        mint: ASSET_REGISTRY.USDC.mint,
+        symbol: 'USDC',
+        name: 'USD Coin',
+        decimals: 6,
+        balanceUi: 0,
+        owner,
+      })
+    );
+  }
+
+  return holdings;
+}
+
+/**
  * Computes a SHA-256 state hash over the projected portfolio state
  */
 export function hashPortfolioProjection(portfolio: Portfolio): string {

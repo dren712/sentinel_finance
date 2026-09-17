@@ -20,6 +20,13 @@ import {
   HIGH_ALPHA_GROWTH_POLICY,
   SentinelReceipt,
   MeteoraStockMarket,
+  getAssetUniverse,
+  getAssetCategory,
+  ASSET_REGISTRY,
+  createCustomTokenHoldings,
+  projectPortfolioFromHoldings,
+  AssetUniverseCategory,
+  AssetUniverseGroup,
 } from '@sentinel/domain';
 import {
   ExecutionAdapter,
@@ -253,6 +260,109 @@ export class SentinelClient {
       isActive: true,
       updatedAt: Date.now(),
     };
+  }
+
+  /**
+   * Generates a Phase 11 PreStocks Asset Class Policy:
+   * Public Equities <= 70%, Pre-IPO <= 20%, Stablecoin >= 10%
+   */
+  createPreStocksPolicy(owner: string = 'GR9CtiUswZtay68U2fGqcDeB1dg8sHtpVi9kk2nCEwzw'): FinancialPolicy {
+    return {
+      policyId: 'policy_prestocks_multi_asset',
+      owner,
+      maxSingleAssetBps: 2500, // 25.00%
+      minStablecoinBps: 1000,  // 10.00% floor
+      maxPublicEquitiesExposureBps: 7000, // 70.00% cap
+      maxPreIpoExposureBps: 2000,         // 20.00% cap
+      maxTradeValueUsd: 10_000, // $10,000
+      maxSlippageBps: 100,     // 1.00%
+      maxSectorExposureBps: 4500,
+      maxIssuerExposureBps: 5000,
+      maxPositions: 8,
+      minDiversificationAssets: 3,
+      venueAllowlist: ['METEORA_DBC', 'PRESTOCKS_SECONDARY', 'DEMO_SIMULATION'],
+      assetAllowlist: ['NVDAx', 'AAPLx', 'SPYx', 'USDC', 'SPACEXx', 'OPENAIx', 'STRIPEx'],
+      policyVersion: 1,
+      isActive: true,
+      updatedAt: Date.now(),
+    };
+  }
+
+  /**
+   * Returns the canonical tripartite Asset Universe: Public Equities, Pre-IPO, and Stablecoin
+   */
+  getAssetUniverse(): Record<AssetUniverseCategory, AssetUniverseGroup> {
+    return getAssetUniverse();
+  }
+
+  /**
+   * Generates an institutional multi-asset portfolio including PreStocks Pre-IPO equities:
+   * Public Equities: 60% ($60,000 across AAPLx, NVDAx, SPYx)
+   * Pre-IPO (PreStocks): 15% ($15,000 across SPACEXx, OPENAIx, STRIPEx)
+   * Stablecoin: 25% ($25,000 USDC)
+   * Total NAV: $100,000
+   */
+  createPreStocksPortfolio(owner: string = 'GR9CtiUswZtay68U2fGqcDeB1dg8sHtpVi9kk2nCEwzw'): PortfolioSnapshot {
+    return this.buildPortfolio({
+      AAPLx: 20_000,
+      NVDAx: 20_000,
+      SPYx: 20_000,
+      SPACEXx: 5_000,
+      OPENAIx: 5_000,
+      STRIPEx: 5_000,
+      USDC: 25_000,
+    }, 100_000, owner);
+  }
+
+  /**
+   * Builds a verified portfolio projection from custom asset allocation amounts in USD
+   * Phase 11: Build Your Portfolio
+   */
+  buildPortfolio(
+    allocations: Record<string, number>,
+    totalValueUsd: number = 100_000,
+    owner: string = 'GR9CtiUswZtay68U2fGqcDeB1dg8sHtpVi9kk2nCEwzw'
+  ): PortfolioSnapshot {
+    const marketPrices = this.pythAdapter.getAllNormalizedMarketPricesSync();
+    const priceMap: Record<string, number> = {};
+    for (const [sym, mp] of Object.entries(marketPrices)) {
+      priceMap[sym] = mp.priceUsd;
+    }
+    const holdings = createCustomTokenHoldings(allocations, owner, priceMap);
+    const projection = projectPortfolioFromHoldings({
+      walletAddress: owner,
+      holdings,
+      marketPrices,
+    });
+    const normalized = projection.normalizedPortfolio;
+    const sentinelPda = deriveSentinelPda(owner);
+
+    const portfolio: PortfolioSnapshot = {
+      portfolioId: `portfolio_${owner.slice(0, 8)}_${Date.now()}`,
+      owner,
+      walletAddress: owner,
+      sentinelPda,
+      totalValueUsd: normalized.totalValueUsd,
+      stablecoinValueUsd: normalized.stablecoinValueUsd,
+      stablecoinExposureBps: normalized.stablecoinExposureBps,
+      timestamp: Date.now(),
+      projectionTimestamp: Date.now(),
+      source: 'ON_CHAIN_PROJECTION',
+      assets: normalized.assets.map(a => ({
+        ...a,
+        ata: deriveSplAta(owner, a.mint),
+        rawAmount: BigInt(Math.round(a.amount * 1_000_000)).toString(),
+        decimals: a.decimals ?? 6,
+        verifiedPriceSource: a.symbol === 'USDC'
+          ? 'Pyth Network (Crypto.USDC/USD)'
+          : a.assetClass === 'PRE_IPO'
+          ? `PreStocks Secondary (${a.symbol}/USD)`
+          : `Pyth Network (Dual-Feed ${a.symbol}/USD)`,
+      })),
+    };
+
+    portfolio.projectionHash = hashPortfolioProjection(portfolio);
+    return portfolio;
   }
 
   getPythAdapter(): PythPriceAdapter {

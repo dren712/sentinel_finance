@@ -255,8 +255,9 @@ export interface Policy {
   marketHoursOnly?: boolean;       // if true, only trades during market hours
   requireHealthyVenue?: boolean;   // if true, venue status must be healthy
 
-  // Backwards compatibility
-  maxPreIpoExposureBps?: number;   // e.g. 1500 for 15.00% max private equity
+  // Phase 11: PreStocks Asset Class Constraints
+  maxPublicEquitiesExposureBps?: number; // e.g. 7000 for 70.00% max public equities
+  maxPreIpoExposureBps?: number;         // e.g. 2000 for 20.00% max private equity (PreStocks)
   policyVersion: number;
   isActive: boolean;
   updatedAt: number;
@@ -451,7 +452,8 @@ export type FailureCode =
   | 'ERR_POLICY_EXPIRED'
   | 'ERR_EMERGENCY_PAUSE'
   | 'ERR_MARKET_UNAVAILABLE'
-  | 'ERR_VENUE_UNHEALTHY';
+  | 'ERR_VENUE_UNHEALTHY'
+  | 'ERR_PUBLIC_EQUITIES_EXCEEDED';
 
 export type RiskCheckName =
   | 'MAX_SINGLE_ASSET'

@@ -57,6 +57,12 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
   const [maxSlippagePct, setMaxSlippagePct] = useState(policy.maxSlippageBps / 100);
 
   // Tier 2: Portfolio Constraints
+  const [maxPublicEquitiesExposurePct, setMaxPublicEquitiesExposurePct] = useState(
+    (policy.maxPublicEquitiesExposureBps ?? 7000) / 100
+  );
+  const [maxPreIpoExposurePct, setMaxPreIpoExposurePct] = useState(
+    (policy.maxPreIpoExposureBps ?? 2000) / 100
+  );
   const [maxSectorExposurePct, setMaxSectorExposurePct] = useState(
     (policy.maxSectorExposureBps ?? 4500) / 100
   );
@@ -114,6 +120,8 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
     setActiveProfile(name);
     setMaxSingleAssetPct(profile.maxSingleAssetBps / 100);
     setMinStablecoinPct(profile.minStablecoinBps / 100);
+    setMaxPublicEquitiesExposurePct((profile.maxPublicEquitiesExposureBps ?? 7000) / 100);
+    setMaxPreIpoExposurePct((profile.maxPreIpoExposureBps ?? 2000) / 100);
     setMaxTradeValue(profile.maxTradeValueUsd);
     setMaxSlippagePct(profile.maxSlippageBps / 100);
     setMaxSectorExposurePct((profile.maxSectorExposureBps ?? 4500) / 100);
@@ -139,6 +147,8 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
     onUpdatePolicy({
       maxSingleAssetBps: Math.round(maxSingleAssetPct * 100),
       minStablecoinBps: Math.round(minStablecoinPct * 100),
+      maxPublicEquitiesExposureBps: Math.round(maxPublicEquitiesExposurePct * 100),
+      maxPreIpoExposureBps: Math.round(maxPreIpoExposurePct * 100),
       maxTradeValueUsd: maxTradeValue,
       maxSlippageBps: Math.round(maxSlippagePct * 100),
       maxSectorExposureBps: Math.round(maxSectorExposurePct * 100),
@@ -199,6 +209,8 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
     isEmergencyPaused,
     maxSingleAssetBps: Math.round(maxSingleAssetPct * 100),
     minStablecoinBps: Math.round(minStablecoinPct * 100),
+    maxPublicEquitiesExposureBps: Math.round(maxPublicEquitiesExposurePct * 100),
+    maxPreIpoExposureBps: Math.round(maxPreIpoExposurePct * 100),
     maxTradeValueUsd: maxTradeValue,
     maxSlippageBps: Math.round(maxSlippagePct * 100),
     maxSectorExposureBps: Math.round(maxSectorExposurePct * 100),
@@ -554,6 +566,62 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {/* Max Public Equities Exposure (Phase 11) */}
+              <div className="p-4 rounded-lg bg-sentinel-surfaceMuted border border-blue-500/20 space-y-2.5">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-semibold text-white">Max Public Equities</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded font-mono bg-blue-500/20 text-blue-400">P11</span>
+                  </div>
+                  <span className="text-xs font-bold text-blue-400 font-mono">
+                    {maxPublicEquitiesExposurePct.toFixed(1)}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="30"
+                  max="90"
+                  step="5"
+                  value={maxPublicEquitiesExposurePct}
+                  onChange={(e) => {
+                    setActiveProfile('custom');
+                    setMaxPublicEquitiesExposurePct(parseFloat(e.target.value));
+                  }}
+                  className="w-full accent-blue-500 cursor-pointer"
+                />
+                <span className="text-[10px] text-sentinel-textMuted block">
+                  Aggregate macro cap on public tokenized equities (AAPLx, NVDAx, SPYx).
+                </span>
+              </div>
+
+              {/* Max Pre-IPO / Unicorn Exposure (PreStocks) (Phase 11) */}
+              <div className="p-4 rounded-lg bg-sentinel-surfaceMuted border border-purple-500/20 space-y-2.5">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-semibold text-white">Max Pre-IPO (PreStocks)</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded font-mono bg-purple-500/20 text-purple-400">P11</span>
+                  </div>
+                  <span className="text-xs font-bold text-purple-400 font-mono">
+                    {maxPreIpoExposurePct.toFixed(1)}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="5"
+                  max="40"
+                  step="1"
+                  value={maxPreIpoExposurePct}
+                  onChange={(e) => {
+                    setActiveProfile('custom');
+                    setMaxPreIpoExposurePct(parseFloat(e.target.value));
+                  }}
+                  className="w-full accent-purple-500 cursor-pointer"
+                />
+                <span className="text-[10px] text-sentinel-textMuted block">
+                  Mandatory ceiling on private market / pre-IPO equities (SPACEXx, OPENAIx, STRIPEx).
+                </span>
+              </div>
+
               {/* Max Sector Exposure */}
               <div className="p-4 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border/70 space-y-2.5">
                 <div className="flex justify-between items-center">
