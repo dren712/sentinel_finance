@@ -2,169 +2,207 @@
 
 > **Autonomous Robo-Portfolio for Tokenized Equities on Solana with Authoritative On-Chain Financial Postcondition Guarantees.**
 
-Sentinel Finance allows users to delegate portfolio management to autonomous agents while strictly enforcing machine-checkable financial guarantees at the transaction / state-transition boundary.
+Sentinel Finance allows investors to delegate portfolio management to autonomous AI agents while strictly enforcing machine-checkable financial guarantees at the transaction / state-transition boundary.
 
 **"The agent can make investment decisions, but it cannot settle an outcome that violates the user's financial promises."**
 
 ---
 
-## 🧭 Technical Truth & Architecture Boundaries
+## 🧭 Technical Status & Definition of Truth
 
-In accordance with strict technical truth:
+Sentinel maintains absolute architectural honesty. We distinguish clearly between verified on-chain code, cryptographic engines, and simulated execution:
 
-| Component | Status | Implementation Truth |
-| :--- | :--- | :--- |
-| **Sentinel Anchor Program** | **LIVE ON-CHAIN** | Deployed on Solana (`3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK`). Manages `PolicyAccount`, `AgentAccount`, `PromiseAccount`, and `PortfolioVault` PDAs. |
-| **Guarded Trade Execution** | **LIVE ON-CHAIN** | `execute_guarded_trade` enforces agent authority, mutates the on-chain `PortfolioVault` ledger, computes resulting exposure in `u128`, and **atomically reverts the entire Solana transaction** if any postcondition fails. |
-| **Agent Intent Signing** | **REAL CRYPTOGRAPHY** | `ClawPumpAgentWallet` generates genuine **Ed25519** signatures over deterministic canonical JSON bytes and verifies them cryptographically. |
-| **PROVN Evidence** | **REAL CRYPTOGRAPHY** | Deterministic SHA-256 commitments linking pre-state, post-state, intent, policy version, and on-chain failure codes. |
-| **Meteora Integration** | **VERIFIER MODULE** | `MeteoraDBCMarketQualityVerifier` models and validates Dynamic Bonding Curve (DBC) depth ($25k floor) and price deviation (2% cap). *(Not a live DEX pool).* |
-| **ClawPump Integration** | **AGENT WALLET PATTERN** | Autonomous agent keypair identity with Ed25519 intent signing bounded by on-chain Sentinel policy. *(Not a token launch).* |
-| **Demo Execution Modes** | **DUAL MODE** | **Simulation Mode**: Deterministic offline scenario for judges. **Live Mode**: Requires funded wallet and submits transactions to the Solana Anchor program. |
+```
+[PRE-DEPLOYMENT: IMPLEMENTED & TESTED LOCALLY / SOLANA DEVNET TARGET]
+Program ID: 3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK
+```
+
+### Definition of Truth Matrix
+
+| Metric / Concept | Concrete Source of Truth | Verification Method | UI Badge / Representation |
+| :--- | :--- | :--- | :--- |
+| **Wallet Balance** | Solana SPL Token Account / System Account | Direct RPC account query via `@solana/web3.js` | `[DEVNET]` or `[SIMULATION]` |
+| **Stock / Asset Price** | Pyth Network Price Feed (Dual-feed) | Pyth SDK deserialization + staleness & confidence bounds check | `[LIVE PYTH]` or `[SIMULATION PRICE]` |
+| **Portfolio Allocation** | $\sum(\text{Balance} \times \text{Pyth Price})$ | Computed portfolio valuation engine (`SentinelValuationEngine`) | `[DERIVED METRIC]` |
+| **Trade Approved / Rejected** | Sentinel Anchor `execute_guarded_trade` instruction | On-chain execution simulation or confirmed transaction signature | `[PROGRAM CONFIRMED]` |
+| **Transaction Status** | Solana RPC Cluster | Block commitment level (`confirmed` / `finalized`) | `[TX PENDING/CONFIRMED/FAILED]` |
+| **Venue Liquidity** | Meteora DBC / AMM Pool State | On-chain pool account reserves & invariant checks | `[LIVE VENUE]` or `[ADAPTER VERIFIED]` |
+| **Financial Evidence** | PROVN Cryptographic Commitment | On-chain event log / Deterministic SHA-256 preimage | `[CRYPTOGRAPHIC PROOF]` |
+| **Offline Test Scenarios** | Local deterministic scenario fixture | Evaluated in memory; badge clearly displayed | `[SIMULATION MODE]` |
 
 ---
 
-## 🏆 Hackathon Context: Stocklana
+## 🛡️ Permanent Copilot & Architectural Rules
 
-- **Track**: Investing → Robo Portfolios
-- **The Core Wedge**: Controlled Autonomy.
-- **Why Solana?**: Solana transactions are atomic and composable. Financial state and Sentinel's on-chain postcondition program share the same execution boundary: any policy violation aborts before state commit.
+1. **The Smallest Implementation Rule**:
+   Prefer the minimal working implementation that satisfies user intent over bloated architecture. We reject unnecessary microservices, external databases, or superfluous abstractions. Every feature lives in a streamlined **Modular Monolith**.
+2. **The Anti-Churn Rule**:
+   Preserve working code and existing verified test baselines. Do not churn frameworks, rewrites, or dependencies for superficial aesthetics. Correctness and financial invariants take precedence over novelty.
+
+---
+
+## 🏆 Hackathon Alignment: Stocklana First, Colosseum Graduation
+
+- **Primary Track**: **Investing → Robo-Portfolios ($100,000)**
+- **Strategic Sponsor Focus (3 Core Tracks)**:
+  1. **Pyth Network (Pyth Pro)**: Dual-feed mark-to-market pricing, confidence bounds ($\pm \sigma$), tracking error detection, and stale-quote rejection.
+  2. **PreStocks ($10,000 Bounty)**: Pre-IPO Asset Universe (`SPACEXx`, `OPENAIx`, `STRIPEx`), Portfolio Builder, and Macro Asset Class Allocation Policies (`Pre-IPO ≤ 20%`).
+  3. **Meteora ($5,000 Bounty)**: Dynamic Bonding Curve (DBC) Liquidity Primitive, reserve depth verification ($25,000 floor), dynamic fee tracking, and bidirectional market protection.
+- *Contained Internal Modules*: ClawPump (Ed25519 autonomous agent wallet pattern) and Tessera (SPV tranche metadata and 409A NAV attestation) are integrated cleanly as internal architectural capabilities without cluttering external bounty pitches.
 
 ---
 
 ## 💡 The Problem & The Sentinel Solution
 
-### The Delegation Problem
-A user wants an autonomous agent to rebalance their tokenized-stock portfolio (e.g. AAPLx, NVDAx, SPYx). However, standard wallet delegation only verifies:
+### The Delegation Dilemma
+When an investor delegates trading authority to an autonomous AI agent, standard Solana wallet delegation only answers:
 > *"Is the agent authorized to call the transaction?"*
 
-If the agent model drifts, hallucinates, or is manipulated, it can dump stablecoin reserves or over-concentrate 90% of the portfolio into a single volatile stock.
+If the AI drifts, hallucinates, or falls victim to market anomalies, it can drain stablecoin reserves, purchase low-liquidity assets, or over-concentrate 90% of the portfolio into a single volatile equity.
 
-### The Sentinel Postcondition Model
-Sentinel adds an authoritative second question:
+### The Sentinel Postcondition Architecture
+Sentinel enforces an authoritative second question:
 > *"Does the resulting financial state satisfy the conditions the user promised?"*
 
-If an agent proposes a trade that pushes single-stock exposure to 35% when the user's policy ceiling is 25%, **the transaction aborts atomically on-chain**.
+Sentinel checks invariants **after simulated state transition but before on-chain commit**:
+- **Max Single-Asset Exposure**: e.g., $\le 25.00\%$
+- **Min Stablecoin Reserve Floor**: e.g., $\ge 20.00\%$
+- **Max Trade Sizing Limit**: e.g., $\le \$10,000\text{ USD}$
+- **Max Slippage Tolerance**: e.g., $\le 1.00\%$
+- **Pre-IPO Secondary Cap**: e.g., $\le 20.00\%$
+
+If **any** invariant is breached, the Anchor program **atomically reverts the entire Solana transaction**. Zero funds leave the vault.
 
 ---
 
-## 🏛️ Architecture & System Design
+## 🏛️ Modular Monolith Architecture
 
 ```text
-USER / WALLET
-      │
-      ▼
-CONNECT & DEFINE FINANCIAL POLICY (PolicyAccount PDA)
-      │
-      ▼
-AUTONOMOUS AGENT (ClawPump Identity / AgentAccount PDA)
-      │
-      ▼
-TRADE INTENT (Asset, Direction, Amount, Ed25519 Signature)
-      │
-      ▼
-PROMISE COMMITMENT (PromiseAccount PDA)
-      │
-      ▼
-SENTINEL PORTFOLIO VAULT PDA (programs/sentinel)
-      │
-      ├── 1. Verify Signer Authority (Agent or Owner)
-      ├── 2. Mutate Vault Balance Ledger
-      ├── 3. Evaluate Postconditions in u128:
-      │      ├── Max Single-Asset Exposure Check (BPS)
-      │      ├── Min Stablecoin Reserve Floor Check (BPS)
-      │      ├── Max Trade Sizing Limit Check (USD)
-      │      └── Max Price Slippage Tolerance (BPS)
-      │
-      ├── PASS ────► COMMIT VAULT STATE (Status: SETTLED)
-      │
-      └── FAIL ────► ATOMIC REVERT (Status: REJECTED, Balance Preserved)
-      │
-      ▼
-PROVN EVIDENCE LAYER (Immutable Cryptographic Anchor)
+┌───────────────────────────────────────────────────────────────────────────────────┐
+│                                   CLIENT LAYER                                    │
+│  apps/web (Next.js 14, Tailwind, @solana/wallet-adapter-react, Lightweight Charts)│
+│                                                                                   │
+│   ┌───────────────┐   ┌───────────────┐   ┌────────────────┐   ┌──────────────┐   │
+│   │ 1. PORTFOLIO  │   │   2. AGENT    │   │ 3. PROTECTION  │   │ 4. ACTIVITY  │   │
+│   │ NAV & Assets  │   │  Robo-01 &    │   │ Boundaries &   │   │ Decisions &  │   │
+│   │ 4/4 Health    │   │  10-Stage Loop│   │ PDA Guarantees │   │ PROVN Drawer │   │
+│   └───────┬───────┘   └───────┬───────┘   └────────┬───────┘   └──────┬───────┘   │
+└───────────┼───────────────────┼────────────────────┼──────────────────┼───────────┘
+            │                   │                    │                  │
+            ▼                   ▼                    ▼                  ▼
+┌───────────────────────────────────────────────────────────────────────────────────┐
+│                             SDK & ORCHESTRATION LAYER                             │
+│  packages/sdk (SentinelClient, ExecutionAdapters, AutonomousRoboAgent)            │
+│                                                                                   │
+│  ┌───────────────────────┐   ┌───────────────────────┐   ┌────────────────────┐   │
+│  │ AutonomousRoboAgent   │   │ Decision Cycle        │   │ Execution Adapters │   │
+│  │ • 10-Stage Loop       │──►│ • Pre-Flight Engine   │──►│ • Meteora DBC      │   │
+│  │ • Ed25519 Signer      │   │ • Auto-Adaptation     │   │ • PreStocks Sec.   │   │
+│  └───────────────────────┘   └───────────────────────┘   │ • SimulatedAdapter │   │
+│                                                          └─────────┬──────────┘   │
+└────────────────────────────────────────────────────────────────────┼──────────────┘
+                                                                     │
+            ┌────────────────────────────────────────────────────────┘
+            ▼
+┌───────────────────────────────────────────────────────────────────────────────────┐
+│                          DOMAIN & VERIFICATION LAYER                              │
+│  packages/domain (PolicyEngine, SWARM-Lite Verifiers, PROVN Receipts)             │
+│                                                                                   │
+│  ┌──────────────────┐   ┌─────────────────────┐   ┌───────────────────────────┐   │
+│  │ AssetRegistry    │   │ SWARM-Lite Engine   │   │ PROVN Evidence Receipts   │   │
+│  │ • NVDAx, AAPLx   │   │ • RiskVerifier      │   │ • Canonical JSON Hashing  │   │
+│  │ • SPYx, USDC     │   │ • BalanceVerifier   │   │ • Pre/Post SHA-256 Proofs │   │
+│  │ • PreStocks Uni  │   │ • PriceIntegrity    │   │ • Two-Tier Drawer Output  │   │
+│  └──────────────────┘   └─────────────────────┘   └───────────────────────────┘   │
+└───────────────────────────────────────────────────────────────────────────────────┘
+                                     │
+                                     ▼
+┌───────────────────────────────────────────────────────────────────────────────────┐
+│                        ON-CHAIN ENFORCEMENT BOUNDARY                              │
+│  programs/sentinel (Solana Anchor Program: 3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9k)│
+│                                                                                   │
+│   Instructions:                                                                   │
+│   ├── initialize_policy / update_policy (PolicyAccount PDA)                       │
+│   ├── initialize_agent (AgentAccount PDA)                                         │
+│   ├── initialize_vault (PortfolioVault PDA)                                       │
+│   ├── create_promise (PromiseAccount PDA)                                         │
+│   └── execute_guarded_trade (u128 Fixed-Point Math Postcondition Check)           │
+│                                                                                   │
+│   Result:                                                                         │
+│   ├── PASS: Mutates vault ledger & records settlement                             │
+│   └── FAIL: ATOMIC REVERT — 0 tokens transferred, 0 capital loss                  │
+└───────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## ⚡ Core Components
+## 🎬 The Flagship 5-Step "Aha!" Demo Flow
 
-### 1. On-Chain Sentinel Program (`programs/sentinel`)
-- **Program ID**: `3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK`
-- **Framework**: Anchor / Solana Agave
-- **Instructions**:
-  - `initialize_agent`: Binds agent authority to user controller.
-  - `initialize_policy`: Enforces basis point bounds (`0..10,000 bps`) for `max_single_asset_bps`, `min_stablecoin_bps`, `max_trade_value_usd`, `max_slippage_bps`.
-  - `initialize_vault`: Establishes the on-chain `PortfolioVault` holding USDC reserves and position ledgers.
-  - `create_promise`: Locks intent parameters into `PromiseAccount` PDA.
-  - `execute_guarded_trade`: Mutates vault state, computes resulting exposure in `u128`, and reverts atomically if any invariant fails.
-  - `record_evidence`: Constrained to authorized agent/owner to anchor PROVN cryptographic proof.
+The core user experience demonstrates autonomous adaptation under strict safety guardrails:
 
-### 2. Deterministic Policy Engine (`packages/domain`)
-- High-precision fixed-point integer basis point math.
-- 10 comprehensive invariant boundary unit tests (`25.00% PASS` vs `25.01% FAIL`, `20.00% PASS` vs `19.99% FAIL`, `$10,000 PASS` vs `$10,001 FAIL`).
-
-### 3. Autonomous Robo-Agent Simulator (`packages/sdk`)
-- Autonomous agent implementing the reference hackathon demo scenario:
-  - **Step 1 (Bad Autonomous Decision)**: Proposes `BUY NVDAx $15,000` → Rejected (exposure reaches 35% > 25%, stablecoin drops to 10% < 20%, size $15k > $10k).
-  - **Step 2 (Auto-Adapted Compliant Decision)**: Agent reads rejection feedback and calculates exact maximum compliant size ($5,000) → Proposes `BUY NVDAx $5,000` → Settled!
-
-### 4. PROVN Cryptographic Evidence Layer (`packages/domain`)
-- Deterministic canonical JSON serialization with deterministic SHA-256 state commitments:
-  - Pre-State Hash & Post-State Hash
-  - Trade Intent Hash & Policy Hash
-  - Verification Verdict, Failure Codes, and Transaction Signatures
-
-### 5. SWARM-Lite Verification Modules (`packages/domain`)
-- Three independent verifiers evaluate proposed transitions concurrently:
-  - `RiskVerifier`: Evaluates single-equity caps and concentration risk.
-  - `BalanceVerifier`: Evaluates reserve floors, sizing limits, and solvency.
-  - `PolicyVerifier`: Evaluates policy freshness, status, and execution slippage.
-
-### 6. Institutional Web UI (`apps/web`)
-- Next.js 14 App Router, Tailwind CSS, `@solana/wallet-adapter-react`, Lightweight Charts.
-- 4 Core Pillars:
-  - **Portfolio**: Real-time NAV tracking, tokenized equities (`NVDAx`, `AAPLx`, `SPYx`, `USDC`), TradingView interactive financial chart, holdings & policy compliance breakdown, and active `4 / 4 Guarantees Healthy` status pill.
-  - **Agent**: `Sentinel Robo-01` identity, ClawPump-compatible wallet pattern, strategy objectives, interactive decision flow, and real-time pre-flight invariant check tester.
-  - **Protection**: "Your Guarantees" (interactive sliders for single-asset cap, reserve floor, max trade size, and slippage) + "What Sentinel Guarantees" (atomic rollback on Solana Anchor, u128 math, cryptographic commitments).
-  - **Activity**: Unified Activity Log combining recent actions, detailed decision inspector (before vs after exposure comparisons, PTA lifecycle), and expandable PROVN cryptographic commitments with Solana Devnet explorer links.
-
----
-
-## 🌟 Sponsor Integrations
-
-### Meteora DBC Track
-- **`MeteoraDBCMarketQualityVerifier`**: Ensures autonomous agents only trade on Meteora Dynamic Bonding Curves that meet institutional market quality thresholds (minimum liquidity depth >= $25,000 and price deviation <= 2.00% from reference equity index).
-
-### ClawPump Track
-- **`ClawPumpAgentWallet`**: Wraps autonomous agent keypair management, signs agent-originated trade intents with real **Ed25519** detached signatures over canonical JSON, and enforces that agent authority cannot bypass the user's Sentinel policy constraints.
-
----
-
-## 🚀 Quickstart & Verification
-
-### Running the Web Application
-```bash
-# Start Next.js development server
-pnpm --filter @sentinel/web run dev
-# Open http://localhost:3000
+```
+Step 1: Connect & Inspect Portfolio
+        │
+        ▼
+Step 2: Robo-01 Proposes Violating Trade (BUY NVDAx $15,000)
+        │
+        ▼
+Step 3: Sentinel Postcondition Aborts Atomically
+        ├── NVDAx Exposure: 35.00% > 25.00% [FAILED]
+        ├── Stable Reserve: 10.00% < 20.00% [FAILED]
+        └── Trade Sizing:  $15,000 > $10,000 [FAILED]
+        │
+        ▼
+Step 4: Autonomous Reactive Adaptation
+        ├── Agent reads invariant rejection telemetry
+        ├── Solves maximum compliant trade size ($5,000)
+        └── Re-submits: BUY NVDAx $5,000
+        │
+        ▼
+Step 5: Settlement & Two-Tier PROVN Receipt
+        ├── All 4 Invariants Satisfied (25.00% / 20.00% / $5,000 / 0.12%)
+        ├── Investor View: "✓ Protected on Solana"
+        └── Technical Drawer: Deterministic SHA-256 Pre/Post State Hashes & PDA
 ```
 
-### Running All Automated Test Suites
+---
+
+## 📦 Monorepo Layout & Responsibilities
+
+| Package / Directory | Purpose | Test Status |
+| :--- | :--- | :--- |
+| `programs/sentinel` | Authoritative Solana Anchor program enforcing postconditions on-chain. | **9/9 Rust Tests Passing** |
+| `packages/domain` | Pure TypeScript financial policy engine, fixed-point math, SWARM verifiers, and PROVN receipts. | **39/39 Tests Passing** |
+| `packages/sdk` | High-level orchestration client, 10-stage autonomous agent loop, and execution adapters. | **55/55 Tests Passing** |
+| `tests/integration` | End-to-end multi-step autonomous adaptation integration test. | **1/1 Test Passing** |
+| `apps/web` | Institutional 4-Pillar Next.js 14 frontend (Portfolio, Agent, Protection, Activity). | **Build Passing (Exit 0)** |
+
+---
+
+## 🚀 Verification & Quickstart
+
+### 1. Run All Automated Test Suites
 ```bash
-# 1. Domain Policy Engine Unit Tests (10 tests)
-pnpm --filter @sentinel/domain run test
-
-# 2. SDK & Agent Simulator Tests (6 tests)
-pnpm --filter @sentinel/sdk run test
-
-# 3. Anchor Program Rust Invariant Tests (8 tests)
+# 1. Rust Anchor Invariant Tests (9 tests)
 cargo test --manifest-path programs/sentinel/Cargo.toml --lib
 
-# 4. End-to-End Demo Integration Test
+# 2. Domain Policy Engine & Financial Math Tests (39 tests)
+pnpm --filter @sentinel/domain test
+
+# 3. SDK, Autonomous Agent Loop & Execution Adapter Tests (55 tests)
+pnpm --filter @sentinel/sdk test
+
+# 4. End-to-End Demo Scenario Integration Test (1 test)
 node --test tests/integration/demo-scenario.test.ts
 
-# 5. Production Next.js Build
+# 5. Production Web Build Check
 pnpm --filter @sentinel/web run build
+```
+
+### 2. Start the Development Server
+```bash
+pnpm --filter @sentinel/web run dev
+# Open http://localhost:3000
 ```
 
 ---
