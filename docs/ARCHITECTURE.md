@@ -14,8 +14,13 @@ If an autonomous model hallucinates, suffers prompt injection, or drifts under m
 ## 2. Technical Truth & Deployment Status
 
 ```
-[PRE-DEPLOYMENT: IMPLEMENTED & TESTED LOCALLY / SOLANA DEVNET TARGET]
+[LIVE ON SOLANA DEVNET]
 Program ID: 3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK
+IDL Account: H28SmQxnyeTQFUQFFyKjwbLBi77w78vtHmbQzQWrGHx6
+Policy PDA:  3wTp1YDSG3xmf9TtuwZ64b11uLuLNUgQRwdesMbFJUUh
+Agent PDA:   62vpHzSG92GUbAXtNh4czG6U6HyTpndrY4NvZM9euUnQ
+Vault PDA:   7TffMKzUgVme4eod8Wh9ANAQ3YrRMzj4c2JrfKm6AY4Y
+Solana Explorer: https://explorer.solana.com/address/3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK?cluster=devnet
 ```
 
 ### Definition of Truth Matrix
