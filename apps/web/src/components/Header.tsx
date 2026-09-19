@@ -70,8 +70,33 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Action Controls & Top Right */}
         <div className="flex items-center gap-2.5">
-          {/* Devnet Cluster Pill */}
-          <ClusterBadge showSubtitle={false} />
+          {/* Interactive Dual-Mode Badge (DEVNET vs SIMULATION) */}
+          <button
+            type="button"
+            onClick={onToggleMode}
+            className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs font-mono font-medium transition cursor-pointer ${
+              mode === 'LIVE'
+                ? 'bg-emerald-950/50 border-emerald-500/50 text-emerald-300 hover:bg-emerald-900/60 shadow-sm shadow-emerald-950'
+                : 'bg-amber-950/50 border-amber-500/40 text-amber-300 hover:bg-amber-900/50'
+            }`}
+            title={`Active Mode: ${mode}. Click to switch to ${mode === 'LIVE' ? 'SIMULATION' : 'DEVNET LIVE'} mode.`}
+          >
+            <span className="relative flex h-2 w-2">
+              <span
+                className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                  mode === 'LIVE' ? 'bg-emerald-400' : 'bg-amber-400'
+                }`}
+              />
+              <span
+                className={`relative inline-flex rounded-full h-2 w-2 ${
+                  mode === 'LIVE' ? 'bg-emerald-500' : 'bg-amber-500'
+                }`}
+              />
+            </span>
+            <span className="font-semibold tracking-wider">
+              {mode === 'LIVE' ? 'DEVNET LIVE' : 'SIMULATION'}
+            </span>
+          </button>
 
           {/* Quick Demo Runner */}
           <button
@@ -80,7 +105,7 @@ export const Header: React.FC<HeaderProps> = ({
             className="hidden sm:flex px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs items-center gap-2 shadow-sm disabled:opacity-50 transition-all cursor-pointer"
           >
             <Play className={`w-3.5 h-3.5 ${isRunningDemo ? 'animate-spin' : ''}`} />
-            <span>{isRunningDemo ? 'Evaluating...' : 'Demo Adapt Loop'}</span>
+            <span>{isRunningDemo ? 'Demo Running...' : 'Flagship 5-Step Demo'}</span>
           </button>
 
           {/* Connected Wallet Adapter Button */}

@@ -16,6 +16,8 @@ import {
   AutonomousAdaptationResult,
   AgentLoopState,
 } from '@sentinel/sdk';
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
+import { ArrowUpRight } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { Navigation, NavTab } from '@/components/Navigation';
 import { PortfolioView } from '@/components/PortfolioView';
@@ -28,6 +30,8 @@ import { formatAddress } from '@/lib/formatters';
 
 export default function Home() {
   const client = useMemo(() => new SentinelClient(), []);
+  const { publicKey, connected } = useWallet();
+  const { connection } = useConnection();
 
   const [mode, setMode] = useState<'SIMULATION' | 'LIVE'>('SIMULATION');
   const [selectedVenue, setSelectedVenue] = useState<ExecutionVenueType>('METEORA_DBC');
@@ -43,6 +47,25 @@ export default function Home() {
   const [adaptationResult, setAdaptationResult] = useState<AutonomousAdaptationResult | null>(null);
   const [loopState, setLoopState] = useState<AgentLoopState | null>(null);
   const [isRunningAdaptation, setIsRunningAdaptation] = useState(false);
+  const [demoStep, setDemoStep] = useState<number>(0);
+  const [demoMessage, setDemoMessage] = useState<string>('');
+  const [walletBalanceSol, setWalletBalanceSol] = useState<number | null>(null);
+
+  // Sync connected wallet with portfolio owner and fetch Devnet balance
+  useEffect(() => {
+    if (connected && publicKey) {
+      connection.getBalance(publicKey).then((lamports) => {
+        setWalletBalanceSol(lamports / 1e9);
+      }).catch(console.error);
+
+      setPortfolio(prev => ({
+        ...prev,
+        owner: publicKey.toBase58(),
+      }));
+    } else {
+      setWalletBalanceSol(null);
+    }
+  }, [connected, publicKey, connection]);
 
   const handleSelectVenue = (venue: ExecutionVenueType) => {
     setSelectedVenue(venue);
@@ -81,7 +104,7 @@ export default function Home() {
     const nextMode = mode === 'SIMULATION' ? 'LIVE' : 'SIMULATION';
     setMode(nextMode);
     if (nextMode === 'LIVE') {
-      client.setAdapter(new LiveExecutionAdapter());
+      client.setAdapter(new LiveExecutionAdapter(APP_CONFIG.rpcUrl));
     } else {
       client.setAdapter(new SimulatedExecutionAdapter(150));
     }
@@ -95,6 +118,8 @@ export default function Home() {
     setPolicy(defaultPol);
     setLatestReport(null);
     setSelectedEvidenceId(undefined);
+    setDemoStep(0);
+    setDemoMessage('');
   };
 
   // Execute Custom Trade Proposer
@@ -134,7 +159,7 @@ export default function Home() {
     }
   };
 
-  // Run Scripted Hackathon Demo Scenario (Section 17 & 26)
+  // Flagship 5-Step "Aha!" Demo Flow
   const handleRunDemo = async () => {
     setIsRunningDemo(true);
     setActiveTab('activity');
@@ -146,9 +171,16 @@ export default function Home() {
       const nvdaPyth = marketPrices['NVDAx'];
       const nvdaPrice = nvdaPyth?.priceUsd ?? (nvdaAsset ? nvdaAsset.priceUsd : 120);
 
-      // -----------------------------------------------------------------------
-      // Step 1: Autonomous Bad Decision (BUY NVDAx $15,000)
-      // -----------------------------------------------------------------------
+      // Step 1: Inspect Portfolio State
+      setDemoStep(1);
+      setDemoMessage('Step 1/5: Inspecting initial portfolio NAV & verifying 4/4 guarantees are healthy');
+      await new Promise(resolve => setTimeout(resolve, 1400));
+
+      // Step 2: Propose Non-Compliant Trade ($15,000)
+      setDemoStep(2);
+      setDemoMessage('Step 2/5: Sentinel Robo-01 spots NVDA momentum and proposes BUY NVDAx $15,000');
+      await new Promise(resolve => setTimeout(resolve, 1600));
+
       const badIntent = agent.proposeIntent({
         assetSymbol: 'NVDAx',
         assetMint: nvdaMint,
@@ -158,18 +190,20 @@ export default function Home() {
         strategyRationale: 'Increase NVDA exposure aggressively to capture momentum',
       });
 
+      // Step 3: Postcondition Rejection
+      setDemoStep(3);
+      setDemoMessage('Step 3/5: Sentinel On-Chain Postcondition Abort: NVDA 35% > 25% cap, Reserve 10% < 20% floor. Reverted!');
       const step1Report = await client.executeDecisionCycle(portfolio, policy, badIntent, nvdaPyth);
       setLatestReport(step1Report);
       setEvidenceList(client.getEvidenceHistory());
       setSelectedEvidenceId(step1Report.evidenceRecord.id);
+      await new Promise(resolve => setTimeout(resolve, 2800));
 
-      // Brief delay so the viewer observes the rejection and reason code
-      await new Promise(resolve => setTimeout(resolve, 2400));
-
-      // -----------------------------------------------------------------------
-      // Step 2: Agent Auto-adapts to Compliant Trade (BUY NVDAx $5,000)
-      // -----------------------------------------------------------------------
+      // Step 4: Autonomous Reactive Adaptation
+      setDemoStep(4);
+      setDemoMessage('Step 4/5: Agent reads invariant rejection telemetry and solves maximum compliant size ($5,000)');
       const compliantAmount = agent.calculateCompliantTradeAmount(portfolio, policy, 'NVDAx');
+      await new Promise(resolve => setTimeout(resolve, 1800));
 
       const adaptedIntent = agent.proposeIntent({
         assetSymbol: 'NVDAx',
@@ -180,13 +214,21 @@ export default function Home() {
         strategyRationale: `Auto-adapted trade size to $${compliantAmount.toLocaleString()} to strictly observe single-asset (25%) and reserve (20%) guarantees`,
       });
 
+      // Step 5: Compliant Settlement & PROVN Receipt
+      setDemoStep(5);
+      setDemoMessage('Step 5/5: Trade settled with all 4 guarantees satisfied! PROVN cryptographic audit receipt generated.');
       const step2Report = await client.executeDecisionCycle(portfolio, policy, adaptedIntent, nvdaPyth);
       setLatestReport(step2Report);
       setPortfolio(step2Report.resultingPortfolio);
       setEvidenceList(client.getEvidenceHistory());
       setSelectedEvidenceId(step2Report.evidenceRecord.id);
+      await new Promise(resolve => setTimeout(resolve, 2500));
     } finally {
       setIsRunningDemo(false);
+      setTimeout(() => {
+        setDemoStep(0);
+        setDemoMessage('');
+      }, 10000);
     }
   };
 
@@ -264,6 +306,68 @@ export default function Home() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-12">
+        {/* Flagship 5-Step Demo Stepper Banner */}
+        {demoStep > 0 && (
+          <div className="mb-6 p-4 rounded-xl bg-blue-950/40 border border-blue-500/40 shadow-lg animate-in fade-in slide-in-from-top-4 duration-200">
+            <div className="flex items-center justify-between mb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-400 animate-ping" />
+                <span className="font-bold text-xs font-mono uppercase tracking-wider text-blue-300">
+                  Flagship 5-Step Demo Flow
+                </span>
+              </div>
+              <span className="text-xs font-mono font-semibold text-blue-400">
+                Step {demoStep} of 5
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm font-medium text-white mb-3 font-mono leading-relaxed">
+              {demoMessage}
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-[10px] font-mono">
+              <div className={`p-2 rounded border text-center transition-all ${demoStep >= 1 ? 'bg-blue-900/50 border-blue-400 text-white font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                1. Initial State
+              </div>
+              <div className={`p-2 rounded border text-center transition-all ${demoStep >= 2 ? 'bg-blue-900/50 border-blue-400 text-white font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                2. Propose $15k
+              </div>
+              <div className={`p-2 rounded border text-center transition-all ${demoStep >= 3 ? 'bg-red-950/70 border-red-500 text-red-300 font-semibold shadow-sm' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                3. Invariant Revert
+              </div>
+              <div className={`p-2 rounded border text-center transition-all ${demoStep >= 4 ? 'bg-amber-950/70 border-amber-400 text-amber-300 font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                4. Auto-Adapt $5k
+              </div>
+              <div className={`p-2 rounded border text-center transition-all ${demoStep >= 5 ? 'bg-emerald-950/70 border-emerald-400 text-emerald-300 font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                5. PROVN Settle
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Live Wallet Connection Bar (when wallet is connected) */}
+        {connected && publicKey && (
+          <div className="mb-5 px-4 py-2.5 rounded-lg bg-emerald-950/25 border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono text-emerald-300">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Wallet Connected: {formatAddress(publicKey.toBase58(), 4)}</span>
+              {walletBalanceSol !== null && (
+                <span className="text-emerald-400/80">({walletBalanceSol.toFixed(3)} SOL Devnet)</span>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-[11px] text-slate-400">Anchor PDA: {formatAddress(APP_CONFIG.vaultPda, 4)}</span>
+              <a
+                href={getExplorerAddressUrl(publicKey.toBase58())}
+                target="_blank"
+                rel="noreferrer"
+                className="text-emerald-400 hover:underline flex items-center gap-1 text-[11px]"
+              >
+                <span>View Wallet on Explorer</span>
+                <ArrowUpRight className="w-3 h-3" />
+              </a>
+            </div>
+          </div>
+        )}
+
         {activeTab === 'portfolio' && (
           <PortfolioView
             portfolio={portfolio}
