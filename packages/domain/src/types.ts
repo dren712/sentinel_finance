@@ -466,6 +466,39 @@ export type FailureCode =
   | 'ERR_TESSERA_LOCKUP_ACTIVE'
   | 'ERR_TESSERA_NAV_PREMIUM_EXCEEDED';
 
+/**
+ * The Three Canonical Rejection Modes of Sentinel:
+ * An autonomous investment agent bounded by both portfolio state and market reality.
+ */
+export type SentinelRejectionMode =
+  | 'PORTFOLIO_FAILURE'       // Invariant breach: Single-asset exposure or Pre-IPO asset-class ceiling
+  | 'MARKET_FAILURE'          // Venue context breach: Meteora DBC price impact vs. user slippage limit or shallow depth
+  | 'DATA_INTEGRITY_FAILURE';  // Oracle security breach: Pyth price quote stale or confidence interval wide
+
+/**
+ * Maps a FailureCode to its corresponding SentinelRejectionMode
+ */
+export function getRejectionModeFromFailureCode(code?: FailureCode): SentinelRejectionMode {
+  if (!code) return 'PORTFOLIO_FAILURE';
+  switch (code) {
+    case 'ERR_SLIPPAGE_EXCEEDED':
+    case 'ERR_PRICE_IMPACT_EXCEEDED':
+    case 'ERR_LIQUIDITY_DEPTH_INSUFFICIENT':
+    case 'ERR_VENUE_NOT_ALLOWED':
+    case 'ERR_VENUE_UNHEALTHY':
+    case 'ERR_MARKET_UNAVAILABLE':
+      return 'MARKET_FAILURE';
+
+    case 'ERR_QUOTE_STALE':
+    case 'ERR_ORACLE_CONFIDENCE_TOO_WIDE':
+    case 'ERR_TRACKING_ERROR_EXCEEDED':
+      return 'DATA_INTEGRITY_FAILURE';
+
+    default:
+      return 'PORTFOLIO_FAILURE';
+  }
+}
+
 export type RiskCheckName =
   | 'MAX_SINGLE_ASSET'
   | 'MIN_STABLECOIN'

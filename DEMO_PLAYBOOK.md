@@ -152,42 +152,41 @@ This is the core demonstration. It takes **under 2 minutes** and visibly demonst
 
 ---
 
-### 3.2 PreStocks $10,000 Bounty Live Demo: Pre-IPO Cap Enforcement
-* **How to trigger**: Click **"Demo Scenarios"** dropdown in the header and select **"PreStocks ($10K Bounty)"**.
+### 3.2 PreStocks $10,000 Bounty Live Demo: Asset-Class Cap Enforcement (Mode 1: PORTFOLIO_FAILURE)
+* **How to trigger**: Click **"PreStocks $10K"** tab in the hero centerpiece (or select from header dropdown).
 * **The Narrative**:
-  > *"The PreStocks bounty evaluates material product integration and private equity safety. Watch how Sentinel prevents an autonomous agent from over-concentrating in private equity."*
+  > *"The PreStocks bounty evaluates asset class awareness and private equity safety. We prove Sentinel understands macro asset classes: Public Equity + Pre-IPO + Stable Reserve. Notice how the agent is blocked even when the trade itself is modestly sized!"*
 * **Step-by-Step Flow**:
-  1. **Step 1/5 (Universe)**: Shows PreStocks Asset Universe (`OPENAIx`, `SPACEXx`, `ANTHROPICx`, `STRIPEx`) with macro policy limit: $\text{Pre-IPO} \le 20.0\%$.
-  2. **Step 2/5 (Proposal)**: Agent spots an OpenAI secondary tender and proposes `BUY OPENAIx $30,000` (would surge Pre-IPO exposure from $18\% \rightarrow 48\%$).
-  3. **Step 3/5 (Atomic Revert)**: Sentinel on-chain postcondition aborts immediately: `ERR_PRE_IPO_EXPOSURE_EXCEEDED: 48.0% > 20.0% cap`. Reverted atomically with 0 funds lost!
-  4. **Step 4/5 (Autonomous Adaptation)**: Agent inspects rejection telemetry, computes exact remaining Pre-IPO headroom ($2,000), and auto-adapts proposal to `BUY OPENAIx $2,000`.
-  5. **Step 5/5 (PreStocks Settlement)**: Trade settles cleanly via **PreStocks Secondary Vault**, generating an immutable PROVN receipt.
+  1. **Step 1/5 (3-Tier Universe)**: Shows portfolio ($100,000 NAV: $57k Public Equity, $18k Pre-IPO / 18.0%, $25k USDC / 25.0%) with macro policy limit: $\text{Pre-IPO} \le 20.0\%$.
+  2. **Step 2/5 (Proposal)**: Agent proposes `BUY OPENAIx $5,000`. Individual trade sizing passes ($5k \le \$10k$ ✓). But prospective Pre-IPO allocation surges from $18.0\% \rightarrow 23.0\%$ ($23,000 / $100,000).
+  3. **Step 3/5 (Atomic Revert)**: Sentinel on-chain postcondition aborts immediately: `ERR_PRE_IPO_EXPOSURE_EXCEEDED: 23.0% > 20.0% cap`. Mode: **PORTFOLIO_FAILURE**. Reverted atomically with 0 funds lost!
+  4. **Step 4/5 (Autonomous Adaptation)**: Agent solves exact remaining Pre-IPO capacity: `($100,000 × 20%) - $18,000 = $2,000 headroom`. Auto-adapts proposal to `BUY OPENAIx $2,000`.
+  5. **Step 5/5 (PreStocks Settlement)**: Pre-IPO allocation hits exactly 20.00%! Trade settles cleanly via **PreStocks Secondary Vault PDA**, generating an immutable PROVN receipt.
 
 ---
 
-### 3.3 Meteora $5,000 Bounty Live Demo: Sentinel Equity Market Guard
-* **How to trigger**: Click **"Demo Scenarios"** dropdown in the header and select **"Meteora ($5K Bounty)"**.
+### 3.3 Meteora $5,000 Bounty Live Demo: Sentinel Equity Market Guard (Mode 2: MARKET_FAILURE)
+* **How to trigger**: Click **"Meteora $5K"** tab in the hero centerpiece (or select from header dropdown).
 * **The Narrative**:
-  > *"Meteora asked: 'What does Meteora DBC look like for tokenized stocks?' Our answer: Sentinel Equity Market Guard. We unite Meteora market quality with Sentinel account protection to provide bidirectional safety."*
+  > *"Meteora asked: 'What does Meteora DBC look like for tokenized stocks?' Our answer: Sentinel Equity Market Guard. We unite Meteora market quality with Sentinel account protection to provide bidirectional safety. The agent is bounded not just by internal portfolio state, but by external market reality."*
 * **Step-by-Step Flow**:
-  1. **Step 1/4 (Market Inspection)**: Inspects Meteora DBC market for `NVDAx` (virtual reserves, graduation threshold, and $25,000 liquidity floor).
-  2. **Step 2/4 (Compliant Proposal)**: Agent proposes `BUY NVDAx $8,000`. User policy passes ($8k \le \$10k$ ✓) and portfolio concentration passes ($28\% \le 30\%$ ✓).
-  3. **Step 3/4 (Market Guard Detection)**: Sentinel Equity Market Guard inspects DBC pool depth and detects shallow liquidity ($12,000 < \$25,000$ minimum floor).
-  4. **Step 4/4 (Execution Blocked)**: Sentinel **BLOCKS** execution atomically!
-     - Protects the investor from catastrophic price impact.
-     - Protects the Meteora DBC curve from toxic, predatory orders.
+  1. **Step 1/5 (Market Inspection)**: Inspects Meteora DBC market for `NVDAx` (virtual reserves, bonding curve, and $25,000 liquidity floor). User policy allows up to $10,000 trade size, 30% exposure, and 1.00% max slippage.
+  2. **Step 2/5 (Compliant Proposal)**: Agent proposes `BUY NVDAx $8,000`. User policy passes ($8k \le \$10k$ ✓) and portfolio concentration passes ($28\% \le 30\%$ ✓).
+  3. **Step 3/5 (Market Guard Block)**: Sentinel inspects DBC bonding curve: estimated price impact is **1.70% (170 bps)**, exceeding user's 1.00% (100 bps) max slippage limit, and pool depth is shallow ($12,000 < \$25,000$). Sentinel **BLOCKS** execution atomically! Mode: **MARKET_FAILURE**.
+  4. **Step 4/5 (DBC Curve Adaptation)**: Agent reads Meteora DBC curve equation and auto-adapts trade size down to **$2,500** along the curve (where price impact compresses to **0.45% ≤ 1.00%**).
+  5. **Step 5/5 (Settlement on Meteora DBC)**: `BUY NVDAx $2,500` settles on Meteora DBC Bonding Curve PDA! Zero dislocation execution achieved. PROVN audit receipt sealed.
 
 ---
 
-### 3.4 Pyth Network Bounty Live Demo: Pyth as a Security Input
-* **How to trigger**: Click **"Demo Scenarios"** dropdown in the header and select **"Pyth Oracle Security Guard"**.
+### 3.4 Pyth Network Bounty Live Demo: Pyth as a Security Input (Mode 3: DATA_INTEGRITY_FAILURE)
+* **How to trigger**: Click **"Pyth Security"** tab in the hero centerpiece (or select from header dropdown).
 * **The Narrative**:
   > *"Pyth is not just a price display in Sentinel — it is a non-negotiable SECURITY INPUT. Sentinel refuses autonomous agent execution when market truth is stale or unreliable, directly showcasing the Pyth pull model in action."*
 * **Step-by-Step Flow**:
   1. **Step 1/4 (Stale Feed Inspection)**: Agent inspects Pyth feed for `AAPLx`. Quote publish timestamp is 140s old (exceeds freshness ceiling of 60s).
   2. **Step 2/4 (Autonomous Intent)**: Agent proposes `BUY AAPLx $4,000`. User sizing limit passes ($4k \le \$10k$ ✓) and portfolio exposure passes ($29\% \le 30\%$ ✓).
-  3. **Step 3/4 (Security Refusal)**: Sentinel evaluates: *"Is this price trustworthy enough to let the agent act?"* Result: **NO EXECUTION** (`ERR_QUOTE_STALE`). Autonomous intent is halted before capital is risked on stale market data!
-  4. **Step 4/4 (Pyth Pull Update & Settlement)**: App pulls fresh Hermès price update on Solana (age 0s, $\pm \$0.20$ confidence). Sentinel verifies quote integrity, authorizes execution, and settles trade on-chain with PROVN receipt.
+  3. **Step 3/4 (Security Refusal)**: Sentinel evaluates: *"Is this price trustworthy enough to let the agent act?"* Result: **NO EXECUTION** (`ERR_QUOTE_STALE`). Mode: **DATA_INTEGRITY_FAILURE**. Autonomous intent is halted before capital is risked on stale market data!
+  4. **Step 4/4 (Pyth Pull Update & Settlement)**: App pulls fresh Hermès price update on Solana (age 0s, $\pm \$0.03$ confidence). Sentinel verifies quote integrity, authorizes execution, and settles trade on-chain with PROVN receipt.
 
 ---
 

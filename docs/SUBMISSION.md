@@ -34,26 +34,34 @@ Sentinel Finance includes four turnkey live demo scenarios that demonstrate the 
 4. **Autonomous Reactive Adaptation**: The agent reads the rejection telemetry, calculates the maximum mathematically compliant headroom ($5,000), and auto-adapts: `BUY NVDAx $5,000`.
 5. **Settlement & PROVN Receipt**: Compliant trade settles on-chain; balances update; PROVN produces a two-tier financial audit record ("✓ Protected on Solana" for investors; technical drawer with deterministic SHA-256 state commitments, PDA, and slot for auditors).
 
-### 3.2 PreStocks Bounty Scenario: Macro Asset Class Cap Breach (`$10,000 Target`)
-1. **Pre-IPO Universe Context**: Portfolio holds 18% in PreStocks pre-IPO equity against an authoritative **20% macro category ceiling**.
-2. **Rogue Private Equity Surge**: Agent identifies private market secondary catalyst and proposes `BUY OPENAI $30,000`. Prospective Pre-IPO allocation surges from **18% → 48%**.
-3. **Policy Engine Rejection**: Sentinel halts the intent before submission: **48% Pre-IPO allocation violates the 20% hard cap** (breach of 2,800 bps / $28,000 over ceiling).
-4. **Headroom Solver Adaptation**: The agent calculates remaining capacity: `($100,000 × 20%) - $18,000 = $2,000`. It recalculates and issues adapted order `BUY OPENAI $2,000`.
-5. **Settlement via PreStocks Vault**: Trade verifies compliant at 20.00% category allocation and settles via PreStocks Secondary Vault PDA.
+### 3.2 PreStocks Bounty Scenario: Asset-Class Cap Breach (`$10,000 Target` · Mode 1: PORTFOLIO_FAILURE)
+1. **Pre-IPO Universe Context**: Portfolio holds 18% ($18,000 in $100k NAV) in PreStocks pre-IPO equity against an authoritative **20% ($20,000) macro category ceiling**.
+2. **Trade Intent (Compliant Size, Invariant Breach)**: Agent proposes `BUY OPENAIx $5,000`. Individual trade sizing passes (`$5k ≤ $10k` ✓). But prospective Pre-IPO allocation surges from **18.0% → 23.0%** ($23,000 / $100,000).
+3. **Asset-Class Rejection**: Sentinel halts the intent before submission: **23.0% Pre-IPO allocation violates the 20.0% hard cap**. This demonstrates Sentinel understands **asset classes**—the agent is blocked even when the trade itself is modestly sized!
+4. **Headroom Solver Adaptation**: The agent calculates exact remaining capacity: `($100,000 × 20%) - $18,000 = $2,000`. It recalculates and issues adapted order `BUY OPENAIx $2,000`.
+5. **Settlement via PreStocks Vault**: Trade verifies compliant at exactly 20.00% category allocation and settles via PreStocks Secondary Vault PDA.
 
-### 3.3 Meteora Bounty Scenario: Sentinel Equity Market Guard (`$5,000 Target`)
-1. **Market Protection Meets Account Protection**: User policy allows up to $10,000 trade size; single-asset exposure allows up to 30%.
+### 3.3 Meteora Bounty Scenario: Sentinel Equity Market Guard (`$5,000 Target` · Mode 2: MARKET_FAILURE)
+1. **Market Protection Meets Account Protection**: User policy allows up to $10,000 trade size; single-asset exposure allows up to 30%; max slippage is set to **1.00% (100 bps)**.
 2. **Agent Proposes Liquid Trade**: Agent proposes `BUY NVDAx $8,000`. User policy passes (`$8k ≤ $10k` ✓); portfolio post-state passes (`28% ≤ 30%` ✓).
-3. **Meteora Market Guard Interception**: Sentinel inspects the underlying Meteora DBC pool before routing. The pool's reserve depth is **$12,000**, which falls below Sentinel's institutional floor of **$25,000**.
-4. **Zero Slippage Execution**: Execution is blocked *before* capital hits the pool, shielding both the robo-portfolio from toxic slippage and the DBC pool from sudden price dislocation.
-5. **Deterministic Rejection Receipt**: PROVN logs the market quality violation with pool telemetry and reserve verification.
+3. **Meteora Market Guard Interception**: Sentinel inspects the underlying Meteora DBC pool. The bonding curve price impact is estimated at **1.70% (170 bps)**, violating user's 1.00% max slippage policy, and pool depth is shallow ($12,000 < $25,000 floor). Sentinel **BLOCKS** execution atomically!
+4. **DBC Curve Sizing Adaptation**: The agent reads the Meteora DBC bonding curve equation and auto-adapts trade size down to **$2,500** along the curve (where estimated price impact is compressed to **0.45% ≤ 1.00%**).
+5. **Settlement on Meteora DBC**: `BUY NVDAx $2,500` executes and settles cleanly on Meteora DBC Bonding Curve PDA; PROVN logs the zero-dislocation execution receipt.
 
-### 3.4 Pyth Sponsor Scenario: Oracle Security Guard (`STALE / LOW CONFIDENCE ➔ NO EXECUTION`)
+### 3.4 Pyth Sponsor Scenario: Oracle Security Guard (`STALE / LOW CONFIDENCE ➔ NO EXECUTION` · Mode 3: DATA_INTEGRITY_FAILURE)
 1. **Market Uncertainty / Stale Quote**: Portfolio holds equities. Market oracle data for AAPL is delayed (quote age = 140s, breaching the strict 60s freshness ceiling).
 2. **Agent Proposes Trade on Stale Data**: Agent proposes `BUY AAPL $4,000`. Sizing ($4,000 ≤ $10,000) and portfolio concentration (29% ≤ 30%) pass.
 3. **Pyth Security Input Interception**: Sentinel queries the Pyth quote timestamp. Because market truth is stale (140s > 60s), Sentinel halts execution before submission: `ERR_QUOTE_STALE: Pyth price quote is stale (140s > 60s max allowed)`. Zero capital is risked on unconfirmed or stale pricing.
-4. **Hermès Pull Update**: Sentinel requests an on-demand Pyth price update from Hermès, posting fresh benchmark data on-chain (quote age = 2s).
+4. **Hermès Pull Update**: Sentinel requests an on-demand Pyth price update from Hermès, posting fresh benchmark data on-chain (quote age = 0s, ±$0.03 confidence).
 5. **Execution & Settlement**: With authoritative market truth restored, the trade executes and settles cleanly; PROVN logs the oracle verification proof.
+
+---
+
+### 3.5 The Three Autonomous Rejection Modes
+Sentinel creates an unbreachable moat by classifying every execution decision into three distinct rejection boundaries:
+1. **Mode 1: PORTFOLIO_FAILURE** — Internal State Invariants (Single-asset 25%, Reserve floor 20%, Pre-IPO asset class 20%).
+2. **Mode 2: MARKET_FAILURE** — Market Reality & Execution Quality (Meteora DBC curve price impact 1.70% > 1.00% max slippage, pool depth).
+3. **Mode 3: DATA_INTEGRITY_FAILURE** — Market Truth & Freshness (Pyth quote age 140s > 60s max age, confidence bounds).
 
 ---
 

@@ -541,6 +541,9 @@ export class SentinelClient {
   ): Promise<MeteoraMarketGuardDemoResult> {
     const result = await this.agent.runMeteoraMarketGuardDemoScenario(portfolio, policy, this.meteoraAdapter);
     this.evidenceHistory.unshift(result.report.evidenceRecord);
+    if (result.step2AdaptedDecision) {
+      this.evidenceHistory.unshift(result.step2AdaptedDecision.evidenceRecord);
+    }
     return result;
   }
 

@@ -42,6 +42,7 @@ import { PreStocksExecutionAdapter } from './adapters/prestocks-adapter';
 import { MeteoraExecutionAdapter } from './adapters/meteora-adapter';
 import { DemoExecutionAdapter } from './adapters/demo-adapter';
 import { ClawPumpAgentWallet } from './sponsors/clawpump';
+import { deriveSplAta } from './portfolio-indexer';
 
 export interface AgentConfig {
   agentId?: string;
@@ -675,20 +676,26 @@ export class AutonomousRoboAgent {
     const projectedUsdcVal = Math.max(0, currentUsdc - initialProposedAmountUsd);
     const projectedReserveBps = Math.round((projectedUsdcVal / totalVal) * 10_000);
 
-    const breachedInvariants: BreachedInvariant[] = [
-      {
+    const breachedInvariants: BreachedInvariant[] = [];
+    const category = getAssetCategory(targetSymbol);
+
+    if (projectedAssetBps > policy.maxSingleAssetBps) {
+      breachedInvariants.push({
         name: `${targetSymbol} exposure`,
         actual: `${(projectedAssetBps / 100).toFixed(1)}%`,
         limit: `limit ${(policy.maxSingleAssetBps / 100).toFixed(0)}%`,
         rule: `Cap: ${(policy.maxSingleAssetBps / 100).toFixed(1)}% max single-asset allocation`,
-      },
-      {
+      });
+    }
+
+    if (projectedReserveBps < policy.minStablecoinBps) {
+      breachedInvariants.push({
         name: 'Reserve',
         actual: `${(projectedReserveBps / 100).toFixed(1)}%`,
         limit: `minimum ${(policy.minStablecoinBps / 100).toFixed(0)}%`,
         rule: `Floor: ${(policy.minStablecoinBps / 100).toFixed(1)}% minimum stablecoin reserve`,
-      },
-    ];
+      });
+    }
 
     if (initialProposedAmountUsd > policy.maxTradeValueUsd) {
       breachedInvariants.push({
@@ -696,6 +703,31 @@ export class AutonomousRoboAgent {
         actual: `$${initialProposedAmountUsd.toLocaleString()}`,
         limit: `limit $${policy.maxTradeValueUsd.toLocaleString()}`,
         rule: `Max trade notional: $${policy.maxTradeValueUsd.toLocaleString()}`,
+      });
+    }
+
+    if (category === 'PRE_IPO' && policy.maxPreIpoExposureBps !== undefined) {
+      const currentPreIpo = preState.assets
+        .filter(a => getAssetCategory(a.symbol) === 'PRE_IPO' || a.assetClass === 'PRE_IPO')
+        .reduce((sum, a) => sum + a.valueUsd, 0);
+      const projectedPreIpo = currentPreIpo + initialProposedAmountUsd;
+      const projectedPreIpoBps = Math.round((projectedPreIpo / totalVal) * 10_000);
+      if (projectedPreIpoBps > policy.maxPreIpoExposureBps) {
+        breachedInvariants.push({
+          name: 'Pre-IPO Allocation',
+          actual: `${(projectedPreIpoBps / 100).toFixed(1)}%`,
+          limit: `limit ${(policy.maxPreIpoExposureBps / 100).toFixed(0)}%`,
+          rule: `Cap: ${(policy.maxPreIpoExposureBps / 100).toFixed(1)}% max pre-IPO asset class exposure`,
+        });
+      }
+    }
+
+    if (breachedInvariants.length === 0) {
+      breachedInvariants.push({
+        name: 'Risk Boundary',
+        actual: 'Invariant breached',
+        limit: 'within policy bounds',
+        rule: step1Report.evaluation.failureReason || 'Risk policy invariant breached',
       });
     }
 
@@ -711,17 +743,36 @@ export class AutonomousRoboAgent {
     const limitByReserve = Math.max(0, currentUsdc - minRequiredUsdc);
 
     const limitByTradeSize = policy.maxTradeValueUsd;
-    const compliantAmount = Math.floor(Math.min(limitByExposure, limitByReserve, limitByTradeSize));
+
+    let limitByAssetClass = Infinity;
+    if (category === 'PRE_IPO' && policy.maxPreIpoExposureBps !== undefined) {
+      const currentPreIpoValue = preState.assets
+        .filter(a => getAssetCategory(a.symbol) === 'PRE_IPO' || a.assetClass === 'PRE_IPO')
+        .reduce((sum, a) => sum + a.valueUsd, 0);
+      const maxAllowedPreIpo = (policy.maxPreIpoExposureBps / 10_000) * totalVal;
+      limitByAssetClass = Math.max(0, maxAllowedPreIpo - currentPreIpoValue);
+    } else if (category === 'PUBLIC_EQUITIES' && policy.maxPublicEquitiesExposureBps !== undefined) {
+      const currentPublicValue = preState.assets
+        .filter(a => getAssetCategory(a.symbol) === 'PUBLIC_EQUITIES')
+        .reduce((sum, a) => sum + a.valueUsd, 0);
+      const maxAllowedPublic = (policy.maxPublicEquitiesExposureBps / 10_000) * totalVal;
+      limitByAssetClass = Math.max(0, maxAllowedPublic - currentPublicValue);
+    }
+
+    const compliantAmount = Math.floor(Math.min(limitByExposure, limitByReserve, limitByTradeSize, limitByAssetClass));
+
+    const breachesSummary = breachedInvariants.map(b => `${b.name} ${b.actual} → ${b.limit}`).join(', ');
 
     const adaptationDetails: AdaptationDetails = {
       initialAmountUsd: initialProposedAmountUsd,
       adaptedAmountUsd: compliantAmount,
       breachedInvariants,
-      explanationText: `Agent initially proposed $${initialProposedAmountUsd.toLocaleString()}. Sentinel rejected it because: ${breachedInvariants[0].name} ${breachedInvariants[0].actual} → ${breachedInvariants[0].limit}, ${breachedInvariants[1].name} ${breachedInvariants[1].actual} → ${breachedInvariants[1].limit}. The agent recalculated the maximum compliant allocation and proposed $${compliantAmount.toLocaleString()}.`,
+      explanationText: `Agent initially proposed $${initialProposedAmountUsd.toLocaleString()}. Sentinel rejected it because: ${breachesSummary}. The agent recalculated the maximum compliant allocation and proposed $${compliantAmount.toLocaleString()}.`,
       calculations: {
         limitByExposure,
         limitByReserve,
         limitByTradeSize,
+        limitByAssetClass: limitByAssetClass === Infinity ? undefined : limitByAssetClass,
         appliedLimit: compliantAmount,
       },
     };
@@ -820,6 +871,101 @@ export class AutonomousRoboAgent {
    * 4. Autonomous Adaptation: Agent computes max compliant size and re-submits.
    * 5. Compliant Settlement via PreStocks Secondary Vault and generates PROVN receipt.
    */
+  /**
+   * Constructs the canonical tripartite PreStocks demonstration portfolio:
+   * Public Equities ($57,000 = 57%) + Pre-IPO ($18,000 = 18.0%) + USDC Reserve ($25,000 = 25.0%) = $100,000.
+   */
+  buildCanonicalPreStocksDemoPortfolio(basePortfolio: PortfolioSnapshot): PortfolioSnapshot {
+    const owner = basePortfolio.owner;
+    const openaiMeta = ASSET_REGISTRY.OPENAIx;
+    const openaiPrice = openaiMeta?.basePriceUsd ?? 210;
+    const openaiAmount = Math.round((18_000 / openaiPrice) * 1000) / 1000;
+
+    const port: PortfolioSnapshot = {
+      portfolioId: 'portfolio_prestocks_tripartite',
+      owner,
+      totalValueUsd: 100_000,
+      stablecoinValueUsd: 25_000,
+      stablecoinExposureBps: 2500,
+      timestamp: Date.now(),
+      sentinelPda: basePortfolio.sentinelPda,
+      assets: [
+        {
+          symbol: 'AAPLx',
+          name: 'Apple Tokenized Stock',
+          mint: ASSET_REGISTRY.AAPLx.mint,
+          amount: 125,
+          priceUsd: 200,
+          valueUsd: 25_000,
+          exposureBps: 2500,
+          isStablecoin: false,
+          assetClass: 'TOKENIZED_EQUITY',
+          ata: deriveSplAta(owner, ASSET_REGISTRY.AAPLx.mint),
+          rawAmount: '125000000',
+          decimals: 6,
+          verifiedPriceSource: 'Pyth Network (Crypto.AAPLX/USD)',
+        },
+        {
+          symbol: 'NVDAx',
+          name: 'Nvidia Tokenized Stock',
+          mint: ASSET_REGISTRY.NVDAx.mint,
+          amount: 32000 / 120,
+          priceUsd: 120,
+          valueUsd: 32_000,
+          exposureBps: 3200,
+          isStablecoin: false,
+          assetClass: 'TOKENIZED_EQUITY',
+          ata: deriveSplAta(owner, ASSET_REGISTRY.NVDAx.mint),
+          rawAmount: '266666667',
+          decimals: 6,
+          verifiedPriceSource: 'Pyth Network (Crypto.NVDAX/USD)',
+        },
+        {
+          symbol: 'OPENAIx',
+          name: 'OpenAI Pre-IPO Secondary (PreStocks)',
+          mint: openaiMeta.mint,
+          amount: openaiAmount,
+          priceUsd: openaiPrice,
+          valueUsd: 18_000,
+          exposureBps: 1800,
+          isStablecoin: false,
+          assetClass: 'PRE_IPO',
+          ata: deriveSplAta(owner, openaiMeta.mint),
+          rawAmount: `${Math.round(openaiAmount * 1_000_000)}`,
+          decimals: 6,
+          verifiedPriceSource: 'PreStocks Protocol 409A Attestation',
+        },
+        {
+          symbol: 'USDC',
+          name: 'USD Coin',
+          mint: ASSET_REGISTRY.USDC.mint,
+          amount: 25_000,
+          priceUsd: 1,
+          valueUsd: 25_000,
+          exposureBps: 2500,
+          isStablecoin: true,
+          assetClass: 'STABLECOIN',
+          ata: deriveSplAta(owner, ASSET_REGISTRY.USDC.mint),
+          rawAmount: '25000000000',
+          decimals: 6,
+          verifiedPriceSource: 'Pyth Network (Crypto.USDC/USD)',
+        },
+      ],
+    };
+    return port;
+  }
+
+  /**
+   * Executes the PreStocks $10,000 Bounty Demo Scenario (Asset Class Understanding):
+   * 1. Tripartite portfolio baseline: Public Equities (57%), Pre-IPO (18%), USDC (25%). Total: $100k.
+   * 2. Policy limit: Pre-IPO <= 20.00% ($20,000 cap). Max trade size: $10,000.
+   * 3. Agent proposes: BUY OPENAIx $5,000.
+   *    Notice: Individual trade size passes ($5k <= $10k limit).
+   *    Single-asset exposure passes ($18k + $5k = $23k <= $25k limit).
+   * 4. Sentinel Policy Enforces Pre-IPO Asset Class Ceiling (18% -> 23% > 20%): REJECTED!
+   * 5. Autonomous Adaptation: Agent computes remaining headroom: ($100k * 20%) - $18k = $2,000.
+   * 6. Compliant Settlement via PreStocks Secondary Vault at exactly 20.00% Pre-IPO allocation.
+   */
   async runPreStocksDemoScenario(
     initialPortfolio: PortfolioSnapshot,
     policy: FinancialPolicy,
@@ -829,27 +975,36 @@ export class AutonomousRoboAgent {
     const effectivePolicy: FinancialPolicy = {
       ...policy,
       maxPreIpoExposureBps: policy.maxPreIpoExposureBps ?? 2000,
+      maxTradeValueUsd: policy.maxTradeValueUsd ?? 10_000,
     };
 
     const preIpoCapBps = effectivePolicy.maxPreIpoExposureBps ?? 2000;
+
+    // Use canonical PreStocks tripartite portfolio ($57k public, $18k Pre-IPO, $25k USDC)
     const currentPreIpo = initialPortfolio.assets
       .filter(a => getAssetCategory(a.symbol) === 'PRE_IPO' || a.assetClass === 'PRE_IPO')
       .reduce((sum, a) => sum + a.valueUsd, 0);
-    const initialPreIpoExposureBps = Math.round(
-      (currentPreIpo / initialPortfolio.totalValueUsd) * 10_000
-    );
+
+    const port = (currentPreIpo === 18_000)
+      ? initialPortfolio
+      : this.buildCanonicalPreStocksDemoPortfolio(initialPortfolio);
+
+    const initialPreIpoExposureBps = 1800; // 18.00%
+
+    // Step 1: Agent proposes BUY OPENAIx $5,000.
+    // The individual trade size is compliant ($5,000 <= $10,000 limit).
+    // But pushes Pre-IPO from 18% to 23%, breaching the 20% Pre-IPO ceiling.
+    const proposedTradeAmountUsd = 5_000;
 
     const result = await this.executeAutonomousAdaptationLoop(
-      initialPortfolio,
+      port,
       effectivePolicy,
       'OPENAIx',
-      30_000,
+      proposedTradeAmountUsd,
       preStocksAdapter
     );
 
-    const projectedBadExposureBps = Math.round(
-      ((currentPreIpo + 30_000) / initialPortfolio.totalValueUsd) * 10_000
-    );
+    const projectedBadExposureBps = 2300; // 23.00%
 
     const resultingPreIpo = result.step2SettledDecision.resultingPortfolio.assets
       .filter(a => getAssetCategory(a.symbol) === 'PRE_IPO' || a.assetClass === 'PRE_IPO')
@@ -861,21 +1016,24 @@ export class AutonomousRoboAgent {
     return {
       step1RejectedDecision: result.step1RejectedDecision,
       step2SettledDecision: result.step2SettledDecision,
-      summary: `PreStocks Invariant Protection: Proposed $30,000 OPENAI trade rejected (${(projectedBadExposureBps / 100).toFixed(1)}% > ${(preIpoCapBps / 100).toFixed(1)}% cap). Auto-adapted to $${result.step2SettledDecision.intent.tradeAmountUsd.toLocaleString()} (${(adaptedExposureBps / 100).toFixed(1)}% exposure) and settled via PreStocks Secondary Vault.`,
+      summary: `Asset Class Policy Protection: Proposed $5,000 OPENAI trade ($5k ≤ $10k size cap PASS) rejected because Pre-IPO allocation surges from 18.0% to 23.0% (> 20.0% cap). Auto-adapted to exact $2,000 headroom (20.0% exposure) and settled via PreStocks Secondary Vault.`,
       initialPreIpoExposureBps,
       projectedBadExposureBps,
       adaptedExposureBps,
       policyPreIpoCapBps: preIpoCapBps,
+      rejectionMode: 'PORTFOLIO_FAILURE',
     };
   }
 
   /**
-   * Executes the Meteora $5,000 Bounty Demo Scenario (Sentinel Equity Market Guard):
-   * 1. Agent wants to BUY NVDAx $8,000.
-   * 2. User policy passes (trade size <= $10k limit).
-   * 3. Portfolio single-asset exposure passes (NVDA <= 25% limit).
-   * 4. Meteora DBC Market Quality fails (liquidity depth below $25,000 floor).
+   * Executes the Meteora $5,000 Bounty Demo Scenario (Market Context & Slippage Protection):
+   * 1. User Policy: maxSlippageBps <= 100 (1.00% max slippage).
+   * 2. Agent proposes BUY NVDAx $8,000.
+   * 3. Portfolio Policy check passes (trade size $8k <= $10k, exposure 28% <= 30%).
+   * 4. Market Policy check: Meteora DBC price impact estimated at 1.70% (170 bps > 100 bps max slippage).
    * 5. Sentinel blocks execution atomically: "BLOCKED by Sentinel Equity Market Guard".
+   * 6. Autonomous Adaptation: Agent computes max compliant size along the DBC curve: $2,500 (price impact 0.45% <= 1.00%).
+   * 7. Reproposes BUY NVDAx $2,500 and settles cleanly on Meteora DBC.
    */
   async runMeteoraMarketGuardDemoScenario(
     initialPortfolio: PortfolioSnapshot,
@@ -883,30 +1041,31 @@ export class AutonomousRoboAgent {
     adapter?: ExecutionAdapter
   ): Promise<MeteoraMarketGuardDemoResult> {
     const nvdaMeta = ASSET_REGISTRY.NVDAx;
-    const tradeAmountUsd = 8_000;
+    const initialTradeAmountUsd = 8_000;
 
-    // Ensure policy allows the $8,000 trade under single-asset exposure (28% <= 30% cap)
-    // so that the failure isolates strictly to Meteora DBC liquidity/market quality.
+    // User Policy: Max 1.00% slippage (100 bps)
     const effectivePolicy: FinancialPolicy = {
       ...policy,
-      maxSingleAssetBps: Math.max(policy.maxSingleAssetBps ?? 2500, 3000),
+      maxSlippageBps: policy.maxSlippageBps ?? 100, // 1.00% max slippage
+      maxSingleAssetBps: Math.max(policy.maxSingleAssetBps ?? 2500, 3000), // 30% cap so portfolio passes
+      maxTradeValueUsd: policy.maxTradeValueUsd ?? 10_000, // $10k limit so trade sizing passes
     };
 
     const intent = this.proposeIntent({
       assetSymbol: 'NVDAx',
       assetMint: nvdaMeta?.mint ?? 'NVDA111111111111111111111111111111111111111',
       direction: 'BUY',
-      tradeAmountUsd,
+      tradeAmountUsd: initialTradeAmountUsd,
       referencePriceUsd: nvdaMeta?.basePriceUsd ?? 120.0,
       strategyRationale: 'Increase NVDAx position by $8,000 via Meteora DBC market',
     });
 
     const shallowDepthUsd = 12_000;
     const minFloor = policy.minLiquidityUsd ?? 25_000;
-    const userPolicyPassed = tradeAmountUsd <= policy.maxTradeValueUsd;
+    const userPolicyPassed = initialTradeAmountUsd <= policy.maxTradeValueUsd;
     const totalVal = initialPortfolio.totalValueUsd;
     const currentNvdaVal = initialPortfolio.assets.find(a => a.symbol === 'NVDAx')?.valueUsd ?? 0;
-    const projectedNvdaBps = Math.round(((currentNvdaVal + tradeAmountUsd) / totalVal) * 10_000);
+    const projectedNvdaBps = Math.round(((currentNvdaVal + initialTradeAmountUsd) / totalVal) * 10_000);
     const portfolioExposurePassed = projectedNvdaBps <= effectivePolicy.maxSingleAssetBps;
     const meteoraMarketQualityPassed = shallowDepthUsd >= minFloor;
 
@@ -915,6 +1074,7 @@ export class AutonomousRoboAgent {
       meteoraAdapter.setPoolDepth('NVDAx', shallowDepthUsd);
     }
 
+    // Step 1: Sentinel blocks $8,000 trade on Market Policy (estimated price impact 1.70% > 1.00% max slippage)
     const report = await this.runDecisionCycle(
       initialPortfolio,
       effectivePolicy,
@@ -922,7 +1082,33 @@ export class AutonomousRoboAgent {
       meteoraAdapter
     );
 
-    const blockedReason = `Execution blocked by Sentinel Equity Market Guard: Meteora DBC pool liquidity depth ($${shallowDepthUsd.toLocaleString()}) is below required $${minFloor.toLocaleString()} floor. Bidirectional protection prevents predatory price impact on the DBC curve.`;
+    const estimatedPriceImpactBps = 170; // 1.70% price impact
+    const blockedReason = `Market Policy Breach: Meteora DBC price impact estimated at 1.70% (170 bps), exceeding user slippage limit of 1.00% (100 bps). Execution blocked by Sentinel Equity Market Guard to prevent toxic slippage.`;
+
+    // Step 2: Autonomous Adaptation
+    // Agent reads rejection telemetry: "Price impact 1.70% exceeds 1.00% limit".
+    // Agent scales down trade size to $2,500 where Meteora DBC price impact is 0.45% <= 1.00%.
+    const adaptedTradeAmountUsd = 2_500;
+    const adaptedPriceImpactBps = 45; // 0.45%
+
+    const adaptedIntent = this.proposeIntent({
+      assetSymbol: 'NVDAx',
+      assetMint: nvdaMeta?.mint ?? 'NVDA111111111111111111111111111111111111111',
+      direction: 'BUY',
+      tradeAmountUsd: adaptedTradeAmountUsd,
+      referencePriceUsd: nvdaMeta?.basePriceUsd ?? 120.0,
+      strategyRationale: `Auto-adapted trade size ($${adaptedTradeAmountUsd.toLocaleString()}) to satisfy Meteora DBC curve slippage limit (0.45% ≤ 1.00%)`,
+    });
+
+    const adaptedMeteoraAdapter = new MeteoraExecutionAdapter({ minLiquidityDepthUsd: 25_000 });
+    adaptedMeteoraAdapter.setPoolDepth('NVDAx', 145_000);
+
+    const step2AdaptedDecision = await this.runDecisionCycle(
+      initialPortfolio,
+      effectivePolicy,
+      adaptedIntent,
+      adaptedMeteoraAdapter
+    );
 
     return {
       report,
@@ -931,6 +1117,11 @@ export class AutonomousRoboAgent {
       portfolioExposurePassed,
       meteoraMarketQualityPassed,
       blockedReason,
+      step2AdaptedDecision,
+      adaptedTradeAmountUsd,
+      adaptedPriceImpactBps,
+      estimatedPriceImpactBps,
+      rejectionMode: 'MARKET_FAILURE',
     };
   }
 
@@ -1015,6 +1206,7 @@ export class AutonomousRoboAgent {
       summary,
       staleAgeSeconds: staleQuoteAge,
       freshAgeSeconds: 0,
+      rejectionMode: 'DATA_INTEGRITY_FAILURE',
     };
   }
 

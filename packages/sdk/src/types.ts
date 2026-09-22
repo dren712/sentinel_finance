@@ -9,6 +9,7 @@ import {
   AuditExplanation,
   SentinelAuthorizationTicket,
   NormalizedMarketPrice,
+  SentinelRejectionMode,
 } from '@sentinel/domain';
 
 export type ExecutionVenueType =
@@ -89,6 +90,7 @@ export interface PreStocksDemoScenarioResult {
   projectedBadExposureBps: number;
   adaptedExposureBps: number;
   policyPreIpoCapBps: number;
+  rejectionMode?: SentinelRejectionMode;
 }
 
 export interface MeteoraMarketGuardDemoResult {
@@ -98,6 +100,11 @@ export interface MeteoraMarketGuardDemoResult {
   portfolioExposurePassed: boolean;
   meteoraMarketQualityPassed: boolean;
   blockedReason: string;
+  step2AdaptedDecision?: DecisionCycleReport;
+  adaptedTradeAmountUsd?: number;
+  adaptedPriceImpactBps?: number;
+  estimatedPriceImpactBps?: number;
+  rejectionMode?: SentinelRejectionMode;
 }
 
 export interface PythSecurityGuardDemoResult {
@@ -107,6 +114,7 @@ export interface PythSecurityGuardDemoResult {
   summary: string;
   staleAgeSeconds: number;
   freshAgeSeconds: number;
+  rejectionMode?: SentinelRejectionMode;
 }
 
 export interface WalletSigner {
@@ -148,6 +156,7 @@ export interface AdaptationDetails {
     limitByExposure: number;
     limitByReserve: number;
     limitByTradeSize: number;
+    limitByAssetClass?: number;
     appliedLimit: number;
   };
 }

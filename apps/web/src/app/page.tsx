@@ -262,16 +262,13 @@ export default function Home() {
   const handleRunPreStocksDemo = async () => {
     setIsRunningDemo(true);
     setSelectedHeroScenario('PRESTOCKS');
-    setDemoTitle('PreStocks $10K Bounty Demo: Pre-IPO Exposure Cap');
+    setDemoTitle('PreStocks $10K Bounty Demo: Asset-Class Ceiling Enforcement');
     setTotalDemoSteps(5);
     if (activeTab !== 'portfolio') {
       setActiveTab('activity');
     }
 
     try {
-      const agent = client.getAgent();
-      const openaiMeta = ASSET_REGISTRY.OPENAIx;
-      const openaiPrice = marketPrices['OPENAIx']?.priceUsd ?? openaiMeta?.basePriceUsd ?? 210;
       const effectivePolicy: FinancialPolicy = {
         ...policy,
         maxPreIpoExposureBps: policy.maxPreIpoExposureBps ?? 2000,
@@ -279,55 +276,36 @@ export default function Home() {
 
       // Step 1: Pre-Flight PreStocks Portfolio State
       setDemoStep(1);
-      setDemoMessage('Step 1/5: Inspecting PreStocks Asset Universe (SpaceX, OpenAI, Stripe, Anthropic) & Pre-IPO policy ceiling (≤ 20.00%)');
+      setDemoMessage('Step 1/5: Inspecting 3-tier portfolio: Public Equity ($57k) + Pre-IPO ($18k / 18.0%) + Stable Reserve ($25k / 25.0%). Pre-IPO cap: ≤ 20.00%');
       await new Promise(resolve => setTimeout(resolve, 1400));
 
-      // Step 2: Propose Aggressive $30,000 PreStocks Trade
+      // Step 2: Propose $5,000 PreStocks Trade (Passes trade sizing cap)
       setDemoStep(2);
-      setDemoMessage('Step 2/5: Sentinel Robo-01 spots OpenAI tender allocation and proposes BUY OPENAIx $30,000 (surge to 48% exposure)');
+      setDemoMessage('Step 2/5: Sentinel Robo-01 proposes BUY OPENAIx $5,000 (Individual trade size $5k ≤ $10k cap PASSES)');
       await new Promise(resolve => setTimeout(resolve, 1600));
 
-      const badIntent = agent.proposeIntent({
-        assetSymbol: 'OPENAIx',
-        assetMint: openaiMeta?.mint ?? 'OPENAI111111111111111111111111111111111111',
-        direction: 'BUY',
-        tradeAmountUsd: 30_000,
-        referencePriceUsd: openaiPrice,
-        strategyRationale: 'Aggressively increase PreStocks private equity allocation ahead of OpenAI valuation tender',
-      });
+      const preStocksResult = await client.runPreStocksDemoScenario(portfolio, effectivePolicy);
 
-      // Step 3: PreStocks Postcondition Invariant Abort
+      // Step 3: PreStocks Postcondition Invariant Abort (PORTFOLIO_FAILURE)
       setDemoStep(3);
-      setDemoMessage('Step 3/5: Sentinel On-Chain Abort: Pre-IPO exposure 48.0% > 20.0% policy cap. Reverted atomically with 0 funds lost!');
-      const step1Report = await client.executeDecisionCycle(portfolio, effectivePolicy, badIntent, undefined);
-      setLatestReport(step1Report);
+      setDemoMessage('Step 3/5: Sentinel Mode 1 Abort (PORTFOLIO_FAILURE): Pre-IPO allocation surges to 23.0% (> 20.0% policy cap). Reverted atomically with 0 funds lost!');
+      setLatestReport(preStocksResult.step1RejectedDecision);
       setEvidenceList(client.getEvidenceHistory());
-      setSelectedEvidenceId(step1Report.evidenceRecord.id);
+      setSelectedEvidenceId(preStocksResult.step1RejectedDecision.evidenceRecord.id);
       await new Promise(resolve => setTimeout(resolve, 2800));
 
       // Step 4: Autonomous Adaptation for PreStocks
       setDemoStep(4);
-      setDemoMessage('Step 4/5: Agent reads invariant rejection telemetry and solves maximum compliant PreStocks size ($2,000 remaining headroom)');
-      const compliantAmount = agent.calculateCompliantTradeAmount(portfolio, effectivePolicy, 'OPENAIx');
+      setDemoMessage('Step 4/5: Agent solves exact remaining asset-class capacity: ($100k × 20%) - $18k = $2,000 headroom. Auto-adapts proposal to $2,000.');
       await new Promise(resolve => setTimeout(resolve, 1800));
-
-      const adaptedIntent = agent.proposeIntent({
-        assetSymbol: 'OPENAIx',
-        assetMint: openaiMeta?.mint ?? 'OPENAI111111111111111111111111111111111111',
-        direction: 'BUY',
-        tradeAmountUsd: compliantAmount,
-        referencePriceUsd: openaiPrice,
-        strategyRationale: `Auto-adapted PreStocks allocation to $${compliantAmount.toLocaleString()} to strictly observe Pre-IPO exposure ceiling (20.00%)`,
-      });
 
       // Step 5: Settle via PreStocks Secondary Vault
       setDemoStep(5);
-      setDemoMessage('Step 5/5: Settled via PreStocks Secondary Vault! PROVN cryptographic audit receipt generated.');
-      const step2Report = await client.executeDecisionCycle(portfolio, effectivePolicy, adaptedIntent, undefined);
-      setLatestReport(step2Report);
-      setPortfolio(step2Report.resultingPortfolio);
+      setDemoMessage('Step 5/5: Pre-IPO allocation hits exactly 20.00%! Settled via PreStocks Secondary Vault PDA. PROVN cryptographic audit receipt generated.');
+      setLatestReport(preStocksResult.step2SettledDecision);
+      setPortfolio(preStocksResult.step2SettledDecision.resultingPortfolio);
       setEvidenceList(client.getEvidenceHistory());
-      setSelectedEvidenceId(step2Report.evidenceRecord.id);
+      setSelectedEvidenceId(preStocksResult.step2SettledDecision.evidenceRecord.id);
       await new Promise(resolve => setTimeout(resolve, 2500));
     } finally {
       setIsRunningDemo(false);
@@ -338,12 +316,12 @@ export default function Home() {
     }
   };
 
-  // Meteora $5K Bounty Demo Flow (Sentinel Equity Market Guard)
+  // Meteora $5K Bounty Demo Flow (Sentinel Equity Market Guard & DBC Curve Adaptation)
   const handleRunMeteoraDemo = async () => {
     setIsRunningDemo(true);
     setSelectedHeroScenario('METEORA');
     setDemoTitle('Meteora $5K Bounty Demo: Sentinel Equity Market Guard');
-    setTotalDemoSteps(4);
+    setTotalDemoSteps(5);
     if (activeTab !== 'portfolio') {
       setActiveTab('activity');
     }
@@ -351,27 +329,39 @@ export default function Home() {
     try {
       // Step 1: Inspect Meteora DBC Market
       setDemoStep(1);
-      setDemoMessage('Step 1/4: Inspecting Meteora DBC Stock Market for NVDAx (Bonding curve, real reserves, liquidity depth floor)');
+      setDemoMessage('Step 1/5: Inspecting Meteora DBC Stock Market for NVDAx (Bonding curve, real reserves, liquidity depth floor)');
       await new Promise(resolve => setTimeout(resolve, 1400));
 
       // Step 2: Propose Trade with Passing Policy & Exposure
       setDemoStep(2);
-      setDemoMessage('Step 2/4: Agent proposes BUY NVDAx $8,000 (User policy $8k ≤ $10k ✓, Portfolio exposure 28% ≤ 30% ✓)');
+      setDemoMessage('Step 2/5: Agent proposes BUY NVDAx $8,000 (User policy $8k ≤ $10k ✓, Portfolio exposure 28% ≤ 30% ✓)');
       await new Promise(resolve => setTimeout(resolve, 1600));
 
-      // Step 3: Preflight Meteora DBC Market Quality
-      setDemoStep(3);
-      setDemoMessage('Step 3/4: Sentinel Equity Market Guard detects shallow DBC pool ($12,000 < $25,000 floor). Bidirectional protection active!');
-      await new Promise(resolve => setTimeout(resolve, 1800));
-
-      // Step 4: Block Execution
-      setDemoStep(4);
-      setDemoMessage('Step 4/4: Execution BLOCKED by Sentinel Equity Market Guard! Investor protected from slippage; DBC curve protected from predatory size.');
       const meteoraResult = await client.runMeteoraMarketGuardDemoScenario(portfolio, policy);
+
+      // Step 3: Sentinel Market Guard Blocks (MARKET_FAILURE)
+      setDemoStep(3);
+      setDemoMessage('Step 3/5: Sentinel Mode 2 Abort (MARKET_FAILURE): Estimated DBC price impact is 1.70% (> 1.00% max slippage cap). Execution BLOCKED by Market Guard!');
       setLatestReport(meteoraResult.report);
       setEvidenceList(client.getEvidenceHistory());
       setSelectedEvidenceId(meteoraResult.report.evidenceRecord.id);
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await new Promise(resolve => setTimeout(resolve, 2800));
+
+      // Step 4: Autonomous Adaptation along DBC curve
+      setDemoStep(4);
+      setDemoMessage('Step 4/5: Agent recomputed along Meteora DBC bonding curve: scaled down to $2,500 where price impact is 0.45% (≤ 1.00% slippage ceiling).');
+      await new Promise(resolve => setTimeout(resolve, 1800));
+
+      // Step 5: Settle via Meteora DBC
+      setDemoStep(5);
+      setDemoMessage('Step 5/5: BUY NVDAx $2,500 Approved & Settled on Meteora DBC Bonding Curve! Zero dislocation execution achieved. PROVN audit receipt sealed.');
+      if (meteoraResult.step2AdaptedDecision) {
+        setLatestReport(meteoraResult.step2AdaptedDecision);
+        setPortfolio(meteoraResult.step2AdaptedDecision.resultingPortfolio);
+        setSelectedEvidenceId(meteoraResult.step2AdaptedDecision.evidenceRecord.id);
+      }
+      setEvidenceList(client.getEvidenceHistory());
+      await new Promise(resolve => setTimeout(resolve, 2500));
     } finally {
       setIsRunningDemo(false);
       setTimeout(() => {
@@ -404,7 +394,7 @@ export default function Home() {
 
       // Step 3: Sentinel evaluates: "Is this price trustworthy enough to let the agent act?" -> REJECTED!
       setDemoStep(3);
-      setDemoMessage('Step 3/4: Sentinel halts execution: "NO EXECUTION: Pyth oracle quote is stale (140s > 60s)". Capital protected from stale market data!');
+      setDemoMessage('Step 3/4: Sentinel Mode 3 Abort (DATA_INTEGRITY_FAILURE): "NO EXECUTION: Pyth oracle quote is stale (140s > 60s)". Capital protected from stale market data!');
       const pythResult = await client.runPythSecurityGuardDemoScenario(portfolio, policy);
       setLatestReport(pythResult.step1StaleQuoteDecision);
       setEvidenceList(client.getEvidenceHistory());

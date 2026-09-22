@@ -52,11 +52,24 @@ Solana Explorer: https://explorer.solana.com/address/3gh1Cc2Qc65hJhxZKneXphWJa27
 - **Primary Wedge**: **Investing → Robo-Portfolios ($100,000 Main Track)**
 - **Strategic Sponsor Focus (2 Locked Paid Tracks + Pyth Oracle Foundation)**:
   1. **PreStocks — $10,000 Target**: 100% PreStocks Tokenized Pre-IPO Asset Universe (`OPENAIx`, `SPACEXx`, `ANTHROPICx`, `STRIPEx`), Portfolio Builder, and Macro Asset Class Allocation Policies (`Pre-IPO ≤ 20%`).
-     - *Demo Moment*: Agent proposes `BUY OPENAIx $30,000` (pre-IPO surges from 18% ➔ 48%) ➔ Reverted atomically (`48% > 20% PreStocks Cap`) ➔ Auto-adapts to $2,000 remaining headroom ➔ Settles cleanly via PreStocks Secondary Vault.
+     - *Demo Moment (Mode 1: PORTFOLIO_FAILURE)*: Portfolio holds $18k (18%) in Pre-IPO equity. Agent proposes `BUY OPENAIx $5,000` (individual trade sizing passes: $5k ≤ $10k cap). Pre-IPO allocation surges to 23.0% (> 20.0% ceiling) ➔ Reverted atomically on asset class invariant! ➔ Agent auto-solves remaining headroom: `($100,000 × 20%) - $18,000 = $2,000` ➔ Reproposes `BUY OPENAIx $2,000` (hits exact 20.0% cap) ➔ Settles cleanly via PreStocks Secondary Vault PDA.
   2. **Meteora — $5,000 Target**: Sentinel Equity Market Guard (**Market Protection + Account Protection**). Meteora DBC curve mechanics, reserve depth verification ($25,000 floor), dynamic fee tracking, and bidirectional market protection.
-     - *Demo Moment*: Agent proposes `BUY NVDAx $8,000` ➔ User policy passes ($8k ≤ $10k ✓), Portfolio exposure passes (28% ≤ 30% ✓) ➔ BLOCKED by Sentinel Equity Market Guard on shallow Meteora DBC pool depth ($12,000 < $25,000 floor).
+     - *Demo Moment (Mode 2: MARKET_FAILURE)*: Agent proposes `BUY NVDAx $8,000`. User policy passes ($8k ≤ $10k ✓), Portfolio exposure passes (28% ≤ 30% ✓) ➔ BLOCKED by Sentinel Equity Market Guard because Meteora DBC curve estimates 1.70% price impact (> 1.00% max slippage cap) and pool depth is shallow ($12,000 < $25,000 floor) ➔ Agent reads DBC bonding curve equation and auto-adapts trade down to $2,500 along the curve (0.45% ≤ 1.00% impact) ➔ Approved & Settled on Meteora DBC!
   3. **Pyth Network (Pyth Pro)**: Pyth as an authoritative **Security Input** (`STALE / LOW CONFIDENCE ➔ NO EXECUTION`). Dual-feed mark-to-market pricing, confidence bounds ($\pm \sigma$), tracking error detection, and staleness rejection via Pyth pull updates.
+     - *Demo Moment (Mode 3: DATA_INTEGRITY_FAILURE)*: Agent proposes `BUY AAPLx $4,000`. Sizing and exposure pass, but Pyth oracle quote is 140s old (> 60s freshness limit) ➔ Execution refused (`ERR_QUOTE_STALE`) ➔ Pyth Hermès on-demand pull update delivers fresh price (age 0s, ±$0.03) ➔ Approved & Settled!
 - *Strict Sponsor Compliance*: 100% of pre-IPO assets belong exclusively to PreStocks Protocol. No competing pre-IPO tokens are integrated. ClawPump is retained cleanly as an internal Ed25519 agent-wallet identity pattern.
+
+---
+
+## 🛑 The Three Autonomous Rejection Modes
+
+Sentinel transforms autonomous execution from unconstrained agency into a bounded financial system governed by internal state, external market quality, and data integrity:
+
+| Rejection Mode | Category | Enforcement Invariant | Canonical Demo Flow |
+| :--- | :--- | :--- | :--- |
+| **Mode 1: PORTFOLIO_FAILURE** | **Internal State Invariants** | Single-asset exposure cap ($\le 25\%$), stablecoin reserve floor ($\ge 20\%$), or asset-class exposure ceiling (Pre-IPO $\le 20\%$). | **PreStocks $10K Demo**: Portfolio holds 18% Pre-IPO. Agent proposes `BUY OPENAIx $5,000` (within $\$10\text{k}$ sizing cap). Pre-IPO allocation surges to $23\% > 20\%$ cap ➔ **REJECTED**. Agent auto-solves remaining headroom: $(\$100\text{k} \times 20\%) - \$18\text{k} = \$2,000$ ➔ Reproposes `BUY OPENAIx $2,000` (hits exact $20.0\%$ cap) ➔ **APPROVED & SETTLED** via PreStocks Secondary Vault! |
+| **Mode 2: MARKET_FAILURE** | **Market Reality & Execution Quality** | Meteora DBC curve price impact ($\le 1.00\%$ max slippage) & liquidity reserve floor ($\ge \$25,000$). | **Meteora $5K Demo**: Agent proposes `BUY NVDAx $8,000`. Portfolio exposure & user policy both pass ($8\text{k} \le \$10\text{k}$, $28\% \le 30\%$). Meteora DBC curve estimates $1.70\%$ price impact ($> 1.00\%$ max slippage) ➔ **BLOCKED** by Equity Market Guard! Agent reads DBC curve equation and auto-adapts trade down to $\$2,500$ along curve ($0.45\% \le 1.00\%$ impact) ➔ **APPROVED & SETTLED** on Meteora DBC! |
+| **Mode 3: DATA_INTEGRITY_FAILURE** | **Market Truth & Oracle Freshness** | Pyth dual-feed quote freshness ($\text{age} \le 60\text{s}$) & confidence intervals ($\pm \sigma$). | **Pyth Security Input Demo**: Agent proposes `BUY AAPLx $4,000`. Pyth price quote is $140\text{s}$ old ($> 60\text{s}$ ceiling) ➔ `STALE / LOW CONFIDENCE ➔ NO EXECUTION` ➔ **REFUSED** (`ERR_QUOTE_STALE`). Pyth Hermès pull update delivers fresh quote (age $0\text{s}$, $\pm \$0.03$) ➔ **APPROVED & SETTLED**! |
 
 ---
 
