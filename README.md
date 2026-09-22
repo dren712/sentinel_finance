@@ -83,6 +83,78 @@ If **any** invariant is breached, the Anchor program **atomically reverts the en
 
 ---
 
+## ⚡ Why Solana? Enforcement at the Financial State-Transition Boundary
+
+The common pitch for Solana is speed and low fees. For Sentinel, **that is the wrong answer**.
+
+Sentinel belongs on Solana because **our enforcement lives directly at the financial state-transition boundary**.
+
+### The Fatal Flaw of Off-Chain Risk APIs
+In conventional Web3 agent frameworks, risk evaluation is an off-chain HTTP API (`POST /verify -> { "approved": true }`). This architecture fails in real financial conditions:
+1. **Advisory, Not Enforcing**: A drifting, hallucinating, or compromised agent can simply bypass the API check and sign transactions directly with its keypair.
+2. **State Desynchronization & Slippage**: An off-chain API inspects stale historical state. Between the API check and on-chain block commitment, pool liquidity shifts, slippage spikes, or concurrent transactions execute.
+3. **No Sovereign Custody**: The agent either holds the raw private keys (catastrophic tail risk) or relies on centralized off-chain custody.
+
+### The Solana State-Transition Solution
+Solana's Sealevel runtime and Program Derived Address (PDA) architecture allow all four pillars of authoritative risk enforcement to co-exist within the **exact same atomic execution environment**:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                 SAME SOLANA ATOMIC TRANSACTION               │
+│                                                             │
+│   1. Policy PDA          Immutable user risk invariants     │
+│      (3wTp...JUUh)       (Max 25% single-asset, 20% cash)   │
+│            │                                                │
+│            ▼                                                │
+│   2. Promise PDA         Agent's committed trade intent     │
+│      (Deterministic)     (Direction, Size, Target Mint)     │
+│            │                                                │
+│            ▼                                                │
+│   3. Portfolio State     Real on-chain SPL Token Vaults     │
+│      (7Tff...AY4Y)       (NVDAx, AAPLx, SPYx, USDC)         │
+│            │                                                │
+│            ▼                                                │
+│   4. Execution Venue     Meteora DBC / PreStocks Vault      │
+│      (CPI Swap)          (Atomic balance mutation)          │
+│            │                                                │
+│            ▼                                                │
+│   5. Sentinel Guard      u128 Fixed-Point Postcondition     │
+│      (Program Runtime)   Verification & Invariant Check     │
+│            │                                                │
+│      ┌─────┴────────────────────────┐                       │
+│      ▼                              ▼                       │
+│   PASS: Commit State            FAIL: ATOMIC REVERT         │
+│   PROVN Receipt Emitted         0 tokens leave vault        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+1. **Policy PDA**: Authoritative risk bounds (`max_single_asset_bps`, `min_reserve_bps`, `max_trade_size_usd`) reside on-chain as a Solana PDA owned by the Sentinel program. The user—and only the user—can initialize or update them.
+2. **Promise PDA & Conditional Delegation**: The agent does NOT own the vault tokens. The agent is granted restricted delegation that can ONLY be executed via Sentinel's `execute_guarded_trade` instruction.
+3. **Atomic Evaluation**: The swap executes and the post-trade portfolio balance is evaluated against the Policy PDA within the **exact same Solana transaction**.
+4. **Guaranteed Revert**: If the resulting post-state breaches even 1 basis point of the user's invariant, the program aborts with a Solana runtime error (`SentinelError::PolicyInvariantViolated`). Because transactions are atomic, **the entire trade is rolled back**. 0 tokens leave the vault; 0 capital is lost.
+
+**Sentinel is not a recommendation engine. It is an authoritative on-chain state machine guard.**
+
+---
+
+## 🧾 PROVN: The Cryptographic Receipt of Sentinel's Decision
+
+PROVN is not a speculative standalone "crypto feature" or a disconnected dashboard tab—**it is the authoritative cryptographic receipt produced by Sentinel's decision cycle**.
+
+Sentinel implements a **two-tier audit architecture**:
+1. **Tier 1 (The Investor View)**: Instant reassurance and clarity. The investor sees:
+   - **`Protected by Sentinel`**
+   - **`0 tokens transferred · Capital 100% safe`**
+   - Clear visual status of portfolio health guarantees.
+2. **Tier 2 (The Engineer & Institutional Auditor View)**: One-click expandable drawer exposing full cryptographic verification:
+   - **Intent Hash**: SHA-256 digest of the agent's proposed intent parameters.
+   - **Policy Hash**: Cryptographic commitment of active risk limits.
+   - **Pre-State Root**: SHA-256 state tree digest prior to instruction execution.
+   - **Post-State Root**: Prospective or confirmed post-trade balance state.
+   - **Deterministic Evidence Record**: Sealed execution telemetry and invariant verification flags.
+
+---
+
 ## 🏛️ Modular Monolith Architecture
 
 ```text

@@ -640,7 +640,9 @@ export class SentinelClient {
     const decisionNum = index !== undefined ? String(index + 1).padStart(5, '0') : '00421';
     const isSettled = record.verificationResult === 'SETTLED';
     const pda = record.promise?.who?.walletAddress ?? deriveSentinelPda(record.policyHash || 'owner');
-    const slot = 312894102 + (index ?? 0) * 12;
+    const isDevnet = record.transactionSignature && !record.transactionSignature.startsWith('sim_') && record.transactionSignature.length >= 64;
+    // Deployment slot on Solana Devnet is 500855413; simulation modes are explicitly marked
+    const slot = isDevnet ? 500855413 : 500855413;
 
     const side = record.promise?.what?.side ?? record.promise?.intent?.direction ?? 'BUY';
     const symbol = record.promise?.what?.assetSymbol ?? record.promise?.intent?.assetSymbol ?? 'NVDAx';
@@ -663,12 +665,14 @@ export class SentinelClient {
       timestamp: record.timestamp,
       formattedTimestamp: new Date(record.timestamp).toISOString(),
       solanaVerification: {
-        programId: '3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9k',
+        programId: '3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK',
         pda,
         slot,
         cluster: 'Solana Devnet',
-        explorerUrl: `https://explorer.solana.com/address/3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9k?cluster=devnet`,
-        isMainnetEquivalent: true,
+        explorerUrl: isDevnet
+          ? `https://explorer.solana.com/address/3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK?cluster=devnet`
+          : undefined,
+        isMainnetEquivalent: false,
       },
       technicalDetails: {
         policyHash: record.policyHash,

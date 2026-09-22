@@ -120,7 +120,7 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
       ],
       adaptationNarrative: {
         adaptedAction: 'Direct execution of compliant proposed intent',
-        settlementTx: '4zNp7s18yXgW3V...9hQ8 (Solana Devnet)',
+        settlementTx: 'Meteora DBC Swap [SIMULATED EXECUTION]',
       },
     },
     {
@@ -148,7 +148,7 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
       ],
       adaptationNarrative: {
         adaptedAction: 'BUY NVDAx $5,000',
-        settlementTx: 'Settled at block #319482011 (tx 0x8f2d...3a19)',
+        settlementTx: 'ATOMIC REVERT — 0 tokens transferred [DEMO FIXTURE]',
       },
     },
     {
@@ -176,7 +176,7 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
       ],
       adaptationNarrative: {
         adaptedAction: 'BUY NVDAx $5,000',
-        settlementTx: 'Settled at block #319482011',
+        settlementTx: 'Compliant Headroom Settled [DEMO FIXTURE]',
       },
     },
     {
@@ -516,22 +516,22 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
 
                     <div className="bg-sentinel-surface p-2 rounded border border-sentinel-border">
                       <span className="text-sentinel-textSubtle block text-[10px]">STATE PRE-HASH</span>
-                      <span className="text-blue-300 font-semibold truncate block">
-                        {selectedTimelineItem.evidenceRecord?.preStateHash ?? '0x4a12df88bc9901ef23...'}
+                      <span className="text-blue-300 font-semibold truncate block font-mono text-[11px]">
+                        {selectedTimelineItem.evidenceRecord?.preStateHash ?? 'sha256:4a12df88... [SIMULATED]'}
                       </span>
                     </div>
 
                     <div className="bg-sentinel-surface p-2 rounded border border-sentinel-border">
                       <span className="text-sentinel-textSubtle block text-[10px]">SENTINEL PDA</span>
-                      <span className="text-white font-semibold truncate block">
+                      <span className="text-white font-semibold truncate block font-mono text-[11px]">
                         {portfolio.sentinelPda || deriveSentinelPda(portfolio.owner)}
                       </span>
                     </div>
 
                     <div className="bg-sentinel-surface p-2 rounded border border-sentinel-border">
                       <span className="text-sentinel-textSubtle block text-[10px]">SLOT / SIGNATURE</span>
-                      <span className="text-emerald-400 font-semibold truncate block">
-                        {selectedTimelineItem.evidenceRecord?.transactionSignature ?? 'sim_tx_settle_319482011'}
+                      <span className="text-emerald-400 font-semibold truncate block font-mono text-[11px]">
+                        {selectedTimelineItem.evidenceRecord?.transactionSignature ?? 'SIMULATION [DEMO DATA]'}
                       </span>
                     </div>
                   </div>
@@ -547,15 +547,29 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
                   )}
 
                   <div className="pt-2 flex justify-end">
-                    <a
-                      href={getExplorerTxUrl(selectedTimelineItem.evidenceRecord?.transactionSignature ?? 'sim_tx_settle_319482011')}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 hover:underline font-mono"
-                    >
-                      <span>View Transaction on Solana Explorer</span>
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </a>
+                    {(() => {
+                      const sig = selectedTimelineItem.evidenceRecord?.transactionSignature;
+                      const isRealDevnetTx = !!sig && sig.length >= 64 && !sig.startsWith('sim_');
+                      if (isRealDevnetTx) {
+                        return (
+                          <a
+                            href={getExplorerTxUrl(sig)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 hover:underline font-mono"
+                          >
+                            <span>View Transaction on Solana Explorer</span>
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        );
+                      }
+                      return (
+                        <div className="inline-flex items-center gap-1.5 text-xs text-sentinel-textSubtle font-mono bg-sentinel-surface px-2.5 py-1 rounded border border-sentinel-border">
+                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                          <span>[SIMULATION EVIDENCE — DETERMINISTIC PREIMAGE]</span>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               )}

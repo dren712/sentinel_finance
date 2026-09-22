@@ -95,6 +95,22 @@ Sentinel avoids distributed infrastructure bloat (no unnecessary message queues,
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
+### 4.1 Why Solana? Enforcement at the Financial State-Transition Boundary
+
+When judges ask *"Why does this belong on Solana?"*, the answer is not generic marketing speed or low fees.
+
+**Sentinel belongs on Solana because our enforcement lives directly at the financial state-transition boundary.**
+
+- **The Failure of Off-Chain APIs**: Off-chain risk APIs (`POST /verify -> { "approved": true }`) cannot protect vaults. A rogue or hallucinating agent simply bypasses the API and signs directly with its keypair. Furthermore, off-chain checks suffer from race conditions against AMM slippage and concurrent block state.
+- **The Solana State-Transition Boundary**: On Solana, the **Policy PDA** (user's immutable risk bounds), the **Promise PDA** (agent's committed trade intent), the **Portfolio Vault** (SPL token accounts), and the **Execution Instruction** (Meteora DBC swap or PreStocks secondary transfer) all co-exist within the **exact same atomic transaction runtime**.
+- **Atomic Rollback**: Sentinel's `execute_guarded_trade` instruction calculates the prospective post-trade portfolio allocation in 128-bit fixed-point math. If any user invariant is violated (e.g. NVDA > 25% or Cash < 20%), the transaction emits `PolicyInvariantViolated` and **atomically rolls back the entire instruction chain**. Zero tokens move.
+
+### 4.2 Two-Tier PROVN Receipt Architecture
+
+PROVN is not a detached crypto dashboard tab; it is the cryptographic receipt of Sentinel's decision:
+- **Tier 1 (Investor View)**: Reassuring, clear status (`Protected by Sentinel`, `0 tokens moved · Capital safe`, visual guarantee health indicators).
+- **Tier 2 (Auditor & Engineer Drawer)**: Full deterministic cryptographic evidence containing SHA-256 pre-state root, post-state root, intent hash, policy hash, and transaction signature verification.
+
 ---
 
 ## 5. Sponsor Integration Breakdown

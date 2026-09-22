@@ -128,15 +128,21 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                 {details.signature && (
                   <div className="text-xs font-mono text-sentinel-textMuted">
                     Signature:{' '}
-                    <a
-                      href={getExplorerTxUrl(details.signature)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-blue-400 hover:underline inline-flex items-center gap-1"
-                    >
-                      {formatSignature(details.signature)}
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
+                    {details.signature.length >= 64 && !details.signature.startsWith('sim_') ? (
+                      <a
+                        href={getExplorerTxUrl(details.signature)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-blue-400 hover:underline inline-flex items-center gap-1"
+                      >
+                        {formatSignature(details.signature)}
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    ) : (
+                      <span className="text-amber-400 font-semibold">
+                        {details.signature} [SIMULATION]
+                      </span>
+                    )}
                   </div>
                 )}
               </div>

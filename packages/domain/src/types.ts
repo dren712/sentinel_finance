@@ -650,8 +650,8 @@ export interface SentinelReceipt {
   preStateShortHash: string;     // e.g. "0x7f4a...9b12"
   postStateShortHash: string;    // e.g. "0x3c2e...88ad"
   decision: 'APPROVED' | 'REJECTED';
-  executionSignature: string;    // e.g. "0x5tZ...sim_tx"
-  evidenceHash: string;          // e.g. "0xa81c...2f09"
+  executionSignature: string;    // e.g. "5tZ9... (Solana Base58) or sim_tx_..."
+  evidenceHash: string;          // e.g. "sha256:a81c...2f09"
   integrityVerified: boolean;    // true (✓ VERIFIED)
   timestamp: number;
   formattedTimestamp: string;

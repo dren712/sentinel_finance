@@ -63,8 +63,9 @@ export const SentinelReceiptCard: React.FC<SentinelReceiptCardProps> = ({
   );
   const evidenceShort = formattedReceipt?.evidenceHash ?? `0x${record.id.slice(0, 4)}...${record.id.slice(-4)}`;
 
+  const isDevnet = Boolean(record.transactionSignature && !record.transactionSignature.startsWith('sim_') && record.transactionSignature.length >= 64);
   const pdaAddress = formattedReceipt?.solanaVerification?.pda ?? (record.promise?.who?.walletAddress ?? 'GR9CtiUswZtay68U2fGqcDeB1dg8sHtpVi9kk2nCEwzw');
-  const slot = formattedReceipt?.solanaVerification?.slot ?? (312894102 + index * 12);
+  const slot = formattedReceipt?.solanaVerification?.slot ?? (isDevnet ? 500855413 : undefined);
 
   const swarmSummary: SwarmVerificationSummary | undefined = record.swarmSummary;
   const swarmPassedCount = swarmSummary?.passedCount ?? (isSettled ? 6 : 4);
@@ -99,9 +100,13 @@ export const SentinelReceiptCard: React.FC<SentinelReceiptCardProps> = ({
 
           {/* Normal User Tier: Verified on Solana Badge */}
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 text-xs font-sans font-semibold shadow-xs">
+            <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-sans font-semibold shadow-xs ${
+              isDevnet
+                ? 'bg-emerald-950/60 border border-emerald-500/40 text-emerald-400'
+                : 'bg-blue-950/60 border border-blue-500/40 text-blue-300'
+            }`}>
               <ShieldCheck className="w-3.5 h-3.5" />
-              <span>✓ Protected • Verified on Solana</span>
+              <span>{isDevnet ? '✓ Protected • Verified on Solana Devnet' : '✓ Protected • Invariant Verified [SIMULATION]'}</span>
             </div>
           </div>
         </div>
@@ -258,9 +263,9 @@ export const SentinelReceiptCard: React.FC<SentinelReceiptCardProps> = ({
                   </div>
                 </div>
                 <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-                  <span className="text-[10px] text-slate-400 block font-sans">Cluster &amp; Slot</span>
+                  <span className="text-[10px] text-slate-400 block font-sans">Cluster &amp; Execution</span>
                   <div className="text-white font-mono text-[11px] mt-0.5">
-                    Solana Devnet • Slot #{slot}
+                    {slot ? `Solana Devnet • Slot #${slot}` : 'Simulation Target • [DEMO DATA]'}
                   </div>
                 </div>
                 <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">

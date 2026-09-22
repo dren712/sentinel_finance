@@ -263,6 +263,12 @@ If the judges or audience ask to explore further, walk through the 4 navigation 
 ### Q4: "Can the agent withdraw the user's funds?"
 > **Answer**: *"No. The agent only possesses trading delegation authority bound to the Sentinel Anchor program. The vault PDA has no instruction allowing funds to be withdrawn to an arbitrary agent wallet. All settlements must deposit acquired SPL tokenized assets back into the user's portfolio vault."*
 
+### Q5: "Why Solana? Why not an off-chain API that returns { approved: true }?"
+> **Answer**: *"Off-chain APIs are advisory, not authoritative. An agent that drifts or suffers key compromise can simply bypass an HTTP endpoint and broadcast a transaction directly. On Solana, our enforcement lives at the **financial state-transition boundary**: the Policy PDA, Promise PDA, Portfolio Vault, and Execution Instruction all exist in the same Sealevel runtime. The trade cannot settle unless the post-state satisfies the Anchor invariants in the exact same atomic transaction."*
+
+### Q6: "Is PROVN a separate token or speculative crypto feature?"
+> **Answer**: *"No. PROVN is strictly the cryptographic receipt of Sentinel's decision. It follows a two-tier model: everyday investors see a clean 'Protected by Sentinel' verification, while engineers and compliance auditors can expand the technical drawer to inspect deterministic SHA-256 pre-state and post-state roots, policy hashes, and Solana settlement signatures."*
+
 ---
 
 *Sentinel Finance — Built for the Stocklana Solana Tokenized-Stock Hackathon.*
