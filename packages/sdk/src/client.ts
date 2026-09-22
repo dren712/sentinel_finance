@@ -39,10 +39,12 @@ import {
   DemoScenarioResult,
   PreStocksDemoScenarioResult,
   MeteoraMarketGuardDemoResult,
+  PythSecurityGuardDemoResult,
   MeteoraDBCMetrics,
   MeteoraVerificationResult,
   AgentLoopState,
   AutonomousAdaptationResult,
+  WalletSigner,
 } from './types';
 
 import {
@@ -50,6 +52,7 @@ import {
   MeteoraExecutionAdapter,
   PreStocksExecutionAdapter,
   SimulatedExecutionAdapter,
+  LiveExecutionAdapter,
 } from './adapters/execution-adapter';
 import { AutonomousRoboAgent } from './agent-simulator';
 import { MeteoraDBCMarketQualityVerifier } from './sponsors/meteora';
@@ -155,14 +158,26 @@ export class SentinelClient {
     return this.demoAdapter;
   }
 
+  setWalletSigner(signer: WalletSigner): void {
+    if (this.adapter instanceof LiveExecutionAdapter) {
+      this.adapter.setWalletSigner(signer);
+    } else {
+      this.adapter = new LiveExecutionAdapter(undefined, signer);
+      this.selectedVenue = 'SOLANA_MAINNET';
+    }
+  }
+
   resolveAdapterForIntent(intent: TradeIntent): ExecutionAdapter {
+    if (this.selectedVenue === 'SOLANA_MAINNET' || this.adapter instanceof LiveExecutionAdapter) {
+      return this.adapter;
+    }
     if (this.selectedVenue === 'DEMO_SIMULATION') {
       return this.demoAdapter;
     }
     if (this.selectedVenue === 'TESSERA_VAULT') {
       return this.tesseraAdapter;
     }
-    const preIpoSymbols = ['SPACEXx', 'OPENAIx', 'STRIPEx'];
+    const preIpoSymbols = ['SPACEXx', 'OPENAIx', 'ANTHROPICx', 'STRIPEx'];
     if (preIpoSymbols.includes(intent.assetSymbol)) {
       return this.preStocksAdapter;
     }
@@ -526,6 +541,40 @@ export class SentinelClient {
   ): Promise<MeteoraMarketGuardDemoResult> {
     const result = await this.agent.runMeteoraMarketGuardDemoScenario(portfolio, policy, this.meteoraAdapter);
     this.evidenceHistory.unshift(result.report.evidenceRecord);
+    return result;
+  }
+
+  /**
+   * Runs the Pyth Network Bounty Demo Scenario (Pyth as a Security Input):
+   * 1. Agent identifies trade opportunity: BUY AAPLx $4,000.
+   * 2. User policy passes ($4,000 <= $10,000 limit) and portfolio exposure passes.
+   * 3. Sentinel evaluates Pyth market truth before authorizing execution:
+   *    Pyth quote timestamp is 140s old (exceeds freshness ceiling of 60s).
+   * 4. Sentinel halts execution: "NO EXECUTION: Pyth oracle quote is stale (140s > 60s limit)".
+   * 5. App triggers Pyth Pull update via Hermès: fresh price delivered with age 0s, confidence ±$0.20.
+   * 6. Sentinel verifies fresh quote integrity: APPROVED and settles trade with PROVN receipt.
+   */
+  async runPythSecurityGuardDemoScenario(
+    portfolio: PortfolioSnapshot,
+    policy: FinancialPolicy
+  ): Promise<PythSecurityGuardDemoResult> {
+    const result = await this.agent.runPythSecurityGuardDemoScenario(
+      portfolio,
+      policy,
+      this.resolveAdapterForIntent({
+        intentId: `intent_pyth_${Date.now()}`,
+        agentId: this.agent.agentId,
+        assetSymbol: 'AAPLx',
+        assetMint: 'AAPL111111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 4_000,
+        referencePriceUsd: 200.0,
+        timestamp: Date.now(),
+      }),
+      this.pythAdapter
+    );
+    this.evidenceHistory.unshift(result.step1StaleQuoteDecision.evidenceRecord);
+    this.evidenceHistory.unshift(result.step3FreshSettledDecision.evidenceRecord);
     return result;
   }
 

@@ -18,6 +18,7 @@ interface HeaderProps {
   onRunDemo: () => void;
   onRunPreStocksDemo?: () => void;
   onRunMeteoraDemo?: () => void;
+  onRunPythDemo?: () => void;
   onReset: () => void;
   isRunningDemo: boolean;
 }
@@ -28,6 +29,7 @@ export const Header: React.FC<HeaderProps> = ({
   onRunDemo,
   onRunPreStocksDemo,
   onRunMeteoraDemo,
+  onRunPythDemo,
   onReset,
   isRunningDemo,
 }) => {
@@ -194,6 +196,28 @@ export const Header: React.FC<HeaderProps> = ({
                       </div>
                       <div className="text-[11px] text-sentinel-textMuted mt-0.5">
                         Sentinel Equity Market Guard: Blocks trade on shallow DBC pool depth
+                      </div>
+                    </div>
+                  </button>
+                )}
+
+                {/* Scenario 4: Pyth Security Input */}
+                {onRunPythDemo && (
+                  <button
+                    onClick={() => {
+                      setIsDemoMenuOpen(false);
+                      onRunPythDemo();
+                    }}
+                    className="w-full text-left p-2.5 rounded-lg hover:bg-amber-950/40 border-t border-sentinel-border/50 transition flex items-start gap-2.5 cursor-pointer group mt-1"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-amber-400 mt-1 shrink-0" />
+                    <div>
+                      <div className="font-semibold text-white group-hover:text-amber-400 transition flex items-center gap-1.5">
+                        <span>Pyth Oracle Security Guard</span>
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-bold">Pyth Pro</span>
+                      </div>
+                      <div className="text-[11px] text-sentinel-textMuted mt-0.5">
+                        Stale quote (140s &gt; 60s) ➔ Execution Refused ➔ Pyth pull update ➔ Settled
                       </div>
                     </div>
                   </button>

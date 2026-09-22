@@ -21,6 +21,7 @@ import {
   AgentRiskState,
   getAssetCategory,
   ASSET_REGISTRY,
+  PythPriceAdapter,
 } from '@sentinel/domain';
 import {
   ExecutionAdapter,
@@ -28,6 +29,7 @@ import {
   DemoScenarioResult,
   PreStocksDemoScenarioResult,
   MeteoraMarketGuardDemoResult,
+  PythSecurityGuardDemoResult,
   SecurityViolationError,
   AgentLoopStage,
   BreachedInvariant,
@@ -38,6 +40,7 @@ import {
 
 import { PreStocksExecutionAdapter } from './adapters/prestocks-adapter';
 import { MeteoraExecutionAdapter } from './adapters/meteora-adapter';
+import { DemoExecutionAdapter } from './adapters/demo-adapter';
 import { ClawPumpAgentWallet } from './sponsors/clawpump';
 
 export interface AgentConfig {
@@ -928,6 +931,90 @@ export class AutonomousRoboAgent {
       portfolioExposurePassed,
       meteoraMarketQualityPassed,
       blockedReason,
+    };
+  }
+
+  /**
+   * Executes the Pyth Network Bounty Demo Scenario (Pyth as a Security Input):
+   * 1. Agent identifies trade opportunity: BUY AAPLx $4,000.
+   * 2. User policy passes ($4,000 <= $10,000 limit) and portfolio exposure passes.
+   * 3. Sentinel evaluates Pyth market truth before authorizing execution:
+   *    Pyth quote timestamp is 140s old (exceeds freshness ceiling of 60s).
+   * 4. Sentinel halts execution: "NO EXECUTION: Pyth oracle quote is stale (140s > 60s limit)".
+   * 5. App triggers Pyth Pull update via Hermès: fresh price delivered with age 0s, confidence ±$0.20.
+   * 6. Sentinel verifies fresh quote integrity: APPROVED and settles trade with PROVN receipt.
+   */
+  async runPythSecurityGuardDemoScenario(
+    initialPortfolio: PortfolioSnapshot,
+    policy: FinancialPolicy,
+    adapter?: ExecutionAdapter,
+    pythAdapter?: PythPriceAdapter
+  ): Promise<PythSecurityGuardDemoResult> {
+    const pyth = pythAdapter ?? new PythPriceAdapter();
+    const aaplMeta = ASSET_REGISTRY.AAPLx;
+    const tradeAmountUsd = 4_000;
+
+    // Ensure single-asset exposure (29.00% <= 30.00%) and sizing pass so failure isolates to Pyth quote freshness
+    const effectivePolicy: FinancialPolicy = {
+      ...policy,
+      maxSingleAssetBps: Math.max(policy.maxSingleAssetBps ?? 2500, 3000),
+      maxQuoteAgeSeconds: policy.maxQuoteAgeSeconds ?? 60,
+    };
+
+    // Step 1: Create stale Pyth price quote (140 seconds old > 60s limit)
+    const staleQuoteAge = 140;
+    const stalePrice = pyth.createStalePrice('AAPLx', staleQuoteAge);
+
+    const intent = this.proposeIntent({
+      assetSymbol: 'AAPLx',
+      assetMint: aaplMeta?.mint ?? 'AAPL111111111111111111111111111111111111111',
+      direction: 'BUY',
+      tradeAmountUsd,
+      referencePriceUsd: stalePrice.priceUsd,
+      strategyRationale: `Opportunity identified on AAPLx for $${tradeAmountUsd.toLocaleString()}`,
+    });
+
+    const executionAdapter = adapter ?? new DemoExecutionAdapter(50);
+
+    // Step 1 Execution: Rejected by Sentinel because market truth is stale!
+    const step1StaleReport = await this.runDecisionCycle(
+      initialPortfolio,
+      effectivePolicy,
+      intent,
+      executionAdapter,
+      stalePrice
+    );
+
+    // Step 2: Trigger Pyth Pull Update (Hermès) to fetch latest on-chain market truth
+    const freshPrice = pyth.getNormalizedMarketPriceSync('AAPLx');
+
+    // Step 3: Re-evaluate with fresh market truth -> Approved & Settled
+    const freshIntent = this.proposeIntent({
+      assetSymbol: 'AAPLx',
+      assetMint: aaplMeta?.mint ?? 'AAPL111111111111111111111111111111111111111',
+      direction: 'BUY',
+      tradeAmountUsd,
+      referencePriceUsd: freshPrice.priceUsd,
+      strategyRationale: `Re-proposing AAPLx $${tradeAmountUsd.toLocaleString()} after verified Pyth pull update (${freshPrice.publishTimeFormatted})`,
+    });
+
+    const step3FreshReport = await this.runDecisionCycle(
+      initialPortfolio,
+      effectivePolicy,
+      freshIntent,
+      executionAdapter,
+      freshPrice
+    );
+
+    const summary = `Pyth Security Input Protection: Autonomous intent BUY AAPLx $4,000 halted by Sentinel because Pyth price quote was stale (${staleQuoteAge}s > ${policy.maxQuoteAgeSeconds ?? 60}s ceiling). After Pyth pull update delivered verified fresh quote, Sentinel authorized execution and settled trade.`;
+
+    return {
+      step1StaleQuoteDecision: step1StaleReport,
+      step2PullUpdatePrice: freshPrice,
+      step3FreshSettledDecision: step3FreshReport,
+      summary,
+      staleAgeSeconds: staleQuoteAge,
+      freshAgeSeconds: 0,
     };
   }
 

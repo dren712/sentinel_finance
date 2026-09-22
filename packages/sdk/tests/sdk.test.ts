@@ -560,7 +560,7 @@ describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
       assert.ok(explanation);
       assert.strictEqual(explanation.decision, 'ALLOWED');
       assert.ok(explanation.headline.includes('Sentinel Authorized'));
-      assert.strictEqual(explanation.invariantsEvaluated.length, 5);
+      assert.strictEqual(explanation.invariantsEvaluated.length, 6);
 
       // Invariant 1: Single asset ceiling
       const singleAssetInv = explanation.invariantsEvaluated.find(i => i.name === 'MAX_SINGLE_ASSET');
@@ -584,6 +584,11 @@ describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
       const oracleInv = explanation.invariantsEvaluated.find(i => i.name === 'ORACLE_CONFIDENCE');
       assert.ok(oracleInv);
       assert.strictEqual(oracleInv.passed, true);
+
+      // Invariant 5: Quote freshness (Pyth Security Input)
+      const freshInv = explanation.invariantsEvaluated.find(i => i.name === 'QUOTE_FRESHNESS');
+      assert.ok(freshInv);
+      assert.strictEqual(freshInv.passed, true);
 
       assert.ok(explanation.summary.length > 30);
       assert.ok(explanation.marketTruthSummary.includes('Pyth'));

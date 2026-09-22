@@ -31,7 +31,7 @@ import { formatAddress } from '@/lib/formatters';
 
 export default function Home() {
   const client = useMemo(() => new SentinelClient(), []);
-  const { publicKey, connected } = useWallet();
+  const { publicKey, connected, signTransaction, sendTransaction } = useWallet();
   const { connection } = useConnection();
 
   const [mode, setMode] = useState<'SIMULATION' | 'LIVE'>('SIMULATION');
@@ -54,7 +54,7 @@ export default function Home() {
   const [totalDemoSteps, setTotalDemoSteps] = useState<number>(5);
   const [walletBalanceSol, setWalletBalanceSol] = useState<number | null>(null);
 
-  // Sync connected wallet with portfolio owner and fetch Devnet balance
+  // Sync connected wallet with portfolio owner, bind signer, and fetch Devnet balance
   useEffect(() => {
     if (connected && publicKey) {
       connection.getBalance(publicKey).then((lamports) => {
@@ -65,10 +65,18 @@ export default function Home() {
         ...prev,
         owner: publicKey.toBase58(),
       }));
+
+      if (mode === 'LIVE') {
+        client.setWalletSigner({
+          publicKey,
+          signTransaction,
+          sendTransaction,
+        });
+      }
     } else {
       setWalletBalanceSol(null);
     }
-  }, [connected, publicKey, connection]);
+  }, [connected, publicKey, connection, mode, client, signTransaction, sendTransaction]);
 
   const handleSelectVenue = (venue: ExecutionVenueType) => {
     setSelectedVenue(venue);
@@ -107,7 +115,15 @@ export default function Home() {
     const nextMode = mode === 'SIMULATION' ? 'LIVE' : 'SIMULATION';
     setMode(nextMode);
     if (nextMode === 'LIVE') {
-      client.setAdapter(new LiveExecutionAdapter(APP_CONFIG.rpcUrl));
+      if (connected && publicKey) {
+        client.setWalletSigner({
+          publicKey,
+          signTransaction,
+          sendTransaction,
+        });
+      } else {
+        client.setAdapter(new LiveExecutionAdapter(APP_CONFIG.rpcUrl));
+      }
     } else {
       client.setAdapter(new SimulatedExecutionAdapter(150));
     }
@@ -354,6 +370,50 @@ export default function Home() {
     }
   };
 
+  // Pyth Network Bounty Demo Flow (Pyth as a Security Input: Quote Freshness & Pull Update)
+  const handleRunPythDemo = async () => {
+    setIsRunningDemo(true);
+    setDemoTitle('Pyth Oracle Security Guard: Stale Quote Refusal & Pull Update');
+    setTotalDemoSteps(4);
+    setActiveTab('activity');
+
+    try {
+      // Step 1: Inspect Pyth Market Truth
+      setDemoStep(1);
+      setDemoMessage('Step 1/4: Inspecting Pyth dual-feed for AAPLx. Oracle quote age is 140s old (exceeds freshness limit of 60s).');
+      await new Promise(resolve => setTimeout(resolve, 1400));
+
+      // Step 2: Agent attempts trade on stale feed
+      setDemoStep(2);
+      setDemoMessage('Step 2/4: Agent proposes BUY AAPLx $4,000. User policy ($4k ≤ $10k) and exposure (29% ≤ 30%) pass.');
+      await new Promise(resolve => setTimeout(resolve, 1600));
+
+      // Step 3: Sentinel evaluates: "Is this price trustworthy enough to let the agent act?" -> REJECTED!
+      setDemoStep(3);
+      setDemoMessage('Step 3/4: Sentinel halts execution: "NO EXECUTION: Pyth oracle quote is stale (140s > 60s)". Capital protected from stale market data!');
+      const pythResult = await client.runPythSecurityGuardDemoScenario(portfolio, policy);
+      setLatestReport(pythResult.step1StaleQuoteDecision);
+      setEvidenceList(client.getEvidenceHistory());
+      setSelectedEvidenceId(pythResult.step1StaleQuoteDecision.evidenceRecord.id);
+      await new Promise(resolve => setTimeout(resolve, 2800));
+
+      // Step 4: Pull Update & Settlement
+      setDemoStep(4);
+      setDemoMessage('Step 4/4: Pyth Hermès pull update delivers fresh price (age 0s, ±$0.20 confidence). Sentinel verifies integrity & settles trade!');
+      setLatestReport(pythResult.step3FreshSettledDecision);
+      setPortfolio(pythResult.step3FreshSettledDecision.resultingPortfolio);
+      setEvidenceList(client.getEvidenceHistory());
+      setSelectedEvidenceId(pythResult.step3FreshSettledDecision.evidenceRecord.id);
+      await new Promise(resolve => setTimeout(resolve, 2800));
+    } finally {
+      setIsRunningDemo(false);
+      setTimeout(() => {
+        setDemoStep(0);
+        setDemoMessage('');
+      }, 10000);
+    }
+  };
+
   // Phase 8: Run full 10-stage autonomous reactive adaptation loop
   const handleRunAdaptation = async () => {
     setIsRunningAdaptation(true);
@@ -417,6 +477,7 @@ export default function Home() {
         onRunDemo={handleRunDemo}
         onRunPreStocksDemo={handleRunPreStocksDemo}
         onRunMeteoraDemo={handleRunMeteoraDemo}
+        onRunPythDemo={handleRunPythDemo}
         onReset={handleReset}
         isRunningDemo={isRunningDemo}
       />
@@ -448,7 +509,22 @@ export default function Home() {
               {demoMessage}
             </p>
             <div className={`grid grid-cols-2 ${totalDemoSteps === 4 ? 'sm:grid-cols-4' : 'sm:grid-cols-5'} gap-2 text-[10px] font-mono`}>
-              {totalDemoSteps === 4 ? (
+              {demoTitle.includes('Pyth') ? (
+                <>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 1 ? 'bg-amber-900/50 border-amber-400 text-white font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                    1. Stale Quote (140s)
+                  </div>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 2 ? 'bg-amber-900/50 border-amber-400 text-white font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                    2. Propose $4k
+                  </div>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 3 ? 'bg-red-950/70 border-red-500 text-red-300 font-semibold shadow-sm' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                    3. Security Refusal
+                  </div>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 4 ? 'bg-emerald-950/70 border-emerald-400 text-emerald-300 font-semibold shadow-sm' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                    4. Pull Update & Settle
+                  </div>
+                </>
+              ) : totalDemoSteps === 4 ? (
                 <>
                   <div className={`p-2 rounded border text-center transition-all ${demoStep >= 1 ? 'bg-blue-900/50 border-blue-400 text-white font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
                     1. DBC Market

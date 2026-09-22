@@ -8,6 +8,7 @@ import {
   PromiseStatus,
   AuditExplanation,
   SentinelAuthorizationTicket,
+  NormalizedMarketPrice,
 } from '@sentinel/domain';
 
 export type ExecutionVenueType =
@@ -97,6 +98,21 @@ export interface MeteoraMarketGuardDemoResult {
   portfolioExposurePassed: boolean;
   meteoraMarketQualityPassed: boolean;
   blockedReason: string;
+}
+
+export interface PythSecurityGuardDemoResult {
+  step1StaleQuoteDecision: DecisionCycleReport;
+  step2PullUpdatePrice: NormalizedMarketPrice;
+  step3FreshSettledDecision: DecisionCycleReport;
+  summary: string;
+  staleAgeSeconds: number;
+  freshAgeSeconds: number;
+}
+
+export interface WalletSigner {
+  publicKey: import('@solana/web3.js').PublicKey;
+  signTransaction?: (transaction: import('@solana/web3.js').Transaction) => Promise<import('@solana/web3.js').Transaction>;
+  sendTransaction?: (transaction: import('@solana/web3.js').Transaction, connection: import('@solana/web3.js').Connection) => Promise<string>;
 }
 
 // -----------------------------------------------------------------------------

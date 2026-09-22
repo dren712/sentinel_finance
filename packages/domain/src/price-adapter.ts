@@ -90,6 +90,16 @@ export const PYTH_METADATA_REGISTRY: Record<string, FeedMetadata> = {
     defaultUnderlyingUsd: 85.00,
     confidenceUsd: 0.25,
   },
+  ANTHROPICx: {
+    tokenizedFeedId: '0xa9f6b657ede6b7e024e883494747e7eb16752765377f0a67272b1660d2b27005',
+    tokenizedDisplayId: 'PreStocks.ANTHROPIC/USD',
+    underlyingFeedId: '0xa9f6b657ede6b7e024e883494747e7eb16752765377f0a67272b1660d2b27005',
+    underlyingDisplayId: 'PreStocks.Secondary.Anthropic/USD',
+    underlyingSymbol: 'ANTHROPIC',
+    defaultPriceUsd: 110.00,
+    defaultUnderlyingUsd: 110.00,
+    confidenceUsd: 0.45,
+  },
   ROBOx: {
     tokenizedFeedId: '0x10f6b657ede6b7e024e883494747e7eb16752765377f0a67272b1660d2b27004',
     tokenizedDisplayId: 'ClawPump.ROBO/USD',
@@ -230,5 +240,36 @@ export class PythPriceAdapter {
    */
   async getAllNormalizedMarketPrices(): Promise<Record<string, NormalizedMarketPrice>> {
     return this.getAllNormalizedMarketPricesSync();
+  }
+
+  /**
+   * Pyth Security Input Helper: Generates an intentionally stale Pyth market price.
+   * Simulates an environment where the pull service hasn't updated on Solana in `ageSeconds`.
+   */
+  createStalePrice(symbol: string, ageSeconds: number = 140): NormalizedMarketPrice {
+    const fresh = this.getNormalizedMarketPriceSync(symbol);
+    const stalePublishTime = Date.now() - ageSeconds * 1000;
+    return {
+      ...fresh,
+      publishTime: stalePublishTime,
+      publishTimeFormatted: formatPublishTimeUtc(stalePublishTime),
+      status: 'STALE',
+    };
+  }
+
+  /**
+   * Pyth Security Input Helper: Generates a Pyth market price with an excessively wide confidence interval.
+   * Simulates market dislocation / extreme volatility where confidence exceeds institutional limit.
+   */
+  createWideConfidencePrice(symbol: string, confidenceRatioBps: number = 275): NormalizedMarketPrice {
+    const fresh = this.getNormalizedMarketPriceSync(symbol);
+    const wideConfidenceUsd = Math.round((fresh.priceUsd * (confidenceRatioBps / 10_000)) * 100) / 100;
+    return {
+      ...fresh,
+      confidenceUsd: wideConfidenceUsd,
+      confidenceMinUsd: Math.round((fresh.priceUsd - wideConfidenceUsd) * 100) / 100,
+      confidenceMaxUsd: Math.round((fresh.priceUsd + wideConfidenceUsd) * 100) / 100,
+      confidenceRatioBps,
+    };
   }
 }

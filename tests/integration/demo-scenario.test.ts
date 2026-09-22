@@ -77,4 +77,33 @@ describe('Sentinel End-to-End Demo Integration Test', () => {
     assert.ok(result.blockedReason.includes('Sentinel Equity Market Guard'));
     assert.ok(result.blockedReason.includes('Meteora DBC pool liquidity depth'));
   });
+
+  it('executes Pyth Security Input scenario: stale oracle quote halts execution -> Pyth pull update -> verified execution settles', async () => {
+    const client = new SentinelClient();
+    const portfolio = client.createDefaultPortfolio();
+    const policy = client.createDefaultPolicy();
+
+    const result = await client.runPythSecurityGuardDemoScenario(portfolio, policy);
+
+    // Assert Step 1 Rejection: Stale quote halted by Sentinel
+    const step1 = result.step1StaleQuoteDecision;
+    assert.strictEqual(step1.status, 'REJECTED');
+    assert.strictEqual(step1.evaluation.allPassed, false);
+    assert.strictEqual(step1.evaluation.failureCode, 'ERR_QUOTE_STALE');
+    assert.strictEqual(step1.evidenceRecord.verificationResult, 'REJECTED');
+    assert.strictEqual(result.staleAgeSeconds, 140);
+    assert.ok(step1.evidenceRecord.failureReason?.includes('Oracle quote is stale'));
+
+    // Assert Step 2 Pull Update: Fresh price obtained
+    assert.strictEqual(result.step2PullUpdatePrice.symbol, 'AAPLx');
+    assert.strictEqual(result.freshAgeSeconds, 0);
+
+    // Assert Step 3 Execution: Approved and Settled
+    const step3 = result.step3FreshSettledDecision;
+    assert.strictEqual(step3.status, 'SETTLED');
+    assert.strictEqual(step3.evaluation.allPassed, true);
+    assert.strictEqual(step3.evidenceRecord.verificationResult, 'SETTLED');
+    assert.strictEqual(step3.evidenceRecord.postStateHash.length, 64);
+    assert.ok(result.summary.includes('Pyth Security Input Protection'));
+  });
 });

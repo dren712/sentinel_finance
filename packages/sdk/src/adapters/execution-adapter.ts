@@ -10,6 +10,7 @@ import {
   ExecutionResult,
   ExecutionVenueType,
   SecurityViolationError,
+  WalletSigner,
 } from '../types';
 import {
   Connection,
@@ -18,6 +19,7 @@ import {
   Transaction,
   TransactionInstruction,
   sendAndConfirmTransaction,
+  SystemProgram,
 } from '@solana/web3.js';
 
 export { DemoExecutionAdapter, SimulatedExecutionAdapter } from './demo-adapter';
@@ -35,15 +37,15 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
   public readonly venueName: string = 'Solana On-Chain Anchor Program';
   private connection: Connection;
   public readonly programId: PublicKey;
-  private signerKeypair?: Keypair;
+  private signer?: Keypair | WalletSigner;
 
   constructor(
     rpcEndpoint: string = 'http://127.0.0.1:8899',
-    signerKeypair?: Keypair
+    signer?: Keypair | WalletSigner
   ) {
     this.connection = new Connection(rpcEndpoint, 'confirmed');
     this.programId = new PublicKey('3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK');
-    this.signerKeypair = signerKeypair;
+    this.signer = signer;
   }
 
   getMode(): 'LIVE' {
@@ -51,7 +53,15 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
   }
 
   setSignerKeypair(keypair: Keypair): void {
-    this.signerKeypair = keypair;
+    this.signer = keypair;
+  }
+
+  setWalletSigner(signer: WalletSigner): void {
+    this.signer = signer;
+  }
+
+  getSigner(): Keypair | WalletSigner | undefined {
+    return this.signer;
   }
 
   getConnection(): Connection {
@@ -93,7 +103,7 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
       );
     }
 
-    if (!this.signerKeypair) {
+    if (!this.signer) {
       throw new Error(
         'Live execution requires an authorized Solana signer keypair or connected wallet. ' +
         'Please connect a funded Solana wallet or use SIMULATION mode for deterministic offline evaluation.'
@@ -102,7 +112,7 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
 
     try {
       // Check RPC connection liveness
-      await this.connection.getLatestBlockhash();
+      const { blockhash } = await this.connection.getLatestBlockhash();
 
       const isBuy = intent.direction === 'BUY';
       const inputAsset = isBuy ? 'USDC' : intent.assetSymbol;
@@ -128,7 +138,7 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
       instructionData.writeBigUInt64LE(quotedPriceCents, 24);
 
       // Derive PDAs matching Anchor on-chain constraints
-      const authorityPubkey = this.signerKeypair.publicKey;
+      const authorityPubkey = this.signer.publicKey;
       const [vaultPda] = PublicKey.findProgramAddressSync(
         [Buffer.from('vault'), authorityPubkey.toBuffer()],
         this.programId
@@ -151,7 +161,58 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
         this.programId
       );
 
-      const tx = new Transaction().add(
+      const tx = new Transaction();
+
+      // Check if promise exists, otherwise add create_promise instruction
+      const promiseAccountInfo = await this.connection.getAccountInfo(promisePda);
+      if (!promiseAccountInfo) {
+        const promiseDiscriminator = createHash('sha256')
+          .update('global:create_promise')
+          .digest()
+          .subarray(0, 8);
+
+        const promiseIdBuffer = Buffer.from(promiseId, 'utf8');
+        const createPromiseData = Buffer.alloc(8 + 4 + promiseIdBuffer.length + 32 + 32 + 1 + 8);
+        let offset = 0;
+        promiseDiscriminator.copy(createPromiseData, offset);
+        offset += 8;
+        createPromiseData.writeUInt32LE(promiseIdBuffer.length, offset);
+        offset += 4;
+        promiseIdBuffer.copy(createPromiseData, offset);
+        offset += promiseIdBuffer.length;
+        Buffer.from(authorization.intentHash.slice(0, 32), 'utf8').copy(createPromiseData, offset);
+        offset += 32;
+
+        let mintPubkey: PublicKey;
+        try {
+          mintPubkey = new PublicKey(intent.assetMint);
+        } catch {
+          mintPubkey = PublicKey.default;
+        }
+        mintPubkey.toBuffer().copy(createPromiseData, offset);
+        offset += 32;
+
+        createPromiseData.writeUInt8(intent.direction === 'BUY' ? 0 : 1, offset);
+        offset += 1;
+        createPromiseData.writeBigUInt64LE(BigInt(Math.round(intent.tradeAmountUsd)), offset);
+
+        tx.add(
+          new TransactionInstruction({
+            programId: this.programId,
+            keys: [
+              { pubkey: promisePda, isSigner: false, isWritable: true },
+              { pubkey: agentPda, isSigner: false, isWritable: false },
+              { pubkey: policyPda, isSigner: false, isWritable: false },
+              { pubkey: authorityPubkey, isSigner: true, isWritable: true },
+              { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+            ],
+            data: createPromiseData,
+          })
+        );
+      }
+
+      // Add execute_guarded_trade instruction
+      tx.add(
         new TransactionInstruction({
           programId: this.programId,
           keys: [
@@ -165,11 +226,25 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
         })
       );
 
-      const txSignature = await sendAndConfirmTransaction(
-        this.connection,
-        tx,
-        [this.signerKeypair]
-      );
+      tx.recentBlockhash = blockhash;
+      tx.feePayer = authorityPubkey;
+
+      let txSignature: string;
+      if ('secretKey' in this.signer) {
+        txSignature = await sendAndConfirmTransaction(
+          this.connection,
+          tx,
+          [this.signer]
+        );
+      } else if (this.signer.sendTransaction) {
+        txSignature = await this.signer.sendTransaction(tx, this.connection);
+      } else if (this.signer.signTransaction) {
+        const signedTx = await this.signer.signTransaction(tx);
+        txSignature = await this.connection.sendRawTransaction(signedTx.serialize());
+        await this.connection.confirmTransaction(txSignature, 'confirmed');
+      } else {
+        throw new Error('Signer cannot sign or send transaction');
+      }
 
       const route = isBuy
         ? `USDC ATA ➔ Sentinel Program ➔ ${intent.assetSymbol} ATA`

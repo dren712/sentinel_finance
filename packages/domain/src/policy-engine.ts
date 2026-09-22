@@ -1027,9 +1027,10 @@ export function evaluatePostconditions(
     checks.push(checkTesseraTrancheEligibility(intent, policy.maxTesseraNavPremiumBps ?? 1500, currentTime));
   }
 
-  // Tier 3: Trading Constraints
-  if (policy.maxQuoteAgeSeconds !== undefined && priceSource) {
-    checks.push(checkQuoteFreshness(priceSource, policy.maxQuoteAgeSeconds, currentTime));
+  // Tier 3: Trading & Pyth Oracle Security Input Constraints
+  if (priceSource) {
+    const maxQuoteAge = policy.maxQuoteAgeSeconds ?? 60;
+    checks.push(checkQuoteFreshness(priceSource, maxQuoteAge, currentTime));
   }
 
   if (policy.maxPriceImpactBps !== undefined && venueDetails?.liquidityDepthUsd) {

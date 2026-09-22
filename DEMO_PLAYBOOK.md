@@ -171,6 +171,18 @@ This is the core demonstration. It takes **under 2 minutes** and visibly demonst
 
 ---
 
+### 3.4 Pyth Network Bounty Live Demo: Pyth as a Security Input
+* **How to trigger**: Click **"Demo Scenarios"** dropdown in the header and select **"Pyth Oracle Security Guard"**.
+* **The Narrative**:
+  > *"Pyth is not just a price display in Sentinel — it is a non-negotiable SECURITY INPUT. Sentinel refuses autonomous agent execution when market truth is stale or unreliable, directly showcasing the Pyth pull model in action."*
+* **Step-by-Step Flow**:
+  1. **Step 1/4 (Stale Feed Inspection)**: Agent inspects Pyth feed for `AAPLx`. Quote publish timestamp is 140s old (exceeds freshness ceiling of 60s).
+  2. **Step 2/4 (Autonomous Intent)**: Agent proposes `BUY AAPLx $4,000`. User sizing limit passes ($4k \le \$10k$ ✓) and portfolio exposure passes ($29\% \le 30\%$ ✓).
+  3. **Step 3/4 (Security Refusal)**: Sentinel evaluates: *"Is this price trustworthy enough to let the agent act?"* Result: **NO EXECUTION** (`ERR_QUOTE_STALE`). Autonomous intent is halted before capital is risked on stale market data!
+  4. **Step 4/4 (Pyth Pull Update & Settlement)**: App pulls fresh Hermès price update on Solana (age 0s, $\pm \$0.20$ confidence). Sentinel verifies quote integrity, authorizes execution, and settles trade on-chain with PROVN receipt.
+
+---
+
 ## 🏛️ 4. Deep Dive: The 4 Architecture Pillars
 
 If the judges or audience ask to explore further, walk through the 4 navigation tabs:
@@ -225,7 +237,7 @@ If the judges or audience ask to explore further, walk through the 4 navigation 
 | **Primary Wedge: Investing** | **Robo-Portfolios ($100,000 Main Track)** | Fully autonomous robo-portfolio manager delivering dynamic multi-asset balancing bounded by on-chain postconditions. |
 | **PreStocks** | **$10,000 Bounty Target** | 100% PreStocks exclusive pre-IPO asset universe (`OPENAIx`, `SPACEXx`, `ANTHROPICx`, `STRIPEx`), Portfolio Builder, and Macro Asset Class allocation enforcement (`Pre-IPO ≤ 20%`). |
 | **Meteora** | **$5,000 Bounty Target** | **Sentinel Equity Market Guard**: Meteora DBC curve mechanics, reserve depth verification ($25,000 floor), dynamic fee tracking, and bidirectional market protection. |
-| **Pyth Network** | **Pyth Pro Track** | Dual-feed mark-to-market pricing, confidence bounds ($\pm \sigma$) deserialization, staleness checks, and tracking error rejection. |
+| **Pyth Network** | **Pyth Pro Track** | **Pyth as a Security Input**: Quote freshness enforcement (≤ 60s), confidence ratio bounds (≤ 1.50%), pull-model updates via Hermès, dual-feed basis tracking error checks, and refusal of execution on stale market truth. |
 
 ---
 

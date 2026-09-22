@@ -55,7 +55,7 @@ Solana Explorer: https://explorer.solana.com/address/3gh1Cc2Qc65hJhxZKneXphWJa27
      - *Demo Moment*: Agent proposes `BUY OPENAIx $30,000` (pre-IPO surges from 18% ➔ 48%) ➔ Reverted atomically (`48% > 20% PreStocks Cap`) ➔ Auto-adapts to $2,000 remaining headroom ➔ Settles cleanly via PreStocks Secondary Vault.
   2. **Meteora — $5,000 Target**: Sentinel Equity Market Guard (**Market Protection + Account Protection**). Meteora DBC curve mechanics, reserve depth verification ($25,000 floor), dynamic fee tracking, and bidirectional market protection.
      - *Demo Moment*: Agent proposes `BUY NVDAx $8,000` ➔ User policy passes ($8k ≤ $10k ✓), Portfolio exposure passes (28% ≤ 30% ✓) ➔ BLOCKED by Sentinel Equity Market Guard on shallow Meteora DBC pool depth ($12,000 < $25,000 floor).
-  3. **Pyth Network (Pyth Pro)**: Dual-feed mark-to-market pricing, confidence bounds ($\pm \sigma$), tracking error detection, and stale-quote rejection.
+  3. **Pyth Network (Pyth Pro)**: Pyth as an authoritative **Security Input** (`STALE / LOW CONFIDENCE ➔ NO EXECUTION`). Dual-feed mark-to-market pricing, confidence bounds ($\pm \sigma$), tracking error detection, and staleness rejection via Pyth pull updates.
 - *Strict Sponsor Compliance*: 100% of pre-IPO assets belong exclusively to PreStocks Protocol. No competing pre-IPO tokens are integrated. ClawPump is retained cleanly as an internal Ed25519 agent-wallet identity pattern.
 
 ---
@@ -173,6 +173,17 @@ Step 5: Settlement & Two-Tier PROVN Receipt
         └── Technical Drawer: Deterministic SHA-256 Pre/Post State Hashes & PDA
 ```
 
+### 🎮 Turnkey Demo Scenarios (Interactive in UI & Test Suite)
+
+1. **Flagship Scenario: Exposure & Reserve Enforcement**
+   - Agent proposes `BUY NVDAx $15,000` (exceeds single-asset cap & trade size) ➔ Atomic Revert ➔ Auto-adapts to `$5,000` headroom ➔ Settles with PROVN receipt.
+2. **PreStocks Scenario ($10,000 Target): Macro Category Cap**
+   - Agent proposes `BUY OPENAI $30,000` (pre-IPO surges to 48% vs 20% cap) ➔ Policy rejection ➔ Auto-adapts to `$2,000` capacity ➔ Settles via PreStocks Vault PDA.
+3. **Meteora Scenario ($5,000 Target): Sentinel Equity Market Guard**
+   - Agent proposes `BUY NVDAx $8,000` (account checks pass) ➔ Intercepted by Meteora DBC pool depth check ($12k < $25k floor) ➔ Prevents toxic slippage before execution.
+4. **Pyth Sponsor Scenario: Oracle Security Guard (`STALE / LOW CONFIDENCE ➔ NO EXECUTION`)**
+   - Oracle quote stale (140s > 60s max allowed) ➔ Agent proposes `BUY AAPL $4,000` ➔ Sentinel refuses execution on stale pricing ➔ Pyth Hermès pull update refreshes quote (2s) ➔ Settles cleanly on-chain.
+
 ---
 
 ## 📦 Monorepo Layout & Responsibilities
@@ -182,14 +193,14 @@ Step 5: Settlement & Two-Tier PROVN Receipt
 | `programs/sentinel` | Authoritative Solana Anchor program enforcing postconditions on-chain. | **9/9 Rust Tests Passing** |
 | `packages/domain` | Pure TypeScript financial policy engine, fixed-point math, SWARM verifiers, and PROVN receipts. | **39/39 Tests Passing** |
 | `packages/sdk` | High-level orchestration client, 10-stage autonomous agent loop, and execution adapters. | **55/55 Tests Passing** |
-| `tests/integration` | End-to-end multi-step autonomous adaptation integration test. | **1/1 Test Passing** |
+| `tests/integration` | End-to-end multi-step autonomous adaptation integration test suite (Flagship, PreStocks, Meteora, Pyth). | **4/4 Tests Passing** |
 | `apps/web` | Institutional 4-Pillar Next.js 14 frontend (Portfolio, Agent, Protection, Activity). | **Build Passing (Exit 0)** |
 
 ---
 
 ## 🚀 Verification & Quickstart
 
-### 1. Run All Automated Test Suites
+### 1. Run All Automated Test Suites (107 / 107 Passing)
 ```bash
 # 1. Rust Anchor Invariant Tests (9 tests)
 cargo test --manifest-path programs/sentinel/Cargo.toml --lib
@@ -200,7 +211,7 @@ pnpm --filter @sentinel/domain test
 # 3. SDK, Autonomous Agent Loop & Execution Adapter Tests (55 tests)
 pnpm --filter @sentinel/sdk test
 
-# 4. End-to-End Demo Scenario Integration Test (1 test)
+# 4. End-to-End Demo Scenario Integration Tests (4 tests)
 node --test tests/integration/demo-scenario.test.ts
 
 # 5. Production Web Build Check
