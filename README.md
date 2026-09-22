@@ -1,10 +1,11 @@
-# Sentinel Finance (Sentinel Robo)
+# Sentinel Robo (Sentinel Finance)
 
 > **Autonomous Robo-Portfolio for Tokenized Equities on Solana with Authoritative On-Chain Financial Postcondition Guarantees.**
 
-Sentinel Finance allows investors to delegate portfolio management to autonomous AI agents while strictly enforcing machine-checkable financial guarantees at the transaction / state-transition boundary.
+Sentinel Robo is an autonomous portfolio manager on Solana where the agent can choose the trade, but Sentinel enforces what the resulting portfolio is allowed to become.
 
-**"The agent can make investment decisions, but it cannot settle an outcome that violates the user's financial promises."**
+**Core Invariant Moat Pipeline**:
+$$\text{Intent} \longrightarrow \text{Promise} \longrightarrow \text{Post-State} \longrightarrow \text{Financial Invariants} \longrightarrow \text{Decision} \longrightarrow \text{Adaptation} \longrightarrow \text{Evidence (PROVN)}$$
 
 ---
 
@@ -48,12 +49,14 @@ Solana Explorer: https://explorer.solana.com/address/3gh1Cc2Qc65hJhxZKneXphWJa27
 
 ## 🏆 Hackathon Alignment: Stocklana First, Colosseum Graduation
 
-- **Primary Track**: **Investing → Robo-Portfolios ($100,000)**
-- **Strategic Sponsor Focus (3 Core Tracks)**:
-  1. **Pyth Network (Pyth Pro)**: Dual-feed mark-to-market pricing, confidence bounds ($\pm \sigma$), tracking error detection, and stale-quote rejection.
-  2. **PreStocks ($10,000 Bounty)**: Pre-IPO Asset Universe (`SPACEXx`, `OPENAIx`, `STRIPEx`), Portfolio Builder, and Macro Asset Class Allocation Policies (`Pre-IPO ≤ 20%`).
-  3. **Meteora ($5,000 Bounty)**: Dynamic Bonding Curve (DBC) Liquidity Primitive, reserve depth verification ($25,000 floor), dynamic fee tracking, and bidirectional market protection.
-- *Contained Internal Modules*: ClawPump (Ed25519 autonomous agent wallet pattern) and Tessera (SPV tranche metadata and 409A NAV attestation) are integrated cleanly as internal architectural capabilities without cluttering external bounty pitches.
+- **Primary Wedge**: **Investing → Robo-Portfolios ($100,000 Main Track)**
+- **Strategic Sponsor Focus (2 Locked Paid Tracks + Pyth Oracle Foundation)**:
+  1. **PreStocks — $10,000 Target**: 100% PreStocks Tokenized Pre-IPO Asset Universe (`OPENAIx`, `SPACEXx`, `ANTHROPICx`, `STRIPEx`), Portfolio Builder, and Macro Asset Class Allocation Policies (`Pre-IPO ≤ 20%`).
+     - *Demo Moment*: Agent proposes `BUY OPENAIx $30,000` (pre-IPO surges from 18% ➔ 48%) ➔ Reverted atomically (`48% > 20% PreStocks Cap`) ➔ Auto-adapts to $2,000 remaining headroom ➔ Settles cleanly via PreStocks Secondary Vault.
+  2. **Meteora — $5,000 Target**: Sentinel Equity Market Guard (**Market Protection + Account Protection**). Meteora DBC curve mechanics, reserve depth verification ($25,000 floor), dynamic fee tracking, and bidirectional market protection.
+     - *Demo Moment*: Agent proposes `BUY NVDAx $8,000` ➔ User policy passes ($8k ≤ $10k ✓), Portfolio exposure passes (28% ≤ 30% ✓) ➔ BLOCKED by Sentinel Equity Market Guard on shallow Meteora DBC pool depth ($12,000 < $25,000 floor).
+  3. **Pyth Network (Pyth Pro)**: Dual-feed mark-to-market pricing, confidence bounds ($\pm \sigma$), tracking error detection, and stale-quote rejection.
+- *Strict Sponsor Compliance*: 100% of pre-IPO assets belong exclusively to PreStocks Protocol. No competing pre-IPO tokens are integrated. ClawPump is retained cleanly as an internal Ed25519 agent-wallet identity pattern.
 
 ---
 

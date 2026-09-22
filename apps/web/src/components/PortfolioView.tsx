@@ -11,8 +11,49 @@ import {
   deriveSentinelPda,
   evaluateAssetClassAllocations,
   getAssetCategory,
-  getTesseraTranche,
 } from '@sentinel/domain';
+
+export const PRESTOCKS_SERIES_REGISTRY: Record<string, {
+  seriesId: string;
+  facility: string;
+  shareClass: string;
+  navAttestationUsd: number;
+  navAttestationDate: string;
+  vaultPda: string;
+}> = {
+  OPENAIx: {
+    seriesId: 'PRESTOCKS_OPENAI_SECONDARY_SERIES',
+    facility: 'PreStocks Protocol Secondary Facility',
+    shareClass: 'Secondary Employee Tender Tranche',
+    navAttestationUsd: 200.0,
+    navAttestationDate: '2026-08-01',
+    vaultPda: 'PreStkOPENAIVault1111111111111111111111111',
+  },
+  SPACEXx: {
+    seriesId: 'PRESTOCKS_SPACEX_SERIES_N',
+    facility: 'PreStocks Protocol Secondary Facility',
+    shareClass: 'Series N Preferred',
+    navAttestationUsd: 135.0,
+    navAttestationDate: '2026-08-15',
+    vaultPda: 'PreStkSPACEXVault1111111111111111111111111',
+  },
+  ANTHROPICx: {
+    seriesId: 'PRESTOCKS_ANTHROPIC_SERIES_C',
+    facility: 'PreStocks Protocol Secondary Facility',
+    shareClass: 'Series C Preferred',
+    navAttestationUsd: 105.0,
+    navAttestationDate: '2026-08-10',
+    vaultPda: 'PreStkANTHROPICVault111111111111111111111',
+  },
+  STRIPEx: {
+    seriesId: 'PRESTOCKS_STRIPE_SERIES_I',
+    facility: 'PreStocks Protocol Secondary Facility',
+    shareClass: 'Series I Preferred',
+    navAttestationUsd: 80.0,
+    navAttestationDate: '2026-07-20',
+    vaultPda: 'PreStkSTRIPEVault1111111111111111111111111',
+  },
+};
 import {
   TrendingUp,
   ShieldCheck,
@@ -182,7 +223,7 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
     ? portfolio.assets.find((a) => a.symbol === selectedAssetSymbol)
     : null;
   const selectedMarketPrice = selectedAssetSymbol ? marketPrices?.[selectedAssetSymbol] : undefined;
-  const selectedTessera = selectedAssetSymbol ? getTesseraTranche(selectedAssetSymbol) : undefined;
+  const selectedPreStocks = selectedAssetSymbol ? PRESTOCKS_SERIES_REGISTRY[selectedAssetSymbol] : undefined;
 
   // Near-boundary evaluation for selected asset (within 200 bps of cap or floor)
   let isNearBoundary = false;
@@ -850,34 +891,38 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
                 </div>
               </div>
 
-              {/* Pre-IPO / Tessera Legal Tranche (if applicable) */}
-              {selectedTessera && (
+              {/* Pre-IPO / PreStocks Allocation (if applicable) */}
+              {selectedPreStocks && (
                 <div className="bg-purple-950/20 border border-purple-500/30 rounded-xl p-4 font-mono text-xs space-y-2.5">
                   <div className="flex items-center justify-between border-b border-purple-500/20 pb-2">
                     <span className="font-bold text-white text-[11px] uppercase flex items-center gap-1.5">
                       <Building2 className="w-3.5 h-3.5 text-purple-400" />
-                      Tessera SPV Legal Tranche
+                      PreStocks Tokenized Pre-IPO Equity
                     </span>
                     <span className="px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 text-[10px]">
-                      {selectedTessera.trancheId}
+                      {selectedPreStocks.seriesId}
                     </span>
                   </div>
                   <div className="space-y-1.5 text-[11px]">
                     <div>
-                      <span className="text-sentinel-textSubtle block text-[10px]">LEGAL ENTITY:</span>
-                      <span className="text-white font-semibold">{selectedTessera.spvLegalEntity}</span>
+                      <span className="text-sentinel-textSubtle block text-[10px]">ISSUER & FACILITY:</span>
+                      <span className="text-white font-semibold">{selectedPreStocks.facility}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sentinel-textSubtle">Certified 409A / Forge NAV:</span>
-                      <span className="text-white font-bold">${selectedTessera.navAttestationUsd.toFixed(2)}</span>
+                      <span className="text-white font-bold">${selectedPreStocks.navAttestationUsd.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sentinel-textSubtle">Attestation Date:</span>
-                      <span className="text-sentinel-textMuted">{selectedTessera.navAttestationDate}</span>
+                      <span className="text-sentinel-textMuted">{selectedPreStocks.navAttestationDate}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-sentinel-textSubtle">Share Class / Lockup:</span>
-                      <span className="text-emerald-400 font-semibold">{selectedTessera.shareClass} · Unlocked</span>
+                      <span className="text-sentinel-textSubtle">Share Class / Status:</span>
+                      <span className="text-emerald-400 font-semibold">{selectedPreStocks.shareClass} · Unlocked</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sentinel-textSubtle">Secondary Vault PDA:</span>
+                      <span className="text-purple-300 font-semibold">{selectedPreStocks.vaultPda.slice(0, 12)}...</span>
                     </div>
                   </div>
                 </div>

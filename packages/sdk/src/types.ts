@@ -80,6 +80,25 @@ export interface DemoScenarioResult {
   summary: string;
 }
 
+export interface PreStocksDemoScenarioResult {
+  step1RejectedDecision: DecisionCycleReport;
+  step2SettledDecision: DecisionCycleReport;
+  summary: string;
+  initialPreIpoExposureBps: number;
+  projectedBadExposureBps: number;
+  adaptedExposureBps: number;
+  policyPreIpoCapBps: number;
+}
+
+export interface MeteoraMarketGuardDemoResult {
+  report: DecisionCycleReport;
+  summary: string;
+  userPolicyPassed: boolean;
+  portfolioExposurePassed: boolean;
+  meteoraMarketQualityPassed: boolean;
+  blockedReason: string;
+}
+
 // -----------------------------------------------------------------------------
 // Autonomous Agent Reactive Adaptation Loop (Phase 8)
 // -----------------------------------------------------------------------------

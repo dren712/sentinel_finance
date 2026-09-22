@@ -130,6 +130,23 @@ export const ASSET_REGISTRY: Record<string, TokenizedAssetMetadata> = {
     colorHex: '#6366F1', // Indigo
     description: 'Tokenized private equity representing Stripe Inc on Solana via PreStocks.',
   },
+  ANTHROPICx: {
+    id: 'asset_anthropicx',
+    symbol: 'ANTHROPICx',
+    name: 'Anthropic Tokenized Pre-IPO',
+    assetClass: 'PRE_IPO',
+    mint: 'ANTHROP111111111111111111111111111111111111',
+    mintDevnet: 'ANTHROP111111111111111111111111111111111111',
+    underlyingAsset: 'ANTHROPIC',
+    issuer: 'PreStocks Protocol',
+    sector: 'ARTIFICIAL_INTELLIGENCE',
+    decimals: 6,
+    status: 'PRE_IPO',
+    isStablecoin: false,
+    basePriceUsd: 110.00,
+    colorHex: '#D97706', // Amber
+    description: 'Tokenized private equity representing Anthropic PBC on Solana via PreStocks.',
+  },
   ROBOx: {
     id: 'asset_robox',
     symbol: 'ROBOx',
@@ -200,7 +217,7 @@ export function getAssetUniverse(): Record<AssetUniverseCategory, AssetUniverseG
       displayName: 'Pre-IPO (PreStocks)',
       description: 'Tokenized private equity for late-stage technology unicorns on Solana via PreStocks',
       defaultMaxExposureBps: 2000, // ≤ 20%
-      assets: [ASSET_REGISTRY.SPACEXx, ASSET_REGISTRY.OPENAIx, ASSET_REGISTRY.STRIPEx],
+      assets: [ASSET_REGISTRY.OPENAIx, ASSET_REGISTRY.SPACEXx, ASSET_REGISTRY.ANTHROPICx, ASSET_REGISTRY.STRIPEx],
     },
     STABLE: {
       category: 'STABLE',
@@ -219,7 +236,7 @@ export function getAssetCategory(symbol: string): AssetUniverseCategory {
   const meta = ASSET_REGISTRY[symbol];
   if (!meta) {
     if (symbol === 'USDC') return 'STABLE';
-    if (symbol.includes('SPACEX') || symbol.includes('OPENAI') || symbol.includes('STRIPE')) {
+    if (symbol.includes('SPACEX') || symbol.includes('OPENAI') || symbol.includes('ANTHROP') || symbol.includes('STRIPE')) {
       return 'PRE_IPO';
     }
     return 'PUBLIC_EQUITIES';

@@ -366,10 +366,11 @@ describe('Sentinel Domain & Policy Engine Unit Tests', () => {
 
       // PreStocks pre-IPO lookups
       const preIpoAssets = getAssetsByClass('PRE_IPO');
-      assert.strictEqual(preIpoAssets.length, 3);
+      assert.strictEqual(preIpoAssets.length, 4);
       assert.ok(preIpoAssets.some(a => a.symbol === 'SPACEXx'));
       assert.ok(preIpoAssets.some(a => a.symbol === 'OPENAIx'));
       assert.ok(preIpoAssets.some(a => a.symbol === 'STRIPEx'));
+      assert.ok(preIpoAssets.some(a => a.symbol === 'ANTHROPICx'));
 
       const spacex = getAssetById('asset_spacex');
       assert.ok(spacex);

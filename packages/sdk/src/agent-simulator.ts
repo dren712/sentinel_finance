@@ -26,6 +26,8 @@ import {
   ExecutionAdapter,
   DecisionCycleReport,
   DemoScenarioResult,
+  PreStocksDemoScenarioResult,
+  MeteoraMarketGuardDemoResult,
   SecurityViolationError,
   AgentLoopStage,
   BreachedInvariant,
@@ -34,6 +36,8 @@ import {
   AutonomousAdaptationResult,
 } from './types';
 
+import { PreStocksExecutionAdapter } from './adapters/prestocks-adapter';
+import { MeteoraExecutionAdapter } from './adapters/meteora-adapter';
 import { ClawPumpAgentWallet } from './sponsors/clawpump';
 
 export interface AgentConfig {
@@ -802,6 +806,128 @@ export class AutonomousRoboAgent {
       step1BadDecision: result.step1RejectedDecision,
       step2AdaptedDecision: result.step2SettledDecision,
       summary: result.summary,
+    };
+  }
+
+  /**
+   * Executes the PreStocks $10,000 Bounty Demo Scenario:
+   * 1. Initial State: Portfolio has Pre-IPO allocation (e.g. 18.0%).
+   * 2. Agent proposes BUY OPENAIx $30,000 (pre-IPO exposure surges from 18% -> 48%).
+   * 3. Sentinel Policy Enforces Pre-IPO ceiling (<= 20%): REJECTED / REVERTED!
+   * 4. Autonomous Adaptation: Agent computes max compliant size and re-submits.
+   * 5. Compliant Settlement via PreStocks Secondary Vault and generates PROVN receipt.
+   */
+  async runPreStocksDemoScenario(
+    initialPortfolio: PortfolioSnapshot,
+    policy: FinancialPolicy,
+    adapter?: ExecutionAdapter
+  ): Promise<PreStocksDemoScenarioResult> {
+    const preStocksAdapter = adapter ?? new PreStocksExecutionAdapter();
+    const effectivePolicy: FinancialPolicy = {
+      ...policy,
+      maxPreIpoExposureBps: policy.maxPreIpoExposureBps ?? 2000,
+    };
+
+    const preIpoCapBps = effectivePolicy.maxPreIpoExposureBps ?? 2000;
+    const currentPreIpo = initialPortfolio.assets
+      .filter(a => getAssetCategory(a.symbol) === 'PRE_IPO' || a.assetClass === 'PRE_IPO')
+      .reduce((sum, a) => sum + a.valueUsd, 0);
+    const initialPreIpoExposureBps = Math.round(
+      (currentPreIpo / initialPortfolio.totalValueUsd) * 10_000
+    );
+
+    const result = await this.executeAutonomousAdaptationLoop(
+      initialPortfolio,
+      effectivePolicy,
+      'OPENAIx',
+      30_000,
+      preStocksAdapter
+    );
+
+    const projectedBadExposureBps = Math.round(
+      ((currentPreIpo + 30_000) / initialPortfolio.totalValueUsd) * 10_000
+    );
+
+    const resultingPreIpo = result.step2SettledDecision.resultingPortfolio.assets
+      .filter(a => getAssetCategory(a.symbol) === 'PRE_IPO' || a.assetClass === 'PRE_IPO')
+      .reduce((sum, a) => sum + a.valueUsd, 0);
+    const adaptedExposureBps = Math.round(
+      (resultingPreIpo / result.step2SettledDecision.resultingPortfolio.totalValueUsd) * 10_000
+    );
+
+    return {
+      step1RejectedDecision: result.step1RejectedDecision,
+      step2SettledDecision: result.step2SettledDecision,
+      summary: `PreStocks Invariant Protection: Proposed $30,000 OPENAI trade rejected (${(projectedBadExposureBps / 100).toFixed(1)}% > ${(preIpoCapBps / 100).toFixed(1)}% cap). Auto-adapted to $${result.step2SettledDecision.intent.tradeAmountUsd.toLocaleString()} (${(adaptedExposureBps / 100).toFixed(1)}% exposure) and settled via PreStocks Secondary Vault.`,
+      initialPreIpoExposureBps,
+      projectedBadExposureBps,
+      adaptedExposureBps,
+      policyPreIpoCapBps: preIpoCapBps,
+    };
+  }
+
+  /**
+   * Executes the Meteora $5,000 Bounty Demo Scenario (Sentinel Equity Market Guard):
+   * 1. Agent wants to BUY NVDAx $8,000.
+   * 2. User policy passes (trade size <= $10k limit).
+   * 3. Portfolio single-asset exposure passes (NVDA <= 25% limit).
+   * 4. Meteora DBC Market Quality fails (liquidity depth below $25,000 floor).
+   * 5. Sentinel blocks execution atomically: "BLOCKED by Sentinel Equity Market Guard".
+   */
+  async runMeteoraMarketGuardDemoScenario(
+    initialPortfolio: PortfolioSnapshot,
+    policy: FinancialPolicy,
+    adapter?: ExecutionAdapter
+  ): Promise<MeteoraMarketGuardDemoResult> {
+    const nvdaMeta = ASSET_REGISTRY.NVDAx;
+    const tradeAmountUsd = 8_000;
+
+    // Ensure policy allows the $8,000 trade under single-asset exposure (28% <= 30% cap)
+    // so that the failure isolates strictly to Meteora DBC liquidity/market quality.
+    const effectivePolicy: FinancialPolicy = {
+      ...policy,
+      maxSingleAssetBps: Math.max(policy.maxSingleAssetBps ?? 2500, 3000),
+    };
+
+    const intent = this.proposeIntent({
+      assetSymbol: 'NVDAx',
+      assetMint: nvdaMeta?.mint ?? 'NVDA111111111111111111111111111111111111111',
+      direction: 'BUY',
+      tradeAmountUsd,
+      referencePriceUsd: nvdaMeta?.basePriceUsd ?? 120.0,
+      strategyRationale: 'Increase NVDAx position by $8,000 via Meteora DBC market',
+    });
+
+    const shallowDepthUsd = 12_000;
+    const minFloor = policy.minLiquidityUsd ?? 25_000;
+    const userPolicyPassed = tradeAmountUsd <= policy.maxTradeValueUsd;
+    const totalVal = initialPortfolio.totalValueUsd;
+    const currentNvdaVal = initialPortfolio.assets.find(a => a.symbol === 'NVDAx')?.valueUsd ?? 0;
+    const projectedNvdaBps = Math.round(((currentNvdaVal + tradeAmountUsd) / totalVal) * 10_000);
+    const portfolioExposurePassed = projectedNvdaBps <= effectivePolicy.maxSingleAssetBps;
+    const meteoraMarketQualityPassed = shallowDepthUsd >= minFloor;
+
+    const meteoraAdapter = adapter ?? new MeteoraExecutionAdapter({ minLiquidityDepthUsd: minFloor });
+    if (meteoraAdapter instanceof MeteoraExecutionAdapter) {
+      meteoraAdapter.setPoolDepth('NVDAx', shallowDepthUsd);
+    }
+
+    const report = await this.runDecisionCycle(
+      initialPortfolio,
+      effectivePolicy,
+      intent,
+      meteoraAdapter
+    );
+
+    const blockedReason = `Execution blocked by Sentinel Equity Market Guard: Meteora DBC pool liquidity depth ($${shallowDepthUsd.toLocaleString()}) is below required $${minFloor.toLocaleString()} floor. Bidirectional protection prevents predatory price impact on the DBC curve.`;
+
+    return {
+      report,
+      summary: blockedReason,
+      userPolicyPassed,
+      portfolioExposurePassed,
+      meteoraMarketQualityPassed,
+      blockedReason,
     };
   }
 

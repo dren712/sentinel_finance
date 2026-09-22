@@ -144,6 +144,33 @@ This is the core demonstration. It takes **under 2 minutes** and visibly demonst
 
 ---
 
+### 3.2 PreStocks $10,000 Bounty Live Demo: Pre-IPO Cap Enforcement
+* **How to trigger**: Click **"Demo Scenarios"** dropdown in the header and select **"PreStocks ($10K Bounty)"**.
+* **The Narrative**:
+  > *"The PreStocks bounty evaluates material product integration and private equity safety. Watch how Sentinel prevents an autonomous agent from over-concentrating in private equity."*
+* **Step-by-Step Flow**:
+  1. **Step 1/5 (Universe)**: Shows PreStocks Asset Universe (`OPENAIx`, `SPACEXx`, `ANTHROPICx`, `STRIPEx`) with macro policy limit: $\text{Pre-IPO} \le 20.0\%$.
+  2. **Step 2/5 (Proposal)**: Agent spots an OpenAI secondary tender and proposes `BUY OPENAIx $30,000` (would surge Pre-IPO exposure from $18\% \rightarrow 48\%$).
+  3. **Step 3/5 (Atomic Revert)**: Sentinel on-chain postcondition aborts immediately: `ERR_PRE_IPO_EXPOSURE_EXCEEDED: 48.0% > 20.0% cap`. Reverted atomically with 0 funds lost!
+  4. **Step 4/5 (Autonomous Adaptation)**: Agent inspects rejection telemetry, computes exact remaining Pre-IPO headroom ($2,000), and auto-adapts proposal to `BUY OPENAIx $2,000`.
+  5. **Step 5/5 (PreStocks Settlement)**: Trade settles cleanly via **PreStocks Secondary Vault**, generating an immutable PROVN receipt.
+
+---
+
+### 3.3 Meteora $5,000 Bounty Live Demo: Sentinel Equity Market Guard
+* **How to trigger**: Click **"Demo Scenarios"** dropdown in the header and select **"Meteora ($5K Bounty)"**.
+* **The Narrative**:
+  > *"Meteora asked: 'What does Meteora DBC look like for tokenized stocks?' Our answer: Sentinel Equity Market Guard. We unite Meteora market quality with Sentinel account protection to provide bidirectional safety."*
+* **Step-by-Step Flow**:
+  1. **Step 1/4 (Market Inspection)**: Inspects Meteora DBC market for `NVDAx` (virtual reserves, graduation threshold, and $25,000 liquidity floor).
+  2. **Step 2/4 (Compliant Proposal)**: Agent proposes `BUY NVDAx $8,000`. User policy passes ($8k \le \$10k$ ✓) and portfolio concentration passes ($28\% \le 30\%$ ✓).
+  3. **Step 3/4 (Market Guard Detection)**: Sentinel Equity Market Guard inspects DBC pool depth and detects shallow liquidity ($12,000 < \$25,000$ minimum floor).
+  4. **Step 4/4 (Execution Blocked)**: Sentinel **BLOCKS** execution atomically!
+     - Protects the investor from catastrophic price impact.
+     - Protects the Meteora DBC curve from toxic, predatory orders.
+
+---
+
 ## 🏛️ 4. Deep Dive: The 4 Architecture Pillars
 
 If the judges or audience ask to explore further, walk through the 4 navigation tabs:
@@ -151,8 +178,10 @@ If the judges or audience ask to explore further, walk through the 4 navigation 
 ### Pillar 1: PORTFOLIO & PreStocks Universe
 * **Navigate to**: `PORTFOLIO` tab.
 * **Key Features to Highlight**:
-  * **Interactive Asset Breakdown**: Liquid tokenized stocks (`NVDAx`, `AAPLx`, `SPYx`) alongside late-stage Pre-IPO private equities (`SPACEXx`, `OPENAIx`, `STRIPEx`).
-  * **Interactive Portfolio Builder**: Click **"Build Your Portfolio"** to test multi-asset presets (*Balanced Multi-Asset*, *PreStocks Tech Alpha*, *Public Blue-Chips*).
+  * **Interactive Asset Breakdown**: Liquid tokenized stocks (`NVDAx`, `AAPLx`, `SPYx`) alongside late-stage Pre-IPO private equities (`SPACEXx`, `OPENAIx`, `ANTHROPICx`, `STRIPEx`).
+  * **PreStocks Exclusivity**: 100% of pre-IPO secondary allocations belong to PreStocks Protocol. Zero competing pre-IPO tokens.
+  * **Asset Detail Drawer**: Clicking any pre-IPO holding displays the **PreStocks Tokenized Pre-IPO Secondary Allocation**, Certified 409A / Forge NAV ($200.00), attestation date, and Secondary Vault PDA.
+  * **Interactive Portfolio Builder**: Click **"Asset Allocator"** to test multi-asset presets (*Balanced Multi-Asset*, *PreStocks Tech Alpha*, *Public Blue-Chips*).
   * **Macro Asset Class Caps**: Automatic enforcement of `Pre-IPO ≤ 20.0%` allocation.
 
 ### Pillar 2: AGENT (Robo-01 & 10-Stage Loop)
@@ -193,10 +222,10 @@ If the judges or audience ask to explore further, walk through the 4 navigation 
 
 | Track / Sponsor | Bounty / Prize | How Sentinel Finance Delivers Concrete Value |
 | :--- | :--- | :--- |
-| **Primary Track: Investing** | **Robo-Portfolios ($100,000)** | Fully autonomous robo-portfolio manager delivering dynamic multi-asset balancing bounded by on-chain postconditions. |
+| **Primary Wedge: Investing** | **Robo-Portfolios ($100,000 Main Track)** | Fully autonomous robo-portfolio manager delivering dynamic multi-asset balancing bounded by on-chain postconditions. |
+| **PreStocks** | **$10,000 Bounty Target** | 100% PreStocks exclusive pre-IPO asset universe (`OPENAIx`, `SPACEXx`, `ANTHROPICx`, `STRIPEx`), Portfolio Builder, and Macro Asset Class allocation enforcement (`Pre-IPO ≤ 20%`). |
+| **Meteora** | **$5,000 Bounty Target** | **Sentinel Equity Market Guard**: Meteora DBC curve mechanics, reserve depth verification ($25,000 floor), dynamic fee tracking, and bidirectional market protection. |
 | **Pyth Network** | **Pyth Pro Track** | Dual-feed mark-to-market pricing, confidence bounds ($\pm \sigma$) deserialization, staleness checks, and tracking error rejection. |
-| **PreStocks** | **$10,000 Bounty** | Pre-IPO tokenized universe (`SPACEXx`, `OPENAIx`, `STRIPEx`), secondary venue integration, and macro asset class caps (`Pre-IPO ≤ 20%`). |
-| **Meteora** | **$5,000 Bounty** | Dynamic Bonding Curve (DBC) Liquidity Primitive, pool reserve depth verification ($25,000 floor), and dynamic swap fee tracking. |
 
 ---
 

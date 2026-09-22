@@ -37,6 +37,8 @@ import {
   ExecutionVenueType,
   DecisionCycleReport,
   DemoScenarioResult,
+  PreStocksDemoScenarioResult,
+  MeteoraMarketGuardDemoResult,
   MeteoraDBCMetrics,
   MeteoraVerificationResult,
   AgentLoopState,
@@ -491,6 +493,39 @@ export class SentinelClient {
     const result = await this.agent.runAutonomousDemoScenario(portfolio, policy, this.adapter);
     this.evidenceHistory.unshift(result.step1BadDecision.evidenceRecord);
     this.evidenceHistory.unshift(result.step2AdaptedDecision.evidenceRecord);
+    return result;
+  }
+
+  /**
+   * Runs the PreStocks $10,000 Bounty Demo Scenario:
+   * 1. Agent proposes BUY OPENAIx $30,000 (pre-IPO exposure surges from 18% -> 48%).
+   * 2. Sentinel Policy Enforces Pre-IPO ceiling (<= 20%): REJECTED!
+   * 3. Autonomous Adaptation: Agent computes max compliant size and re-submits.
+   * 4. Compliant Settlement via PreStocks Secondary Vault and anchors PROVN receipt.
+   */
+  async runPreStocksDemoScenario(
+    portfolio: PortfolioSnapshot,
+    policy: FinancialPolicy
+  ): Promise<PreStocksDemoScenarioResult> {
+    const result = await this.agent.runPreStocksDemoScenario(portfolio, policy, this.preStocksAdapter);
+    this.evidenceHistory.unshift(result.step1RejectedDecision.evidenceRecord);
+    this.evidenceHistory.unshift(result.step2SettledDecision.evidenceRecord);
+    return result;
+  }
+
+  /**
+   * Runs the Meteora $5,000 Bounty Demo Scenario (Sentinel Equity Market Guard):
+   * 1. Agent proposes BUY NVDAx $8,000.
+   * 2. User policy passes and portfolio exposure passes.
+   * 3. Meteora DBC Market Quality fails (liquidity depth below $25,000 floor).
+   * 4. Sentinel blocks execution atomically: "BLOCKED by Sentinel Equity Market Guard".
+   */
+  async runMeteoraMarketGuardDemoScenario(
+    portfolio: PortfolioSnapshot,
+    policy: FinancialPolicy
+  ): Promise<MeteoraMarketGuardDemoResult> {
+    const result = await this.agent.runMeteoraMarketGuardDemoScenario(portfolio, policy, this.meteoraAdapter);
+    this.evidenceHistory.unshift(result.report.evidenceRecord);
     return result;
   }
 

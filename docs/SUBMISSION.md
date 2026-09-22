@@ -7,8 +7,8 @@
 - **Submission Track**: **Investing → Robo-Portfolios ($100,000 Main Track)**
 - **Target Sponsor Bounties**:
   1. **Pyth Network (Pyth Pro)**: Dual-feed oracle mark-to-market pricing, staleness protection, confidence intervals ($\pm \sigma$), and tracking error checks.
-  2. **PreStocks ($10,000 Bounty)**: Pre-IPO private equity universe (`SPACEXx`, `OPENAIx`, `STRIPEx`), Portfolio Builder, and macro asset class allocation limits (`Pre-IPO ≤ 20%`).
-  3. **Meteora ($5,000 Bounty)**: Dynamic Bonding Curve (DBC) liquidity verifier ($25k reserve floor, $\le 200\text{ bps}$ price divergence), dynamic fees, and bidirectional market protection.
+  2. **PreStocks ($10,000 Bounty)**: Certified pre-IPO tech universe (`OPENAIx`, `SPACEXx`, `ANTHROPICx`, `STRIPEx`), strict ecosystem exclusivity, and macro asset class allocation limits (`Pre-IPO ≤ 20%`).
+  3. **Meteora ($5,000 Bounty)**: **Sentinel Equity Market Guard** — pairing Meteora Dynamic Bonding Curve (DBC) market quality ($25k reserve floor, $\le 200\text{ bps}$ price divergence) with Sentinel account protection.
 - **GitHub Repository**: [https://github.com/dren712/sentinel_finance](https://github.com/dren712/sentinel_finance)
 - **Live Solana Devnet Program ID**: [`3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK`](https://explorer.solana.com/address/3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK?cluster=devnet)
 - **On-Chain IDL Account**: [`H28SmQxnyeTQFUQFFyKjwbLBi77w78vtHmbQzQWrGHx6`](https://explorer.solana.com/address/H28SmQxnyeTQFUQFFyKjwbLBi77w78vtHmbQzQWrGHx6?cluster=devnet)
@@ -23,13 +23,30 @@
 
 ---
 
-## 3. The Flagship 5-Step "Aha!" Demo Moment
+## 3. Verified Demo Moments
 
+Sentinel Finance includes three turnkey live demo scenarios that demonstrate the full reactive enforcement pipeline (`Intent → Promise → Post-state → Financial Invariants → Decision → Adaptation → Evidence`).
+
+### 3.1 Flagship Scenario: Single-Asset Exposure & Cash Reserve Enforcement
 1. **Portfolio Inspection**: User views a diversified portfolio ($124k+ NAV) with `4 / 4 Guarantees Healthy`.
 2. **Rogue AI Trade Intent**: Sentinel Robo-01 spots momentum and proposes an aggressive trade: `BUY NVDAx $15,000`.
-3. **Atomic Revert on Solana**: Sentinel evaluates prospective state. NVDA would reach 35% (> 25% cap), cash drops to 10% (< 20% floor), and sizing breaches $10,000 limit. The transaction is aborted atomically. Zero tokens move; 100% of capital is safe.
-4. **Autonomous Reactive Adaptation**: The agent reads the rejection telemetry, solves the maximum mathematically compliant trade size ($5,000), and auto-adapts its intent: `BUY NVDAx $5,000`.
-5. **Settlement & PROVN Receipt**: Trade settles on-chain; balances update; PROVN produces a two-tier financial audit record ("✓ Protected on Solana" for investors; technical drawer with deterministic SHA-256 state commitments, PDA, and slot for auditors).
+3. **Atomic Revert on Solana**: Sentinel evaluates prospective post-state. NVDA exposure would hit 35% (> 25% cap), cash drops to 10% (< 20% floor), and order size breaches $10,000 limit. The transaction is aborted atomically. Zero tokens move; 100% of capital is safe.
+4. **Autonomous Reactive Adaptation**: The agent reads the rejection telemetry, calculates the maximum mathematically compliant headroom ($5,000), and auto-adapts: `BUY NVDAx $5,000`.
+5. **Settlement & PROVN Receipt**: Compliant trade settles on-chain; balances update; PROVN produces a two-tier financial audit record ("✓ Protected on Solana" for investors; technical drawer with deterministic SHA-256 state commitments, PDA, and slot for auditors).
+
+### 3.2 PreStocks Bounty Scenario: Macro Asset Class Cap Breach (`$10,000 Target`)
+1. **Pre-IPO Universe Context**: Portfolio holds 18% in PreStocks pre-IPO equity against an authoritative **20% macro category ceiling**.
+2. **Rogue Private Equity Surge**: Agent identifies private market secondary catalyst and proposes `BUY OPENAI $30,000`. Prospective Pre-IPO allocation surges from **18% → 48%**.
+3. **Policy Engine Rejection**: Sentinel halts the intent before submission: **48% Pre-IPO allocation violates the 20% hard cap** (breach of 2,800 bps / $28,000 over ceiling).
+4. **Headroom Solver Adaptation**: The agent calculates remaining capacity: `($100,000 × 20%) - $18,000 = $2,000`. It recalculates and issues adapted order `BUY OPENAI $2,000`.
+5. **Settlement via PreStocks Vault**: Trade verifies compliant at 20.00% category allocation and settles via PreStocks Secondary Vault PDA.
+
+### 3.3 Meteora Bounty Scenario: Sentinel Equity Market Guard (`$5,000 Target`)
+1. **Market Protection Meets Account Protection**: User policy allows up to $10,000 trade size; single-asset exposure allows up to 30%.
+2. **Agent Proposes Liquid Trade**: Agent proposes `BUY NVDAx $8,000`. User policy passes (`$8k ≤ $10k` ✓); portfolio post-state passes (`28% ≤ 30%` ✓).
+3. **Meteora Market Guard Interception**: Sentinel inspects the underlying Meteora DBC pool before routing. The pool's reserve depth is **$12,000**, which falls below Sentinel's institutional floor of **$25,000**.
+4. **Zero Slippage Execution**: Execution is blocked *before* capital hits the pool, shielding both the robo-portfolio from toxic slippage and the DBC pool from sudden price dislocation.
+5. **Deterministic Rejection Receipt**: PROVN logs the market quality violation with pool telemetry and reserve verification.
 
 ---
 
@@ -84,31 +101,36 @@ Sentinel avoids distributed infrastructure bloat (no unnecessary message queues,
 
 ### 5.2 PreStocks ($10,000 Bounty)
 - **Centrality to Product**: Broadens Sentinel's tokenized universe beyond public equities into high-demand pre-IPO secondary tech shares.
+- **Strict Exclusivity Compliance**: 100% PreStocks certified asset universe (`OPENAIx`, `SPACEXx`, `ANTHROPICx`, `STRIPEx`) with Certified 409A / Forge NAV pricing and Secondary Vault PDA settlement. All competing/unaffiliated pre-IPO tokens are strictly excluded to preserve full bounty eligibility.
 - **Capabilities Delivered**:
-  - Full Asset Universe supporting pre-IPO tech giants (`SPACEXx`, `OPENAIx`, `STRIPEx`).
+  - Full Asset Universe supporting pre-IPO market leaders (`SPACEXx`, `OPENAIx`, `ANTHROPICx`, `STRIPEx`).
   - Portfolio Builder with macro asset class policy enforcement (`Public Equities ≤ 70%`, `Pre-IPO ≤ 20%`, `USDC Cash Reserves ≥ 10%`).
-  - Autonomous sizing solver respecting private market illiquidity caps.
+  - Autonomous mathematical headroom solver that down-sizes aggressive private equity orders to remain precisely within the 20% illiquidity cap.
 
 ### 5.3 Meteora ($5,000 Bounty)
-- **Centrality to Product**: Ensures agents only route through institutional-quality Dynamic Bonding Curves (DBC).
+- **Centrality to Product**: **Sentinel Equity Market Guard** — unifying Meteora market infrastructure with Sentinel on-chain portfolio guarantees.
+- **The Core Formula**:
+  $$\text{Meteora Market Quality} + \text{Sentinel Portfolio Protection} = \mathbf{Market\ Protection\ +\ Account\ Protection}$$
+  - **Meteora Market Quality**: Bonding curve health, reserve liquidity floor, price divergence bounds, dynamic LP fee capture, and graduation readiness.
+  - **Sentinel Portfolio Protection**: User-defined risk boundaries, macro asset allocation ceilings, and execution postconditions.
 - **Capabilities Delivered**:
   - `MeteoraDBCMarketQualityVerifier` inspecting curve liquidity depth (≥ $25,000 floor) and price stability (≤ 200 bps divergence from reference index).
-  - Bidirectional Protection: Sentinel protects investors from rogue algorithmic executions *and* protects Meteora DBC pools from toxic predatory flows.
+  - Bidirectional Protection: Sentinel protects investors from toxic slippage in shallow pools *and* protects Meteora DBC pools from reckless algorithmic draining.
 
 ---
 
 ## 6. Verification & Test Credentials
 
-Sentinel Finance boasts **100% test pass rate** across its entire codebase:
+Sentinel Finance boasts a **100% test pass rate** across its entire codebase:
 
 | Suite | Command | Test Count | Result |
 | :--- | :--- | :--- | :--- |
 | **Rust Anchor Invariant Tests** | `cargo test --manifest-path programs/sentinel/Cargo.toml --lib` | 9 tests | **PASS (0 failures)** |
 | **Domain Policy Engine** | `pnpm --filter @sentinel/domain test` | 39 tests | **PASS (0 failures)** |
 | **SDK & Agent Simulator** | `pnpm --filter @sentinel/sdk test` | 55 tests | **PASS (0 failures)** |
-| **End-to-End Demo Scenario** | `node --test tests/integration/demo-scenario.test.ts` | 1 test | **PASS (0 failures)** |
+| **End-to-End Demo Scenarios** | `node --test tests/integration/demo-scenario.test.ts` | 3 tests | **PASS (0 failures)** |
 | **Production Web Build** | `pnpm --filter @sentinel/web run build` | 4/4 static pages | **Exit code 0** |
-| **Total Automated Tests** | — | **104 tests** | **104 / 104 passed (100%)** |
+| **Total Automated Tests** | — | **106 tests** | **106 / 106 passed (100%)** |
 
 ---
 

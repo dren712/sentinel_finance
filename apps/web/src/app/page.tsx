@@ -6,6 +6,7 @@ import {
   FinancialPolicy,
   EvidenceRecord,
   NormalizedMarketPrice,
+  ASSET_REGISTRY,
 } from '@sentinel/domain';
 import {
   SentinelClient,
@@ -49,6 +50,8 @@ export default function Home() {
   const [isRunningAdaptation, setIsRunningAdaptation] = useState(false);
   const [demoStep, setDemoStep] = useState<number>(0);
   const [demoMessage, setDemoMessage] = useState<string>('');
+  const [demoTitle, setDemoTitle] = useState<string>('Flagship 5-Step Demo Flow');
+  const [totalDemoSteps, setTotalDemoSteps] = useState<number>(5);
   const [walletBalanceSol, setWalletBalanceSol] = useState<number | null>(null);
 
   // Sync connected wallet with portfolio owner and fetch Devnet balance
@@ -162,6 +165,8 @@ export default function Home() {
   // Flagship 5-Step "Aha!" Demo Flow
   const handleRunDemo = async () => {
     setIsRunningDemo(true);
+    setDemoTitle('Flagship 5-Step Demo Flow');
+    setTotalDemoSteps(5);
     setActiveTab('activity');
 
     try {
@@ -232,6 +237,123 @@ export default function Home() {
     }
   };
 
+  // PreStocks $10K Bounty Demo Flow (Pre-IPO 20% Ceiling Invariant Enforcement)
+  const handleRunPreStocksDemo = async () => {
+    setIsRunningDemo(true);
+    setDemoTitle('PreStocks $10K Bounty Demo: Pre-IPO Exposure Cap');
+    setTotalDemoSteps(5);
+    setActiveTab('activity');
+
+    try {
+      const agent = client.getAgent();
+      const openaiMeta = ASSET_REGISTRY.OPENAIx;
+      const openaiPrice = marketPrices['OPENAIx']?.priceUsd ?? openaiMeta?.basePriceUsd ?? 210;
+      const effectivePolicy: FinancialPolicy = {
+        ...policy,
+        maxPreIpoExposureBps: policy.maxPreIpoExposureBps ?? 2000,
+      };
+
+      // Step 1: Pre-Flight PreStocks Portfolio State
+      setDemoStep(1);
+      setDemoMessage('Step 1/5: Inspecting PreStocks Asset Universe (SpaceX, OpenAI, Stripe, Anthropic) & Pre-IPO policy ceiling (≤ 20.00%)');
+      await new Promise(resolve => setTimeout(resolve, 1400));
+
+      // Step 2: Propose Aggressive $30,000 PreStocks Trade
+      setDemoStep(2);
+      setDemoMessage('Step 2/5: Sentinel Robo-01 spots OpenAI tender allocation and proposes BUY OPENAIx $30,000 (surge to 48% exposure)');
+      await new Promise(resolve => setTimeout(resolve, 1600));
+
+      const badIntent = agent.proposeIntent({
+        assetSymbol: 'OPENAIx',
+        assetMint: openaiMeta?.mint ?? 'OPENAI111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 30_000,
+        referencePriceUsd: openaiPrice,
+        strategyRationale: 'Aggressively increase PreStocks private equity allocation ahead of OpenAI valuation tender',
+      });
+
+      // Step 3: PreStocks Postcondition Invariant Abort
+      setDemoStep(3);
+      setDemoMessage('Step 3/5: Sentinel On-Chain Abort: Pre-IPO exposure 48.0% > 20.0% policy cap. Reverted atomically with 0 funds lost!');
+      const step1Report = await client.executeDecisionCycle(portfolio, effectivePolicy, badIntent, undefined);
+      setLatestReport(step1Report);
+      setEvidenceList(client.getEvidenceHistory());
+      setSelectedEvidenceId(step1Report.evidenceRecord.id);
+      await new Promise(resolve => setTimeout(resolve, 2800));
+
+      // Step 4: Autonomous Adaptation for PreStocks
+      setDemoStep(4);
+      setDemoMessage('Step 4/5: Agent reads invariant rejection telemetry and solves maximum compliant PreStocks size ($2,000 remaining headroom)');
+      const compliantAmount = agent.calculateCompliantTradeAmount(portfolio, effectivePolicy, 'OPENAIx');
+      await new Promise(resolve => setTimeout(resolve, 1800));
+
+      const adaptedIntent = agent.proposeIntent({
+        assetSymbol: 'OPENAIx',
+        assetMint: openaiMeta?.mint ?? 'OPENAI111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: compliantAmount,
+        referencePriceUsd: openaiPrice,
+        strategyRationale: `Auto-adapted PreStocks allocation to $${compliantAmount.toLocaleString()} to strictly observe Pre-IPO exposure ceiling (20.00%)`,
+      });
+
+      // Step 5: Settle via PreStocks Secondary Vault
+      setDemoStep(5);
+      setDemoMessage('Step 5/5: Settled via PreStocks Secondary Vault! PROVN cryptographic audit receipt generated.');
+      const step2Report = await client.executeDecisionCycle(portfolio, effectivePolicy, adaptedIntent, undefined);
+      setLatestReport(step2Report);
+      setPortfolio(step2Report.resultingPortfolio);
+      setEvidenceList(client.getEvidenceHistory());
+      setSelectedEvidenceId(step2Report.evidenceRecord.id);
+      await new Promise(resolve => setTimeout(resolve, 2500));
+    } finally {
+      setIsRunningDemo(false);
+      setTimeout(() => {
+        setDemoStep(0);
+        setDemoMessage('');
+      }, 10000);
+    }
+  };
+
+  // Meteora $5K Bounty Demo Flow (Sentinel Equity Market Guard)
+  const handleRunMeteoraDemo = async () => {
+    setIsRunningDemo(true);
+    setDemoTitle('Meteora $5K Bounty Demo: Sentinel Equity Market Guard');
+    setTotalDemoSteps(4);
+    setActiveTab('activity');
+
+    try {
+      // Step 1: Inspect Meteora DBC Market
+      setDemoStep(1);
+      setDemoMessage('Step 1/4: Inspecting Meteora DBC Stock Market for NVDAx (Bonding curve, real reserves, liquidity depth floor)');
+      await new Promise(resolve => setTimeout(resolve, 1400));
+
+      // Step 2: Propose Trade with Passing Policy & Exposure
+      setDemoStep(2);
+      setDemoMessage('Step 2/4: Agent proposes BUY NVDAx $8,000 (User policy $8k ≤ $10k ✓, Portfolio exposure 28% ≤ 30% ✓)');
+      await new Promise(resolve => setTimeout(resolve, 1600));
+
+      // Step 3: Preflight Meteora DBC Market Quality
+      setDemoStep(3);
+      setDemoMessage('Step 3/4: Sentinel Equity Market Guard detects shallow DBC pool ($12,000 < $25,000 floor). Bidirectional protection active!');
+      await new Promise(resolve => setTimeout(resolve, 1800));
+
+      // Step 4: Block Execution
+      setDemoStep(4);
+      setDemoMessage('Step 4/4: Execution BLOCKED by Sentinel Equity Market Guard! Investor protected from slippage; DBC curve protected from predatory size.');
+      const meteoraResult = await client.runMeteoraMarketGuardDemoScenario(portfolio, policy);
+      setLatestReport(meteoraResult.report);
+      setEvidenceList(client.getEvidenceHistory());
+      setSelectedEvidenceId(meteoraResult.report.evidenceRecord.id);
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    } finally {
+      setIsRunningDemo(false);
+      setTimeout(() => {
+        setDemoStep(0);
+        setDemoMessage('');
+      }, 10000);
+    }
+  };
+
   // Phase 8: Run full 10-stage autonomous reactive adaptation loop
   const handleRunAdaptation = async () => {
     setIsRunningAdaptation(true);
@@ -293,6 +415,8 @@ export default function Home() {
         mode={mode}
         onToggleMode={handleToggleMode}
         onRunDemo={handleRunDemo}
+        onRunPreStocksDemo={handleRunPreStocksDemo}
+        onRunMeteoraDemo={handleRunMeteoraDemo}
         onReset={handleReset}
         isRunningDemo={isRunningDemo}
       />
@@ -306,39 +430,76 @@ export default function Home() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-12">
-        {/* Flagship 5-Step Demo Stepper Banner */}
+        {/* Dynamic Demo Stepper Banner */}
         {demoStep > 0 && (
           <div className="mb-6 p-4 rounded-xl bg-blue-950/40 border border-blue-500/40 shadow-lg animate-in fade-in slide-in-from-top-4 duration-200">
             <div className="flex items-center justify-between mb-2.5">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-blue-400 animate-ping" />
                 <span className="font-bold text-xs font-mono uppercase tracking-wider text-blue-300">
-                  Flagship 5-Step Demo Flow
+                  {demoTitle}
                 </span>
               </div>
               <span className="text-xs font-mono font-semibold text-blue-400">
-                Step {demoStep} of 5
+                Step {demoStep} of {totalDemoSteps}
               </span>
             </div>
             <p className="text-xs sm:text-sm font-medium text-white mb-3 font-mono leading-relaxed">
               {demoMessage}
             </p>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-[10px] font-mono">
-              <div className={`p-2 rounded border text-center transition-all ${demoStep >= 1 ? 'bg-blue-900/50 border-blue-400 text-white font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
-                1. Initial State
-              </div>
-              <div className={`p-2 rounded border text-center transition-all ${demoStep >= 2 ? 'bg-blue-900/50 border-blue-400 text-white font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
-                2. Propose $15k
-              </div>
-              <div className={`p-2 rounded border text-center transition-all ${demoStep >= 3 ? 'bg-red-950/70 border-red-500 text-red-300 font-semibold shadow-sm' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
-                3. Invariant Revert
-              </div>
-              <div className={`p-2 rounded border text-center transition-all ${demoStep >= 4 ? 'bg-amber-950/70 border-amber-400 text-amber-300 font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
-                4. Auto-Adapt $5k
-              </div>
-              <div className={`p-2 rounded border text-center transition-all ${demoStep >= 5 ? 'bg-emerald-950/70 border-emerald-400 text-emerald-300 font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
-                5. PROVN Settle
-              </div>
+            <div className={`grid grid-cols-2 ${totalDemoSteps === 4 ? 'sm:grid-cols-4' : 'sm:grid-cols-5'} gap-2 text-[10px] font-mono`}>
+              {totalDemoSteps === 4 ? (
+                <>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 1 ? 'bg-blue-900/50 border-blue-400 text-white font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                    1. DBC Market
+                  </div>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 2 ? 'bg-blue-900/50 border-blue-400 text-white font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                    2. Propose $8k
+                  </div>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 3 ? 'bg-amber-950/70 border-amber-400 text-amber-300 font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                    3. Liquidity Check
+                  </div>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 4 ? 'bg-red-950/70 border-red-500 text-red-300 font-semibold shadow-sm' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                    4. Market Guard Block
+                  </div>
+                </>
+              ) : demoTitle.includes('PreStocks') ? (
+                <>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 1 ? 'bg-purple-900/50 border-purple-400 text-white font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                    1. Pre-IPO Universe
+                  </div>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 2 ? 'bg-purple-900/50 border-purple-400 text-white font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                    2. Propose $30k
+                  </div>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 3 ? 'bg-red-950/70 border-red-500 text-red-300 font-semibold shadow-sm' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                    3. Cap Revert (48% &gt; 20%)
+                  </div>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 4 ? 'bg-amber-950/70 border-amber-400 text-amber-300 font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                    4. Auto-Adapt $2k
+                  </div>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 5 ? 'bg-emerald-950/70 border-emerald-400 text-emerald-300 font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                    5. PreStocks Settle
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 1 ? 'bg-blue-900/50 border-blue-400 text-white font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                    1. Initial State
+                  </div>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 2 ? 'bg-blue-900/50 border-blue-400 text-white font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                    2. Propose $15k
+                  </div>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 3 ? 'bg-red-950/70 border-red-500 text-red-300 font-semibold shadow-sm' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                    3. Invariant Revert
+                  </div>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 4 ? 'bg-amber-950/70 border-amber-400 text-amber-300 font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                    4. Auto-Adapt $5k
+                  </div>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 5 ? 'bg-emerald-950/70 border-emerald-400 text-emerald-300 font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                    5. PROVN Settle
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
