@@ -1,0 +1,719 @@
+'use client';
+
+import React, { useState } from 'react';
+import {
+  ShieldAlert,
+  ShieldCheck,
+  CheckCircle2,
+  XCircle,
+  ArrowRight,
+  RefreshCw,
+  Bot,
+  Zap,
+  Lock,
+  ExternalLink,
+  ChevronRight,
+  TrendingDown,
+  TrendingUp,
+} from 'lucide-react';
+import { PortfolioSnapshot, FinancialPolicy } from '@sentinel/domain';
+import { formatCurrency, formatPercent } from '@/lib/formatters';
+
+export type DemoScenarioKey = 'FLAGSHIP' | 'PRESTOCKS' | 'METEORA' | 'PYTH';
+
+interface HeroStoryCenterpieceProps {
+  portfolio: PortfolioSnapshot;
+  policy: FinancialPolicy;
+  onRunAdaptation?: () => void;
+  isRunningAdaptation?: boolean;
+  onNavigateToDecisions?: () => void;
+  onNavigateToProtection?: () => void;
+  selectedScenario?: DemoScenarioKey;
+  onSelectScenario?: (scenario: DemoScenarioKey) => void;
+  demoStep?: number;
+  totalDemoSteps?: number;
+}
+
+export const HeroStoryCenterpiece: React.FC<HeroStoryCenterpieceProps> = ({
+  portfolio,
+  policy,
+  onRunAdaptation,
+  isRunningAdaptation = false,
+  onNavigateToDecisions,
+  onNavigateToProtection,
+  selectedScenario = 'FLAGSHIP',
+  onSelectScenario,
+  demoStep = 0,
+}) => {
+  const [internalScenario, setInternalScenario] = useState<DemoScenarioKey>('FLAGSHIP');
+  const activeScenario = selectedScenario ?? internalScenario;
+
+  const handleScenarioChange = (scenario: DemoScenarioKey) => {
+    setInternalScenario(scenario);
+    onSelectScenario?.(scenario);
+  };
+
+  return (
+    <div className="bg-gradient-to-b from-slate-900/95 via-slate-950 to-slate-900/90 border border-blue-500/30 rounded-2xl p-5 sm:p-7 shadow-2xl shadow-blue-950/40 relative overflow-hidden">
+      {/* Decorative background glow elements */}
+      <div className="absolute -top-24 -left-24 w-72 h-72 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-24 -right-24 w-72 h-72 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none" />
+
+      {/* TOP HEADER BAR */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-slate-800 relative z-10">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-blue-500/15 text-blue-400 border border-blue-500/30">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+              AUTHORITATIVE ON-CHAIN ENFORCEMENT
+            </span>
+            <span className="text-xs text-slate-500 font-mono hidden sm:inline">Solana Devnet</span>
+          </div>
+          <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white mt-1.5 font-mono uppercase">
+            What did the agent try to do?
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-3xl leading-relaxed">
+            The AI agent proposes any trade it wants. Sentinel enforces postconditions on Solana before state commit, atomically aborting any violation.
+          </p>
+        </div>
+
+        {/* Action Button & Scenario Selector */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          {/* Scenario Tabs */}
+          <div className="flex items-center p-1 rounded-lg bg-slate-950/90 border border-slate-800 text-[11px] font-mono">
+            <button
+              type="button"
+              onClick={() => handleScenarioChange('FLAGSHIP')}
+              className={`px-2.5 py-1 rounded font-semibold transition cursor-pointer ${
+                activeScenario === 'FLAGSHIP'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Flagship (NVDAx)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleScenarioChange('PRESTOCKS')}
+              className={`px-2.5 py-1 rounded font-semibold transition cursor-pointer ${
+                activeScenario === 'PRESTOCKS'
+                  ? 'bg-purple-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              PreStocks $10K
+            </button>
+            <button
+              type="button"
+              onClick={() => handleScenarioChange('METEORA')}
+              className={`px-2.5 py-1 rounded font-semibold transition cursor-pointer ${
+                activeScenario === 'METEORA'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Meteora $5K
+            </button>
+            <button
+              type="button"
+              onClick={() => handleScenarioChange('PYTH')}
+              className={`px-2.5 py-1 rounded font-semibold transition cursor-pointer ${
+                activeScenario === 'PYTH'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Pyth Security
+            </button>
+          </div>
+
+          {/* Trigger Adaptation */}
+          {onRunAdaptation && (
+            <button
+              type="button"
+              onClick={onRunAdaptation}
+              disabled={isRunningAdaptation}
+              className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold font-mono flex items-center gap-2 shadow-lg shadow-blue-600/20 disabled:opacity-50 transition cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRunningAdaptation ? 'animate-spin' : ''}`} />
+              <span>{isRunningAdaptation ? 'Evaluating...' : 'Replay Enforcement'}</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* SCENARIO 1: FLAGSHIP (NVDAx $15K -> 3 FAILURES -> $5K -> APPROVED) */}
+      {activeScenario === 'FLAGSHIP' && (
+        <div className="mt-5 space-y-4 relative z-10">
+          {/* STEP A: PROPOSED VS SENTINEL BLOCKED */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4 items-stretch">
+            {/* 1. PROPOSED CARD */}
+            <div className="md:col-span-5 bg-slate-900/80 border border-slate-800 rounded-xl p-4 sm:p-5 flex flex-col justify-between">
+              <div>
+                <span className="text-[11px] font-mono font-bold tracking-widest text-slate-400 uppercase block">
+                  PROPOSED
+                </span>
+                <div className="mt-2 flex items-baseline justify-between">
+                  <span className="text-xl sm:text-2xl font-black font-mono text-white tracking-tight">
+                    BUY NVDAx
+                  </span>
+                  <span className="text-xl sm:text-2xl font-black font-mono text-rose-400">
+                    $15,000
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-1 font-mono">
+                  Tokenized Equity · Relative momentum surge signal
+                </p>
+              </div>
+              <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-[11px] font-mono text-slate-500">
+                <span>Origin: Robo-01 Autonomous Intent</span>
+                <span className="text-slate-400">Ed25519 Signer</span>
+              </div>
+            </div>
+
+            {/* CONNECTOR ARROW (DESKTOP) */}
+            <div className="md:col-span-2 hidden md:flex flex-col items-center justify-center text-center">
+              <span className="text-[10px] font-mono font-bold uppercase text-slate-500 tracking-wider mb-1">
+                SOLANA CHECK
+              </span>
+              <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-rose-400 shadow-sm">
+                <ArrowRight className="w-5 h-5 animate-pulse" />
+              </div>
+              <span className="text-[9px] font-mono text-slate-500 mt-1">Anchor PDA</span>
+            </div>
+
+            {/* 2. SENTINEL BLOCKED CARD */}
+            <div className="md:col-span-5 bg-rose-950/25 border border-rose-500/40 rounded-xl p-4 sm:p-5 flex flex-col justify-between shadow-lg shadow-rose-950/20">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-mono font-bold tracking-widest text-rose-400 uppercase block">
+                    SENTINEL
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                    ATOMIC REVERT
+                  </span>
+                </div>
+                <div className="mt-2 flex items-center gap-2 text-xl sm:text-2xl font-black font-mono text-rose-400 tracking-tight">
+                  <XCircle className="w-6 h-6 shrink-0" />
+                  <span>BLOCKED</span>
+                </div>
+                <p className="text-xs text-rose-200/80 mt-1 leading-relaxed">
+                  Prospective state violated 3 user financial invariants. Transaction aborted atomically on Solana.
+                </p>
+              </div>
+              <div className="mt-3 pt-2.5 border-t border-rose-500/20 flex items-center justify-between text-[11px] font-mono text-rose-300 font-semibold">
+                <span>0 tokens transferred</span>
+                <span>100% capital protected</span>
+              </div>
+            </div>
+          </div>
+
+          {/* STEP B: THE PROJECTED STATE (THE THREE MATHEMATICAL FAILURES) */}
+          <div className="bg-slate-950/80 border border-slate-800/90 rounded-xl p-4 sm:p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-mono font-bold tracking-wider text-slate-400 uppercase">
+                Projected State After Trade (Why Sentinel Blocked)
+              </span>
+              <span className="text-[11px] font-mono font-semibold text-rose-400">
+                3 of 3 Invariants Failed
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Failure 1: NVDAx Concentration */}
+              <div className="bg-slate-900/90 border border-rose-500/30 rounded-lg p-3 space-y-1">
+                <span className="text-[10px] font-mono text-slate-400 uppercase block">
+                  NVDAx Exposure
+                </span>
+                <div className="flex items-baseline justify-between">
+                  <span className="text-lg font-mono font-black text-white">
+                    20% <span className="text-rose-400 font-bold">→ 35%</span>
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                    BREACH
+                  </span>
+                </div>
+                <div className="text-xs font-mono text-slate-400 pt-0.5">
+                  Policy limit: <span className="text-white font-bold">25.0%</span> (+10.0% breach)
+                </div>
+              </div>
+
+              {/* Failure 2: USDC Cash Reserve Floor */}
+              <div className="bg-slate-900/90 border border-rose-500/30 rounded-lg p-3 space-y-1">
+                <span className="text-[10px] font-mono text-slate-400 uppercase block">
+                  USDC Cash Reserve
+                </span>
+                <div className="flex items-baseline justify-between">
+                  <span className="text-lg font-mono font-black text-white">
+                    25% <span className="text-rose-400 font-bold">→ 10%</span>
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                    BREACH
+                  </span>
+                </div>
+                <div className="text-xs font-mono text-slate-400 pt-0.5">
+                  Policy minimum: <span className="text-white font-bold">20.0%</span> (-10.0% breach)
+                </div>
+              </div>
+
+              {/* Failure 3: Order Sizing Ceiling */}
+              <div className="bg-slate-900/90 border border-rose-500/30 rounded-lg p-3 space-y-1">
+                <span className="text-[10px] font-mono text-slate-400 uppercase block">
+                  Order Sizing
+                </span>
+                <div className="flex items-baseline justify-between">
+                  <span className="text-lg font-mono font-black text-rose-400">
+                    $15,000
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                    BREACH
+                  </span>
+                </div>
+                <div className="text-xs font-mono text-slate-400 pt-0.5">
+                  Policy maximum: <span className="text-white font-bold">$10,000</span> (+$5k breach)
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* STEP C: ROBO-01 ADAPTING (THE AUTONOMOUS PIVOT) */}
+          <div className="bg-gradient-to-r from-blue-950/40 via-blue-900/20 to-slate-950 border border-blue-500/30 rounded-xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400">
+                <Bot className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-white uppercase tracking-wider">ROBO-01</span>
+                  <span className="inline-flex items-center gap-1 text-blue-400 font-bold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping" />
+                    ADAPTING...
+                  </span>
+                </div>
+                <p className="text-slate-300 text-[11px] mt-0.5">
+                  Read rejection telemetry → Solved maximum mathematically compliant headroom ($5,000).
+                </p>
+              </div>
+            </div>
+            <span className="text-blue-300 text-[11px] font-semibold bg-blue-950/60 px-2.5 py-1 rounded border border-blue-500/20 self-start sm:self-auto">
+              Linear Headroom Optimization
+            </span>
+          </div>
+
+          {/* STEP D: NEW PROPOSAL VS SENTINEL APPROVED */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4 items-stretch">
+            {/* 3. NEW PROPOSAL CARD */}
+            <div className="md:col-span-5 bg-slate-900/80 border border-emerald-500/30 rounded-xl p-4 sm:p-5 flex flex-col justify-between">
+              <div>
+                <span className="text-[11px] font-mono font-bold tracking-widest text-emerald-400 uppercase block">
+                  NEW PROPOSAL
+                </span>
+                <div className="mt-2 flex items-baseline justify-between">
+                  <span className="text-xl sm:text-2xl font-black font-mono text-white tracking-tight">
+                    BUY NVDAx
+                  </span>
+                  <span className="text-xl sm:text-2xl font-black font-mono text-emerald-400">
+                    $5,000
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 mt-1 font-mono">
+                  Down-sized order to fit inside remaining 500 bps exposure headroom
+                </p>
+              </div>
+              <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-[11px] font-mono text-slate-400">
+                <span>NVDA Target: 25.0%</span>
+                <span className="text-emerald-400 font-semibold">Reserve: 20.0%</span>
+              </div>
+            </div>
+
+            {/* CONNECTOR ARROW (DESKTOP) */}
+            <div className="md:col-span-2 hidden md:flex flex-col items-center justify-center text-center">
+              <span className="text-[10px] font-mono font-bold uppercase text-emerald-400 tracking-wider mb-1">
+                VERIFIED PASS
+              </span>
+              <div className="w-10 h-10 rounded-full bg-emerald-950/60 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shadow-sm">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <span className="text-[9px] font-mono text-emerald-400 mt-1">4 / 4 Invariants</span>
+            </div>
+
+            {/* 4. SENTINEL APPROVED CARD */}
+            <div className="md:col-span-5 bg-emerald-950/25 border border-emerald-500/40 rounded-xl p-4 sm:p-5 flex flex-col justify-between shadow-lg shadow-emerald-950/20">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-mono font-bold tracking-widest text-emerald-400 uppercase block">
+                    SENTINEL
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    ON-CHAIN SETTLED
+                  </span>
+                </div>
+                <div className="mt-2 flex items-center gap-2 text-xl sm:text-2xl font-black font-mono text-emerald-400 tracking-tight">
+                  <CheckCircle2 className="w-6 h-6 shrink-0" />
+                  <span>APPROVED</span>
+                </div>
+                <p className="text-xs text-emerald-200/80 mt-1 leading-relaxed">
+                  Postcondition holds. NVDA 25.0% ≤ 25.0% · USDC 20.0% ≥ 20.0% · Sizing $5k ≤ $10k.
+                </p>
+              </div>
+              <div className="mt-3 pt-2.5 border-t border-emerald-500/20 flex items-center justify-between text-[11px] font-mono">
+                <span className="text-emerald-300 font-semibold">Settled on Solana</span>
+                {onNavigateToDecisions ? (
+                  <button
+                    type="button"
+                    onClick={onNavigateToDecisions}
+                    className="text-blue-400 hover:text-blue-300 underline font-semibold flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>View PROVN Receipt</span>
+                    <ChevronRight className="w-3 h-3" />
+                  </button>
+                ) : (
+                  <span className="text-slate-400">PROVN Sealed</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SCENARIO 2: PRESTOCKS ($10,000 BOUNTY) */}
+      {activeScenario === 'PRESTOCKS' && (
+        <div className="mt-5 space-y-4 relative z-10">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4 items-stretch">
+            {/* PROPOSED */}
+            <div className="md:col-span-5 bg-slate-900/80 border border-slate-800 rounded-xl p-4 sm:p-5 flex flex-col justify-between">
+              <div>
+                <span className="text-[11px] font-mono font-bold tracking-widest text-slate-400 uppercase block">
+                  PROPOSED
+                </span>
+                <div className="mt-2 flex items-baseline justify-between">
+                  <span className="text-xl sm:text-2xl font-black font-mono text-white tracking-tight">
+                    BUY OPENAIx
+                  </span>
+                  <span className="text-xl sm:text-2xl font-black font-mono text-purple-400">
+                    $30,000
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-1 font-mono">
+                  PreStocks Secondary · Private market AI secondary catalyst
+                </p>
+              </div>
+              <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-[11px] font-mono text-slate-500">
+                <span>Universe: PreStocks Certified</span>
+                <span className="text-slate-400">409A Attested</span>
+              </div>
+            </div>
+
+            {/* CONNECTOR */}
+            <div className="md:col-span-2 hidden md:flex flex-col items-center justify-center text-center">
+              <span className="text-[10px] font-mono font-bold uppercase text-slate-500 tracking-wider mb-1">
+                CATEGORY CHECK
+              </span>
+              <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-rose-400 shadow-sm">
+                <ArrowRight className="w-5 h-5 animate-pulse" />
+              </div>
+              <span className="text-[9px] font-mono text-slate-500 mt-1">Pre-IPO Ceiling</span>
+            </div>
+
+            {/* SENTINEL BLOCKED */}
+            <div className="md:col-span-5 bg-rose-950/25 border border-rose-500/40 rounded-xl p-4 sm:p-5 flex flex-col justify-between shadow-lg shadow-rose-950/20">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-mono font-bold tracking-widest text-rose-400 uppercase block">
+                    SENTINEL
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                    CAP VIOLATION
+                  </span>
+                </div>
+                <div className="mt-2 flex items-center gap-2 text-xl sm:text-2xl font-black font-mono text-rose-400 tracking-tight">
+                  <XCircle className="w-6 h-6 shrink-0" />
+                  <span>BLOCKED</span>
+                </div>
+                <p className="text-xs text-rose-200/80 mt-1 leading-relaxed">
+                  Pre-IPO allocation would reach 48.0%, breaching the strict 20.0% PreStocks illiquidity ceiling.
+                </p>
+              </div>
+              <div className="mt-3 pt-2.5 border-t border-rose-500/20 flex items-center justify-between text-[11px] font-mono text-rose-300 font-semibold">
+                <span>Pre-IPO: 18% → 48%</span>
+                <span>Limit: 20.0%</span>
+              </div>
+            </div>
+          </div>
+
+          {/* ADAPTATION BRIDGE */}
+          <div className="bg-gradient-to-r from-purple-950/40 via-purple-900/20 to-slate-950 border border-purple-500/30 rounded-xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-purple-600/20 border border-purple-500/40 flex items-center justify-center text-purple-400">
+                <Bot className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-white uppercase tracking-wider">ROBO-01</span>
+                  <span className="text-purple-400 font-bold">SOLVED CAPACITY: $2,000</span>
+                </div>
+                <p className="text-slate-300 text-[11px] mt-0.5">
+                  ($100,000 × 20% cap) - $18,000 current = exact $2,000 headroom remaining.
+                </p>
+              </div>
+            </div>
+            <span className="text-purple-300 text-[11px] font-semibold bg-purple-950/60 px-2.5 py-1 rounded border border-purple-500/20 self-start sm:self-auto">
+              PreStocks Headroom Solver
+            </span>
+          </div>
+
+          {/* NEW PROPOSAL & APPROVED */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4 items-stretch">
+            <div className="md:col-span-5 bg-slate-900/80 border border-emerald-500/30 rounded-xl p-4 sm:p-5 flex flex-col justify-between">
+              <div>
+                <span className="text-[11px] font-mono font-bold tracking-widest text-emerald-400 uppercase block">
+                  NEW PROPOSAL
+                </span>
+                <div className="mt-2 flex items-baseline justify-between">
+                  <span className="text-xl sm:text-2xl font-black font-mono text-white tracking-tight">
+                    BUY OPENAIx
+                  </span>
+                  <span className="text-xl sm:text-2xl font-black font-mono text-emerald-400">
+                    $2,000
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 mt-1 font-mono">
+                  Calibrated to hit exactly 20.00% category allocation
+                </p>
+              </div>
+              <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-[11px] font-mono text-slate-400">
+                <span>Result: 20.00% Pre-IPO</span>
+                <span className="text-emerald-400 font-semibold">Exclusivity Verified</span>
+              </div>
+            </div>
+
+            <div className="md:col-span-2 hidden md:flex flex-col items-center justify-center text-center">
+              <span className="text-[10px] font-mono font-bold uppercase text-emerald-400 tracking-wider mb-1">
+                VAULT ROUTE
+              </span>
+              <div className="w-10 h-10 rounded-full bg-emerald-950/60 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shadow-sm">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <span className="text-[9px] font-mono text-emerald-400 mt-1">PreStocks Secondary</span>
+            </div>
+
+            <div className="md:col-span-5 bg-emerald-950/25 border border-emerald-500/40 rounded-xl p-4 sm:p-5 flex flex-col justify-between shadow-lg shadow-emerald-950/20">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-mono font-bold tracking-widest text-emerald-400 uppercase block">
+                    SENTINEL
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    SETTLED VIA PRESTOCKS
+                  </span>
+                </div>
+                <div className="mt-2 flex items-center gap-2 text-xl sm:text-2xl font-black font-mono text-emerald-400 tracking-tight">
+                  <CheckCircle2 className="w-6 h-6 shrink-0" />
+                  <span>APPROVED</span>
+                </div>
+                <p className="text-xs text-emerald-200/80 mt-1 leading-relaxed">
+                  Settled via PreStocks Secondary Vault PDA. 100% PreStocks certified ecosystem exclusivity preserved.
+                </p>
+              </div>
+              <div className="mt-3 pt-2.5 border-t border-emerald-500/20 flex items-center justify-between text-[11px] font-mono text-emerald-300 font-semibold">
+                <span>Vault: PreStkOPENAI...</span>
+                <span>PROVN Receipt Sealed</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SCENARIO 3: METEORA ($5,000 BOUNTY) */}
+      {activeScenario === 'METEORA' && (
+        <div className="mt-5 space-y-4 relative z-10">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4 items-stretch">
+            {/* PROPOSED */}
+            <div className="md:col-span-5 bg-slate-900/80 border border-slate-800 rounded-xl p-4 sm:p-5 flex flex-col justify-between">
+              <div>
+                <span className="text-[11px] font-mono font-bold tracking-widest text-slate-400 uppercase block">
+                  PROPOSED
+                </span>
+                <div className="mt-2 flex items-baseline justify-between">
+                  <span className="text-xl sm:text-2xl font-black font-mono text-white tracking-tight">
+                    BUY NVDAx
+                  </span>
+                  <span className="text-xl sm:text-2xl font-black font-mono text-blue-400">
+                    $8,000
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-1 font-mono">
+                  Meteora DBC Pool · Single-asset ($8k ≤ $10k ✓) &amp; Exposure (28% ≤ 30% ✓) PASS
+                </p>
+              </div>
+              <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-[11px] font-mono text-slate-500">
+                <span>Account Checks: PASS</span>
+                <span className="text-emerald-400 font-semibold">User Policy: OK</span>
+              </div>
+            </div>
+
+            {/* CONNECTOR */}
+            <div className="md:col-span-2 hidden md:flex flex-col items-center justify-center text-center">
+              <span className="text-[10px] font-mono font-bold uppercase text-amber-400 tracking-wider mb-1">
+                MARKET GUARD
+              </span>
+              <div className="w-10 h-10 rounded-full bg-slate-800 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-sm">
+                <ArrowRight className="w-5 h-5" />
+              </div>
+              <span className="text-[9px] font-mono text-amber-400 mt-1">DBC Pool Depth</span>
+            </div>
+
+            {/* SENTINEL MARKET GUARD BLOCKED */}
+            <div className="md:col-span-5 bg-amber-950/25 border border-amber-500/40 rounded-xl p-4 sm:p-5 flex flex-col justify-between shadow-lg shadow-amber-950/20">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-mono font-bold tracking-widest text-amber-400 uppercase block">
+                    SENTINEL EQUITY MARKET GUARD
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    SLIPPAGE SHIELD
+                  </span>
+                </div>
+                <div className="mt-2 flex items-center gap-2 text-xl sm:text-2xl font-black font-mono text-amber-400 tracking-tight">
+                  <ShieldAlert className="w-6 h-6 shrink-0" />
+                  <span>BLOCKED</span>
+                </div>
+                <p className="text-xs text-amber-200/80 mt-1 leading-relaxed">
+                  Meteora DBC pool reserve is $12,000, falling below Sentinel institutional floor of $25,000.
+                </p>
+              </div>
+              <div className="mt-3 pt-2.5 border-t border-amber-500/20 flex items-center justify-between text-[11px] font-mono text-amber-300 font-semibold">
+                <span>DBC Depth: $12k &lt; $25k</span>
+                <span>Protected from Toxic Slippage</span>
+              </div>
+            </div>
+          </div>
+
+          {/* VALUE PROPOSITION BANNER */}
+          <div className="bg-slate-950/90 border border-amber-500/30 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-mono">
+            <div className="flex items-center gap-3">
+              <span className="text-amber-400 font-bold text-sm">FORMULA:</span>
+              <span className="text-slate-300">
+                Meteora Market Quality + Sentinel Portfolio Protection = <strong className="text-white">Market Protection + Account Protection</strong>
+              </span>
+            </div>
+            <span className="text-emerald-400 font-bold bg-emerald-950/50 px-2.5 py-1 rounded border border-emerald-500/30">
+              Zero Dislocation Execution
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* SCENARIO 4: PYTH SECURITY INPUT (STALE QUOTE -> PULL UPDATE -> SETTLE) */}
+      {activeScenario === 'PYTH' && (
+        <div className="mt-5 space-y-4 relative z-10">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4 items-stretch">
+            {/* STALE PROPOSAL */}
+            <div className="md:col-span-5 bg-slate-900/80 border border-slate-800 rounded-xl p-4 sm:p-5 flex flex-col justify-between">
+              <div>
+                <span className="text-[11px] font-mono font-bold tracking-widest text-slate-400 uppercase block">
+                  PROPOSED (STALE DATA)
+                </span>
+                <div className="mt-2 flex items-baseline justify-between">
+                  <span className="text-xl sm:text-2xl font-black font-mono text-white tracking-tight">
+                    BUY AAPLx
+                  </span>
+                  <span className="text-xl sm:text-2xl font-black font-mono text-amber-400">
+                    $4,000
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-1 font-mono">
+                  Sizing ($4k ≤ $10k) &amp; Exposure (29% ≤ 30%) PASS · Oracle age is 140 seconds
+                </p>
+              </div>
+              <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-[11px] font-mono text-amber-400">
+                <span>Pyth Quote Age: 140s</span>
+                <span className="text-rose-400 font-semibold">&gt; 60s Max Freshness</span>
+              </div>
+            </div>
+
+            {/* CONNECTOR */}
+            <div className="md:col-span-2 hidden md:flex flex-col items-center justify-center text-center">
+              <span className="text-[10px] font-mono font-bold uppercase text-amber-400 tracking-wider mb-1">
+                SECURITY INPUT
+              </span>
+              <div className="w-10 h-10 rounded-full bg-slate-800 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-sm">
+                <ArrowRight className="w-5 h-5" />
+              </div>
+              <span className="text-[9px] font-mono text-amber-400 mt-1">Pyth Pull Guard</span>
+            </div>
+
+            {/* SENTINEL REFUSAL */}
+            <div className="md:col-span-5 bg-rose-950/25 border border-rose-500/40 rounded-xl p-4 sm:p-5 flex flex-col justify-between shadow-lg shadow-rose-950/20">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-mono font-bold tracking-widest text-rose-400 uppercase block">
+                    SENTINEL
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                    ERR_QUOTE_STALE
+                  </span>
+                </div>
+                <div className="mt-2 flex items-center gap-2 text-xl sm:text-2xl font-black font-mono text-rose-400 tracking-tight">
+                  <XCircle className="w-6 h-6 shrink-0" />
+                  <span>REFUSED</span>
+                </div>
+                <p className="text-xs text-rose-200/80 mt-1 leading-relaxed">
+                  Pyth price quote is stale (140s &gt; 60s max allowed). Execution refused before submission.
+                </p>
+              </div>
+              <div className="mt-3 pt-2.5 border-t border-rose-500/20 flex items-center justify-between text-[11px] font-mono text-rose-300 font-semibold">
+                <span>STALE / LOW CONFIDENCE</span>
+                <span>➔ NO EXECUTION</span>
+              </div>
+            </div>
+          </div>
+
+          {/* HERMÈS PULL UPDATE */}
+          <div className="bg-gradient-to-r from-emerald-950/40 via-emerald-900/20 to-slate-950 border border-emerald-500/30 rounded-xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-emerald-600/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+                <RefreshCw className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-white uppercase tracking-wider">PYTH HERMÈS PULL UPDATE</span>
+                  <span className="text-emerald-400 font-bold">FRESH TRUTH POSTED</span>
+                </div>
+                <p className="text-slate-300 text-[11px] mt-0.5">
+                  Requested fresh price payload from Hermès API → Posted to Solana Devnet (Quote age: 2s).
+                </p>
+              </div>
+            </div>
+            <span className="text-emerald-300 text-[11px] font-semibold bg-emerald-950/60 px-2.5 py-1 rounded border border-emerald-500/20 self-start sm:self-auto">
+              Fresh Quote: ±$0.03
+            </span>
+          </div>
+
+          {/* SETTLEMENT WITH FRESH TRUTH */}
+          <div className="bg-slate-900/90 border border-emerald-500/30 rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 text-emerald-400 font-mono font-bold text-sm">
+                <CheckCircle2 className="w-4 h-4" />
+                <span>TRADE EXECUTED WITH VERIFIED PYTH MARKET TRUTH</span>
+              </div>
+              <p className="text-xs text-slate-300 mt-1 font-mono">
+                BUY AAPLx $4,000 settled cleanly on-chain. PROVN logs authoritative oracle verification proof.
+              </p>
+            </div>
+            {onNavigateToDecisions && (
+              <button
+                type="button"
+                onClick={onNavigateToDecisions}
+                className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-mono text-xs font-bold transition flex items-center gap-1.5 shadow-md shrink-0 cursor-pointer"
+              >
+                <span>View Oracle Evidence</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

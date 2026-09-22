@@ -22,6 +22,7 @@ import { ArrowUpRight } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { Navigation, NavTab } from '@/components/Navigation';
 import { PortfolioView } from '@/components/PortfolioView';
+import { HeroStoryCenterpiece, DemoScenarioKey } from '@/components/HeroStoryCenterpiece';
 import { AgentView } from '@/components/AgentView';
 import { GuaranteesView } from '@/components/GuaranteesView';
 import { ActivityView } from '@/components/ActivityView';
@@ -53,6 +54,7 @@ export default function Home() {
   const [demoTitle, setDemoTitle] = useState<string>('Flagship 5-Step Demo Flow');
   const [totalDemoSteps, setTotalDemoSteps] = useState<number>(5);
   const [walletBalanceSol, setWalletBalanceSol] = useState<number | null>(null);
+  const [selectedHeroScenario, setSelectedHeroScenario] = useState<DemoScenarioKey>('FLAGSHIP');
 
   // Sync connected wallet with portfolio owner, bind signer, and fetch Devnet balance
   useEffect(() => {
@@ -181,9 +183,12 @@ export default function Home() {
   // Flagship 5-Step "Aha!" Demo Flow
   const handleRunDemo = async () => {
     setIsRunningDemo(true);
+    setSelectedHeroScenario('FLAGSHIP');
     setDemoTitle('Flagship 5-Step Demo Flow');
     setTotalDemoSteps(5);
-    setActiveTab('activity');
+    if (activeTab !== 'portfolio') {
+      setActiveTab('activity');
+    }
 
     try {
       const agent = client.getAgent();
@@ -256,9 +261,12 @@ export default function Home() {
   // PreStocks $10K Bounty Demo Flow (Pre-IPO 20% Ceiling Invariant Enforcement)
   const handleRunPreStocksDemo = async () => {
     setIsRunningDemo(true);
+    setSelectedHeroScenario('PRESTOCKS');
     setDemoTitle('PreStocks $10K Bounty Demo: Pre-IPO Exposure Cap');
     setTotalDemoSteps(5);
-    setActiveTab('activity');
+    if (activeTab !== 'portfolio') {
+      setActiveTab('activity');
+    }
 
     try {
       const agent = client.getAgent();
@@ -333,9 +341,12 @@ export default function Home() {
   // Meteora $5K Bounty Demo Flow (Sentinel Equity Market Guard)
   const handleRunMeteoraDemo = async () => {
     setIsRunningDemo(true);
+    setSelectedHeroScenario('METEORA');
     setDemoTitle('Meteora $5K Bounty Demo: Sentinel Equity Market Guard');
     setTotalDemoSteps(4);
-    setActiveTab('activity');
+    if (activeTab !== 'portfolio') {
+      setActiveTab('activity');
+    }
 
     try {
       // Step 1: Inspect Meteora DBC Market
@@ -373,9 +384,12 @@ export default function Home() {
   // Pyth Network Bounty Demo Flow (Pyth as a Security Input: Quote Freshness & Pull Update)
   const handleRunPythDemo = async () => {
     setIsRunningDemo(true);
+    setSelectedHeroScenario('PYTH');
     setDemoTitle('Pyth Oracle Security Guard: Stale Quote Refusal & Pull Update');
     setTotalDemoSteps(4);
-    setActiveTab('activity');
+    if (activeTab !== 'portfolio') {
+      setActiveTab('activity');
+    }
 
     try {
       // Step 1: Inspect Pyth Market Truth
@@ -436,6 +450,18 @@ export default function Home() {
       setSelectedEvidenceId(result.step2SettledDecision.evidenceRecord.id);
     } finally {
       setIsRunningAdaptation(false);
+    }
+  };
+
+  const handleHeroRunAdaptation = async () => {
+    if (selectedHeroScenario === 'FLAGSHIP') {
+      await handleRunDemo();
+    } else if (selectedHeroScenario === 'PRESTOCKS') {
+      await handleRunPreStocksDemo();
+    } else if (selectedHeroScenario === 'METEORA') {
+      await handleRunMeteoraDemo();
+    } else if (selectedHeroScenario === 'PYTH') {
+      await handleRunPythDemo();
     }
   };
 
@@ -616,6 +642,11 @@ export default function Home() {
             onNavigateToAgent={() => setActiveTab('agent')}
             onNavigateToProtection={() => setActiveTab('protection')}
             onBuildPortfolio={handleBuildPortfolio}
+            onRunAdaptation={handleHeroRunAdaptation}
+            isRunningAdaptation={isRunningAdaptation || isRunningDemo}
+            selectedScenario={selectedHeroScenario}
+            onSelectScenario={setSelectedHeroScenario}
+            demoStep={demoStep}
           />
         )}
 

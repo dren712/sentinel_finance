@@ -83,6 +83,7 @@ import {
 import { Badge } from './ui/Badge';
 import { FinancialChart } from './ui/FinancialChart';
 import { PriceProvenanceHover } from './ui/PriceProvenanceHover';
+import { HeroStoryCenterpiece, DemoScenarioKey } from './HeroStoryCenterpiece';
 import { formatCurrency, formatPercent, formatAddress } from '@/lib/formatters';
 import { getExplorerAddressUrl } from '@/lib/config';
 
@@ -96,6 +97,11 @@ interface PortfolioViewProps {
   onNavigateToAgent?: () => void;
   onNavigateToProtection?: () => void;
   onBuildPortfolio?: (allocations: Record<string, number>) => void;
+  onRunAdaptation?: () => void;
+  isRunningAdaptation?: boolean;
+  selectedScenario?: DemoScenarioKey;
+  onSelectScenario?: (scenario: DemoScenarioKey) => void;
+  demoStep?: number;
 }
 
 const PORTFOLIO_PRESETS = [
@@ -175,6 +181,11 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
   onNavigateToAgent,
   onNavigateToProtection,
   onBuildPortfolio,
+  onRunAdaptation,
+  isRunningAdaptation,
+  selectedScenario,
+  onSelectScenario,
+  demoStep,
 }) => {
   const [selectedAssetSymbol, setSelectedAssetSymbol] = useState<string | null>(null);
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
@@ -302,6 +313,19 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* 0. WHAT DID THE AGENT TRY TO DO? (HERO STORY CENTERPIECE) */}
+      <HeroStoryCenterpiece
+        portfolio={portfolio}
+        policy={policy}
+        onRunAdaptation={onRunAdaptation}
+        isRunningAdaptation={isRunningAdaptation}
+        onNavigateToDecisions={onNavigateToDecisions}
+        onNavigateToProtection={onNavigateToProtection}
+        selectedScenario={selectedScenario}
+        onSelectScenario={onSelectScenario}
+        demoStep={demoStep}
+      />
+
       {/* 1. INSTITUTIONAL PORTFOLIO HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-3 pt-1">
         <div>

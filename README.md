@@ -144,34 +144,47 @@ If **any** invariant is breached, the Anchor program **atomically reverts the en
 
 ---
 
-## 🎬 The Flagship 5-Step "Aha!" Demo Flow
+## 🎬 The Center of the UI: "What did the agent try to do?"
 
-The core user experience demonstrates autonomous adaptation under strict safety guardrails:
+The UI does not lead with a generic portfolio balance. It leads directly with the core product thesis:
 
 ```
-Step 1: Connect & Inspect Portfolio
-        │
-        ▼
-Step 2: Robo-01 Proposes Violating Trade (BUY NVDAx $15,000)
-        │
-        ▼
-Step 3: Sentinel Postcondition Aborts Atomically
-        ├── NVDAx Exposure: 35.00% > 25.00% [FAILED]
-        ├── Stable Reserve: 10.00% < 20.00% [FAILED]
-        └── Trade Sizing:  $15,000 > $10,000 [FAILED]
-        │
-        ▼
-Step 4: Autonomous Reactive Adaptation
-        ├── Agent reads invariant rejection telemetry
-        ├── Solves maximum compliant trade size ($5,000)
-        └── Re-submits: BUY NVDAx $5,000
-        │
-        ▼
-Step 5: Settlement & Two-Tier PROVN Receipt
-        ├── All 4 Invariants Satisfied (25.00% / 20.00% / $5,000 / 0.12%)
-        ├── Investor View: "✓ Protected on Solana"
-        └── Technical Drawer: Deterministic SHA-256 Pre/Post State Hashes & PDA
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│ WHAT DID THE AGENT TRY TO DO?                                                    │
+├──────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│   PROPOSED                    SENTINEL                                           │
+│   BUY NVDAx            ───►   BLOCKED                                            │
+│   $15,000                     Prospective state breached 3 financial invariants  │
+│                               0 tokens moved · Capital 100% safe                 │
+│                                                                                  │
+│   PROJECTED STATE FAILURES:                                                      │
+│   ├── NVDAx Exposure:    20.0% → 35.0%   (Policy Limit: 25.0%)   [FAILED]        │
+│   ├── USDC Cash Reserve: 25.0% → 10.0%   (Policy Floor: 20.0%)   [FAILED]        │
+│   └── Max Trade Sizing:  $15,000         (Policy Ceiling: $10k)  [FAILED]        │
+│                                                                                  │
+│                                    ▼                                             │
+│                                                                                  │
+│   ROBO-01  ADAPTING...                                                           │
+│   Agent read rejection telemetry ➔ Solved maximum compliant headroom ($5,000)    │
+│                                                                                  │
+│                                    ▼                                             │
+│                                                                                  │
+│   NEW PROPOSAL                SENTINEL                                           │
+│   BUY NVDAx            ───►   APPROVED                                           │
+│   $5,000                      All 4 Invariants Satisfied · Settled on Solana     │
+│                               PROVN Receipt Sealed                               │
+│                                                                                  │
+└──────────────────────────────────────────────────────────────────────────────────┘
 ```
+
+### 🎯 Scope Discipline & The Exemplary Path
+
+Rather than seventeen shallow mock assets with fake integrations, Sentinel delivers **one exemplary, verifiable path**:
+- **Public Equities**: `USDC` ➔ `AAPLx` / `NVDAx` (+ `SPYx` index benchmark).
+- **PreStocks ($10K Bounty)**: 1-2 certified Pre-IPO tech unicorns (`OPENAIx`, `SPACEXx`) with 409A attestations and Secondary Vault settlement.
+- **Meteora ($5K Bounty)**: 1 genuine DBC liquidity use case (`NVDAx` dynamic bonding curve with reserve floor and slippage shield).
+- **Pyth Network (Security Input)**: Real-time price, confidence interval, and staleness verification (`STALE / LOW CONFIDENCE ➔ NO EXECUTION`).
 
 ### 🎮 Turnkey Demo Scenarios (Interactive in UI & Test Suite)
 

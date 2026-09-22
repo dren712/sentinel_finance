@@ -67,31 +67,39 @@ This is the core demonstration. It takes **under 2 minutes** and visibly demonst
 
 ---
 
-### Step 1: Connect & Portfolio Inspection
-* **Where to look**: Header bar & **PORTFOLIO** tab.
+### Step 1: Landing on the Hero Story: "What did the agent try to do?"
+* **Where to look**: Right at the top of the **PORTFOLIO** home view.
 * **Action**:
-  1. Verify the mode badge says **`[🟢 DEVNET LIVE]`** (or click it to toggle between Devnet and Simulation).
-  2. Click **"Select Wallet"** in the top-right corner to connect Phantom, Solflare, or Backpack.
-  3. Point out the connected Devnet address and SOL balance.
-  4. Point to the **4/4 Health Guarantees** cards:
+  1. The UI immediately leads with the central question: **"WHAT DID THE AGENT TRY TO DO?"**
+  2. Point out the mathematically engineered initial state ($100,000 NAV: $20k NVDAx, $25k AAPLx, $30k SPYx, $25k USDC).
+  3. Point to the four on-chain invariant boundaries anchored in the Solana Policy PDA:
      * **Max Single-Asset Exposure**: `≤ 25.0%`
      * **Min Stablecoin Reserve Floor**: `≥ 20.0%`
      * **Max Trade Sizing Limit**: `≤ $10,000`
      * **Max Slippage Tolerance**: `≤ 1.0%`
 * **What to say**:
-  > *"Here is our portfolio dashboard. We have $100,000 diversified across tokenized equities like NVDAx, AAPLx, and stablecoins. Notice these four risk boundaries: they are anchored directly on-chain inside our Solana Policy PDA. The agent is strictly bounded by them."*
+  > *"When you open Sentinel Finance, we don't bury the story in generic portfolio charts. We lead immediately with the core question: **What did the agent try to do?**
+  >
+  > Here is our starting portfolio: exactly $100,000 with $20k NVDAx (20%), $25k AAPLx (25%), and $25k USDC (25%). Everything is governed by authoritative postconditions enforced directly on Solana."*
 
 ---
 
-### Step 2: Robo-01 Proposes Violating Trade ($15,000)
+### Step 2: The Rogue Trade ($15,000) & The Three Inevitable Failures
 * **Action**:
-  1. Click the blue **`[ ▶ Flagship 5-Step Demo ]`** button in the top header.
-  2. The UI automatically navigates to the **ACTIVITY** tab and opens the animated 5-step stepper banner.
-* **On Screen**:
-  * Step 1 banner verifies current NAV.
-  * Step 2 banner appears: *"Step 2/5: Sentinel Robo-01 spots NVDA momentum and proposes BUY NVDAx $15,000"*.
+  1. Click **`[ Replay Enforcement ]`** on the hero card (or select from the header dropdown).
+  2. The hero card highlights the initial proposal:
+     * **PROPOSED**: `BUY NVDAx $15,000`
+     * **SENTINEL**: `BLOCKED`
+  3. Inspect the **Projected State Violations**:
+     * **NVDAx Exposure**: `20.0% → 35.0%` (Limit: 25.0%) `[FAILED]`
+     * **USDC Cash Reserve**: `25.0% → 10.0%` (Floor: 20.0%) `[FAILED]`
+     * **Order Sizing**: `$15,000` (Ceiling: $10,000) `[FAILED]`
 * **What to say**:
-  > *"Robo-01 spots bullish momentum on Nvidia and decides to allocate an aggressive $15,000. In any traditional bot or wallet delegation, this transaction broadcasts blindly and over-concentrates your wealth."*
+  > *"Robo-01 spots momentum on Nvidia and proposes an aggressive $15,000 buy. Under normal wallet delegation, this trade executes blindly.
+  >
+  > But look at Sentinel's projected post-trade verification: the trade triggers **three simultaneous, mathematically undeniable failures**: NVDA hits 35%, cash drops to 10%, and the order exceeds $10,000.
+  >
+  > Sentinel atomically aborts the transaction on Solana. Zero funds leave the vault."*
 
 ---
 
