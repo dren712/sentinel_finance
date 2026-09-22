@@ -22,8 +22,8 @@ Sentinel Finance adheres to a focused, high-conviction submission strategy. Rath
   - Invariant checks enforce Pyth confidence bounds ($\pm \sigma$) and stale-quote rejection (< 60s freshness).
   - Dual-feed pricing compares tokenized equity price against underlying equity index to detect depegging or basis tracking error (> 100 bps).
 - **Code Path**:
-  - [`packages/domain/src/price-provider.ts`](file:///Users/darshangaikwad/Desktop/stocklana/packages/domain/src/price-provider.ts)
-  - [`packages/domain/src/valuation-engine.ts`](file:///Users/darshangaikwad/Desktop/stocklana/packages/domain/src/valuation-engine.ts)
+  - [`packages/domain/src/price-provider.ts`](../packages/domain/src/price-provider.ts)
+  - [`packages/domain/src/valuation-engine.ts`](../packages/domain/src/valuation-engine.ts)
 
 ### 2.2 PreStocks — Pre-IPO Asset Universe & Portfolio Builder
 - **Strategic Fit**: PreStocks enables tokenized pre-IPO secondary stock trading. Sentinel provides the institutional risk layer so autonomous agents can safely invest in private markets.
@@ -32,8 +32,8 @@ Sentinel Finance adheres to a focused, high-conviction submission strategy. Rath
   - Portfolio Builder supports 3 explicit macro asset classes: Public Equities ($\le 70\%$), Pre-IPO Private Equity ($\le 20\%$), and USDC Reserves ($\ge 10\%$).
   - Autonomous agents automatically calculate maximum compliant pre-IPO trade sizing under the 20% ceiling.
 - **Code Path**:
-  - [`packages/domain/src/asset-registry.ts`](file:///Users/darshangaikwad/Desktop/stocklana/packages/domain/src/asset-registry.ts)
-  - [`packages/sdk/src/adapters/pre-stocks-adapter.ts`](file:///Users/darshangaikwad/Desktop/stocklana/packages/sdk/src/adapters/pre-stocks-adapter.ts)
+  - [`packages/domain/src/asset-registry.ts`](../packages/domain/src/asset-registry.ts)
+  - [`packages/sdk/src/adapters/pre-stocks-adapter.ts`](../packages/sdk/src/adapters/pre-stocks-adapter.ts)
 
 ### 2.3 Meteora — Dynamic Bonding Curve (DBC) & Market Protection
 - **Strategic Fit**: Tokenized equities launched on Meteora DBCs require deep liquidity and controlled volatility to be investable by autonomous agents.
@@ -41,8 +41,8 @@ Sentinel Finance adheres to a focused, high-conviction submission strategy. Rath
   - `MeteoraDBCMarketQualityVerifier` inspects DBC pool reserves to verify a minimum liquidity floor of **$25,000 USD** and spot price divergence $\le 2.00\%$.
   - Bidirectional Protection: Sentinel protects investors from rogue agent trades *and* protects Meteora DBC pools from toxic predatory flows by enforcing trade sizing ceilings and slippage bounds.
 - **Code Path**:
-  - [`packages/domain/src/swarm-verifiers.ts`](file:///Users/darshangaikwad/Desktop/stocklana/packages/domain/src/swarm-verifiers.ts)
-  - [`packages/sdk/src/verifiers/meteora-verifier.ts`](file:///Users/darshangaikwad/Desktop/stocklana/packages/sdk/src/verifiers/meteora-verifier.ts)
+  - [`packages/domain/src/swarm-verifiers.ts`](../packages/domain/src/swarm-verifiers.ts)
+  - [`packages/sdk/src/verifiers/meteora-verifier.ts`](../packages/sdk/src/verifiers/meteora-verifier.ts)
 
 ---
 

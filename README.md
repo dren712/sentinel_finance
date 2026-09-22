@@ -218,7 +218,7 @@ docker compose up -d --build
 # Or run directly from Docker Hub
 docker run -d -p 3000:3000 --name sentinel-finance <your-username>/sentinel-finance:latest
 ```
-See [DOCKER_GUIDE.md](file:///e:/Sentinel/sentinel_finance/DOCKER_GUIDE.md) for full Docker Hub publishing instructions.
+See [DOCKER_GUIDE.md](./DOCKER_GUIDE.md) for full Docker Hub publishing instructions.
 
 ---
 
