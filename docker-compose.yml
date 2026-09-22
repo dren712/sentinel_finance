@@ -1,0 +1,15 @@
+services:
+  sentinel-finance:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sentinel-finance:latest
+    container_name: sentinel-finance
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+      - NEXT_TELEMETRY_DISABLED=1
+    restart: unless-stopped
