@@ -61,15 +61,36 @@ Solana Explorer: https://explorer.solana.com/address/3gh1Cc2Qc65hJhxZKneXphWJa27
 
 ---
 
-## 🛑 The Three Autonomous Rejection Modes
+## 🛑 The Three Flagship "Aha" Cases: We Don't Blindly Trust
 
 Sentinel transforms autonomous execution from unconstrained agency into a bounded financial system governed by internal state, external market quality, and data integrity:
 
-| Rejection Mode | Category | Enforcement Invariant | Canonical Demo Flow |
+> **Core Thesis: Sentinel doesn't blindly trust the AGENT, the MARKET, or the DATA.**
+
+| Flagship Case | Category | What Sentinel Doesn't Trust | Canonical Demo Flow |
 | :--- | :--- | :--- | :--- |
-| **Mode 1: PORTFOLIO_FAILURE** | **Internal State Invariants** | Single-asset exposure cap ($\le 25\%$), stablecoin reserve floor ($\ge 20\%$), or asset-class exposure ceiling (Pre-IPO $\le 20\%$). | **PreStocks $10K Demo**: Portfolio holds 18% Pre-IPO. Agent proposes `BUY OPENAIx $5,000` (within $\$10\text{k}$ sizing cap). Pre-IPO allocation surges to $23\% > 20\%$ cap ➔ **REJECTED**. Agent auto-solves remaining headroom: $(\$100\text{k} \times 20\%) - \$18\text{k} = \$2,000$ ➔ Reproposes `BUY OPENAIx $2,000` (hits exact $20.0\%$ cap) ➔ **APPROVED & SETTLED** via PreStocks Secondary Vault! |
-| **Mode 2: MARKET_FAILURE** | **Market Reality & Execution Quality** | Meteora DBC curve price impact ($\le 1.00\%$ max slippage) & liquidity reserve floor ($\ge \$25,000$). | **Meteora $5K Demo**: Agent proposes `BUY NVDAx $8,000`. Portfolio exposure & user policy both pass ($8\text{k} \le \$10\text{k}$, $28\% \le 30\%$). Meteora DBC curve estimates $1.70\%$ price impact ($> 1.00\%$ max slippage) ➔ **BLOCKED** by Equity Market Guard! Agent reads DBC curve equation and auto-adapts trade down to $\$2,500$ along curve ($0.45\% \le 1.00\%$ impact) ➔ **APPROVED & SETTLED** on Meteora DBC! |
-| **Mode 3: DATA_INTEGRITY_FAILURE** | **Market Truth & Oracle Freshness** | Pyth dual-feed quote freshness ($\text{age} \le 60\text{s}$) & confidence intervals ($\pm \sigma$). | **Pyth Security Input Demo**: Agent proposes `BUY AAPLx $4,000`. Pyth price quote is $140\text{s}$ old ($> 60\text{s}$ ceiling) ➔ `STALE / LOW CONFIDENCE ➔ NO EXECUTION` ➔ **REFUSED** (`ERR_QUOTE_STALE`). Pyth Hermès pull update delivers fresh quote (age $0\text{s}$, $\pm \$0.03$) ➔ **APPROVED & SETTLED**! |
+| **Case A: Portfolio Violation** | **Mode 1: PORTFOLIO_FAILURE** | Doesn't trust the **AGENT** | **Rogue Allocation Breach**: Agent proposes `BUY NVDAx $15,000`. Concentration surges to 35% (> 25% cap), cash drops to 10% (< 20% floor), size breaches $10k limit ➔ **BLOCK** ➔ **ADAPT** ➔ Agent solves exact headroom and proposes `BUY NVDAx $5,000` (hits 25.0% cap, 20.0% cash) ➔ **APPROVED & SETTLED**! |
+| **Case B: Market Violation** | **Mode 2: MARKET_FAILURE** | Doesn't trust the **MARKET** | **Meteora DBC Curve Impact**: Agent proposes `BUY NVDAx $8,000`. Portfolio exposure & user policy both pass ($8k ≤ $10k, 28% ≤ 30%). Meteora DBC curve estimates 1.70% price impact (> 1.00% max slippage) ➔ **BLOCK** by Equity Market Guard! ➔ **ADAPT along curve** ➔ Agent auto-adapts trade down to $2,500 along DBC curve (0.45% ≤ 1.00% impact) ➔ **APPROVED & SETTLED** on Meteora DBC! |
+| **Case C: Data Violation** | **Mode 3: DATA_INTEGRITY_FAILURE** | Doesn't trust the **DATA** | **Pyth Oracle Staleness**: Agent proposes `BUY AAPLx $4,000`. Pyth price quote is 140s old (> 60s freshness ceiling) ➔ `STALE / LOW CONFIDENCE ➔ NO EXECUTION` ➔ **REFUSED** (`ERR_QUOTE_STALE`) ➔ **WAIT / REPRICE** via Pyth Hermès on-demand pull update (age 0s, $\pm \$0.03$) ➔ **APPROVED & SETTLED**! |
+
+*Bonus PreStocks Demonstration*: Proves Sentinel understands **macro asset classes** (Public Equity + Pre-IPO + Stable Reserve). Agent proposes `BUY OPENAIx $5,000` (sizing passes). Pre-IPO allocation surges to 23% (> 20% cap) ➔ **REJECTED** on asset class invariant! Agent auto-solves remaining headroom: `($100,000 × 20%) - $18,000 = $2,000` ➔ Reproposes `BUY OPENAIx $2,000` (hits exact 20.0% cap) ➔ **APPROVED & SETTLED** via PreStocks Secondary Vault PDA!
+
+---
+
+## 💎 The Four Proof Layers of Sentinel
+
+When a judge evaluates Sentinel Finance, every element of our repository and submission serves one of four concrete proof layers:
+
+1. **Proof 1 — Product**: *"I understand what this does."*  
+   Autonomous robo-portfolio manager on Solana where the agent chooses the trade, but Sentinel enforces what the resulting portfolio is allowed to become.
+2. **Proof 2 — Live Demo**: *"I saw it actually work."*  
+   The three flagship Aha cases demonstrating that Sentinel does not blindly trust the agent, the market, or the data.
+3. **Proof 3 — Protocol**: *"I can inspect the Anchor logic."*  
+   Live Anchor program deployed on Solana Devnet (`3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK`), fixed-point `u128` math, Policy PDA (`3wTp1Y...`), Agent PDA (`62vpHz...`), and Vault PDA (`7TffMK...`).
+4. **Proof 4 — Evidence**: *"I can verify what happened."*  
+   Two-tier PROVN receipts with deterministic SHA-256 pre and post state roots, intent hashes, policy hashes, and Solana transaction signatures.
+
+> 🎬 **Pitch Video**: Read our official 3-minute video script formatted for Colosseum review: [docs/PITCH_VIDEO_SCRIPT.md](docs/PITCH_VIDEO_SCRIPT.md).
 
 ---
 

@@ -270,4 +270,27 @@ If the judges or audience ask to explore further, walk through the 4 navigation 
 
 ---
 
+## 🎬 7. The 3-Minute Colosseum Pitch Video Script & Teleprompter Timing
+
+Use this turn-by-turn breakdown when recording the pitch video ([full script in `docs/PITCH_VIDEO_SCRIPT.md`](docs/PITCH_VIDEO_SCRIPT.md)):
+
+* **0:00–0:20 | THE PROBLEM: The Delegation Dilemma**  
+  *Pitch*: "When an investor delegates trading authority to an autonomous AI agent, wallet delegation only checks: *is the agent authorized to sign?* Never *what financial state results*. Model drift and hallucinations can wipe reserves or over-concentrate 90% into one equity. Current agents are unconstrained."
+* **0:20–0:40 | THE SENTINEL IDEA: Postconditions at the Boundary**  
+  *Pitch*: "Sentinel introduces Authoritative Financial Postconditions at Solana's state-transition boundary. Agent proposes any trade; Sentinel checks resulting state against investor's Policy PDA. Any breach = atomic revert on Solana. Zero funds move."
+* **0:40–1:50 | THE LIVE DEMO: $15K Proposal ➔ Atomic Revert ➔ $5K Auto-Adapt**  
+  *Pitch*: "Watch our live Devnet demo: Starting portfolio NAV $100k ($20k NVDA, $25k AAPL, $25k USDC). Policy: NVDA ≤ 25%, cash ≥ 20%. Robo-01 proposes BUY NVDAx $15,000. Under standard delegation, that executes blindly. Sentinel flags 3 simultaneous failures: NVDA 35% > 25%, cash 10% < 20%, size $15k > $10k. **ATOMIC REVERT on Solana**. 0 tokens moved.  
+  Next: Autonomous Reactive Adaptation. Agent reads telemetry, solves exact compliant headroom ($5,000), resubmits BUY NVDAx $5,000. **APPROVED and SETTLED on Solana**. PROVN seals cryptographic audit receipt with deterministic SHA-256 pre and post state roots."
+* **1:50–2:30 | REAL SOLANA & SPONSORS: We Don't Blindly Trust**  
+  *Pitch*: "Why Solana? Enforcement lives at the state-transition boundary in the exact same atomic transaction runtime.  
+  And Sentinel doesn't blindly trust:  
+  1. **The AGENT**: Portfolio invariants catch rogue allocations.  
+  2. **The MARKET**: With Meteora DBC, Equity Market Guard blocks trades with >1.00% price impact, auto-adapting along the curve to $2,500.  
+  3. **The DATA**: With Pyth Pro, Pyth is a Security Input. Stale quotes halt execution, pulling fresh truth via Hermès.  
+  And with PreStocks, macro asset-class ceilings keep pre-IPO equity ≤ 20%."
+* **2:30–3:00 | VISION, TRACTION & THE MOAT**  
+  *Pitch*: "In 5 years, AI swarms will manage hundreds of billions in capital. But institutions need mathematical guarantees. Sentinel provides those trust rails. Deployed on Solana Devnet today at `3gh1Cc2Q...`. 107/107 green tests. Thank you."
+
+---
+
 *Sentinel Finance — Built for the Stocklana Solana Tokenized-Stock Hackathon.*

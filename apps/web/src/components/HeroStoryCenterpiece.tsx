@@ -90,18 +90,7 @@ export const HeroStoryCenterpiece: React.FC<HeroStoryCenterpieceProps> = ({
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              Flagship (NVDAx)
-            </button>
-            <button
-              type="button"
-              onClick={() => handleScenarioChange('PRESTOCKS')}
-              className={`px-2.5 py-1 rounded font-semibold transition cursor-pointer ${
-                activeScenario === 'PRESTOCKS'
-                  ? 'bg-purple-600 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              PreStocks $10K
+              Case A: Agent Trust (NVDAx)
             </button>
             <button
               type="button"
@@ -112,7 +101,7 @@ export const HeroStoryCenterpiece: React.FC<HeroStoryCenterpieceProps> = ({
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              Meteora $5K
+              Case B: Market Trust (Meteora)
             </button>
             <button
               type="button"
@@ -123,7 +112,18 @@ export const HeroStoryCenterpiece: React.FC<HeroStoryCenterpieceProps> = ({
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              Pyth Security
+              Case C: Data Trust (Pyth)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleScenarioChange('PRESTOCKS')}
+              className={`px-2.5 py-1 rounded font-semibold transition cursor-pointer ${
+                activeScenario === 'PRESTOCKS'
+                  ? 'bg-purple-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              PreStocks ($10K)
             </button>
           </div>
 
@@ -142,48 +142,58 @@ export const HeroStoryCenterpiece: React.FC<HeroStoryCenterpieceProps> = ({
         </div>
       </div>
 
-      {/* THREE AUTONOMOUS REJECTION MODES TRIAD */}
-      <div className="mt-4 pt-3 pb-3 border-b border-slate-800/80 grid grid-cols-1 md:grid-cols-3 gap-2.5 text-xs font-mono relative z-10">
-        <div className={`p-2.5 rounded-lg border transition ${
-          activeScenario === 'FLAGSHIP' || activeScenario === 'PRESTOCKS'
-            ? 'bg-blue-950/30 border-blue-500/40 text-blue-300'
-            : 'bg-slate-950/40 border-slate-800/80 text-slate-400'
-        }`}>
-          <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[10px] text-blue-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-            Mode 1 · Portfolio Failure
-          </div>
-          <p className="text-[11px] text-slate-300 mt-1">
-            Internal Invariants: Single-asset (25%), Reserve floor (20%), Pre-IPO asset class cap (20%).
-          </p>
+      {/* THREE AUTONOMOUS FLAGSHIP AHA CASES */}
+      <div className="mt-4 pt-3 pb-3 border-b border-slate-800/80 space-y-2 relative z-10">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-mono font-bold tracking-widest text-slate-400 uppercase">
+            SENTINEL DOES NOT BLINDLY TRUST: THE AGENT · THE MARKET · THE DATA
+          </span>
+          <span className="text-[10px] font-mono text-slate-500 hidden sm:inline">
+            3 Flagship Aha Demonstrations
+          </span>
         </div>
-
-        <div className={`p-2.5 rounded-lg border transition ${
-          activeScenario === 'METEORA'
-            ? 'bg-amber-950/30 border-amber-500/40 text-amber-300'
-            : 'bg-slate-950/40 border-slate-800/80 text-slate-400'
-        }`}>
-          <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[10px] text-amber-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-            Mode 2 · Market Failure
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 text-xs font-mono">
+          <div className={`p-2.5 rounded-lg border transition ${
+            activeScenario === 'FLAGSHIP' || activeScenario === 'PRESTOCKS'
+              ? 'bg-blue-950/30 border-blue-500/40 text-blue-300'
+              : 'bg-slate-950/40 border-slate-800/80 text-slate-400'
+          }`}>
+            <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[10px] text-blue-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+              Case A · Doesn't Trust The Agent
+            </div>
+            <p className="text-[11px] text-slate-300 mt-1">
+              <strong>Portfolio Invariant Breach</strong>: BUY NVDAx $15k ➔ Concentration (35% &gt; 25%) ➔ <strong>BLOCK</strong> ➔ <strong>ADAPT</strong> ➔ BUY $5k.
+            </p>
           </div>
-          <p className="text-[11px] text-slate-300 mt-1">
-            Market Reality: Meteora DBC price impact (1.70% &gt; 1.00% max slippage) &amp; shallow depth.
-          </p>
-        </div>
 
-        <div className={`p-2.5 rounded-lg border transition ${
-          activeScenario === 'PYTH'
-            ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-300'
-            : 'bg-slate-950/40 border-slate-800/80 text-slate-400'
-        }`}>
-          <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[10px] text-emerald-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            Mode 3 · Data Integrity Failure
+          <div className={`p-2.5 rounded-lg border transition ${
+            activeScenario === 'METEORA'
+              ? 'bg-amber-950/30 border-amber-500/40 text-amber-300'
+              : 'bg-slate-950/40 border-slate-800/80 text-slate-400'
+          }`}>
+            <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[10px] text-amber-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+              Case B · Doesn't Trust The Market
+            </div>
+            <p className="text-[11px] text-slate-300 mt-1">
+              <strong>Meteora Curve Impact</strong>: BUY $8k ➔ DBC price impact 1.70% &gt; 1.00% cap ➔ <strong>BLOCK</strong> ➔ <strong>ADAPT along curve</strong> ➔ BUY $2,500.
+            </p>
           </div>
-          <p className="text-[11px] text-slate-300 mt-1">
-            Market Truth: Pyth oracle freshness (140s &gt; 60s max age) &amp; confidence boundaries.
-          </p>
+
+          <div className={`p-2.5 rounded-lg border transition ${
+            activeScenario === 'PYTH'
+              ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-300'
+              : 'bg-slate-950/40 border-slate-800/80 text-slate-400'
+          }`}>
+            <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[10px] text-emerald-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              Case C · Doesn't Trust The Data
+            </div>
+            <p className="text-[11px] text-slate-300 mt-1">
+              <strong>Pyth Oracle Freshness</strong>: BUY $4k ➔ Quote stale 140s &gt; 60s ➔ <strong>BLOCK</strong> ➔ <strong>WAIT / REPRICE</strong> via Hermès ➔ Settle fresh.
+            </p>
+          </div>
         </div>
       </div>
 
