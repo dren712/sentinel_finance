@@ -7,6 +7,7 @@ import {
   createEvidenceRecord,
   generateAuditExplanation,
   evaluatePostconditions,
+  evaluatePostStateInvariants,
   evaluateSwarm,
   hashFinancialPolicy,
   hashTradeIntent,
@@ -41,7 +42,7 @@ import {
 import { PreStocksExecutionAdapter } from './adapters/prestocks-adapter';
 import { MeteoraExecutionAdapter } from './adapters/meteora-adapter';
 import { DemoExecutionAdapter } from './adapters/demo-adapter';
-import { ClawPumpAgentWallet } from './sponsors/clawpump';
+import { AgentSignerWallet } from './agent-wallet';
 import { deriveSplAta } from './portfolio-indexer';
 
 export interface AgentConfig {
@@ -60,7 +61,7 @@ export class AutonomousRoboAgent {
   public readonly name: string;
   public objective: string;
   public status: 'ACTIVE' | 'PAUSED' | 'STEP_BY_STEP';
-  public readonly wallet: ClawPumpAgentWallet;
+  public readonly wallet: AgentSignerWallet;
   public agentRiskState: AgentRiskState;
   public currentLoopState?: AgentLoopState;
 
@@ -69,7 +70,7 @@ export class AutonomousRoboAgent {
     this.name = config.name ?? 'Sentinel Autonomous Robo-1';
     this.objective = config.objective ?? 'Earnings Momentum & Growth Allocation';
     this.status = 'ACTIVE';
-    this.wallet = new ClawPumpAgentWallet(this.agentId, this.name);
+    this.wallet = new AgentSignerWallet(this.agentId, this.name);
     this.agentRiskState = {
       agentId: this.agentId,
       tradesExecuted24hUsd: 0,
@@ -436,6 +437,59 @@ export class AutonomousRoboAgent {
 
       // SETTLE VIA EXECUTION ADAPTER GATED BY SENTINEL AUTHORIZATION
       const executionResult = await adapter.executeTrade(intent, preState, authorizationTicket);
+
+      // Point 24: Actual Token Execution ➔ Actual Resulting Token State ➔ Post-State Verification
+      const isBuy = intent.direction === 'BUY';
+      const actualPostAssets = preState.assets.map(a => {
+        let deltaUsd = 0;
+        let deltaAmount = 0;
+        if (a.symbol === executionResult.outputAsset) {
+          deltaUsd = isBuy ? intent.tradeAmountUsd : executionResult.outputAmount;
+          deltaAmount = executionResult.outputAmount;
+        } else if (a.symbol === executionResult.inputAsset) {
+          deltaUsd = isBuy ? -intent.tradeAmountUsd : -executionResult.inputAmount;
+          deltaAmount = -executionResult.inputAmount;
+        }
+        const updatedVal = Math.max(0, Math.round((a.valueUsd + deltaUsd) * 100) / 100);
+        return {
+          ...a,
+          valueUsd: updatedVal,
+          amount: Math.max(0, a.amount + deltaAmount),
+        };
+      });
+
+      const actualPostTotalVal = actualPostAssets.reduce((sum, a) => sum + a.valueUsd, 0);
+      const actualStableVal = actualPostAssets.find(a => a.isStablecoin || a.symbol === 'USDC')?.valueUsd ?? 0;
+      const actualPostState: PortfolioSnapshot = {
+        ...preState,
+        totalValueUsd: actualPostTotalVal,
+        stablecoinValueUsd: actualStableVal,
+        stablecoinExposureBps: actualPostTotalVal > 0 ? Math.round((actualStableVal * 10_000) / actualPostTotalVal) : 0,
+        assets: actualPostAssets.map(a => ({
+          ...a,
+          exposureBps: actualPostTotalVal > 0 ? Math.round((a.valueUsd * 10_000) / actualPostTotalVal) : 0,
+        })),
+        timestamp: Date.now(),
+      };
+
+      // Post-state verification from actual resulting balances
+      const postVerification = evaluatePostStateInvariants(
+        actualPostState,
+        intent,
+        policy,
+        preState,
+        undefined,
+        priceSource,
+        this.agentRiskState,
+        venueDetails
+      );
+
+      if (!postVerification.allPassed) {
+        throw new SecurityViolationError(
+          `Post-execution verification failed: Actual token balances breached policy invariants (${postVerification.failureReason})`,
+          'POLICY_BREACH'
+        );
+      }
 
       // TRANSITION TO SETTLED
       promise.status = 'SETTLED';

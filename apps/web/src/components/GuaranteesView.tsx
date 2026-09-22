@@ -64,9 +64,6 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
   const [maxPreIpoExposurePct, setMaxPreIpoExposurePct] = useState(
     (policy.maxPreIpoExposureBps ?? 2000) / 100
   );
-  const [maxAgentTokenExposurePct, setMaxAgentTokenExposurePct] = useState(
-    (policy.maxAgentTokenExposureBps ?? 500) / 100
-  );
 
   // Emergency Pause
   const [isEmergencyPaused, setIsEmergencyPaused] = useState(policy.isEmergencyPaused ?? false);
@@ -116,7 +113,6 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
     setMinStablecoinPct(profile.minStablecoinBps / 100);
     setMaxPublicEquitiesExposurePct((profile.maxPublicEquitiesExposureBps ?? 7000) / 100);
     setMaxPreIpoExposurePct((profile.maxPreIpoExposureBps ?? 2000) / 100);
-    setMaxAgentTokenExposurePct((profile.maxAgentTokenExposureBps ?? 500) / 100);
     setMaxTradeValue(profile.maxTradeValueUsd);
     setMaxSlippagePct(profile.maxSlippageBps / 100);
     setMaxSectorExposurePct((profile.maxSectorExposureBps ?? 4500) / 100);
@@ -140,7 +136,6 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
       minStablecoinBps: Math.round(minStablecoinPct * 100),
       maxPublicEquitiesExposureBps: Math.round(maxPublicEquitiesExposurePct * 100),
       maxPreIpoExposureBps: Math.round(maxPreIpoExposurePct * 100),
-      maxAgentTokenExposureBps: Math.round(maxAgentTokenExposurePct * 100),
       maxTradeValueUsd: maxTradeValue,
       maxSlippageBps: Math.round(maxSlippagePct * 100),
       maxSectorExposureBps: Math.round(maxSectorExposurePct * 100),
@@ -181,7 +176,6 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
     minStablecoinBps: Math.round(minStablecoinPct * 100),
     maxPublicEquitiesExposureBps: Math.round(maxPublicEquitiesExposurePct * 100),
     maxPreIpoExposureBps: Math.round(maxPreIpoExposurePct * 100),
-    maxAgentTokenExposureBps: Math.round(maxAgentTokenExposurePct * 100),
     maxTradeValueUsd: maxTradeValue,
     maxSlippageBps: Math.round(maxSlippagePct * 100),
     maxSectorExposureBps: Math.round(maxSectorExposurePct * 100),
@@ -447,26 +441,6 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
             />
             <span className="text-[10px] text-sentinel-textMuted block font-sans">
               SpaceX, OpenAI, Stripe (PreStocks secondary)
-            </span>
-          </div>
-
-          {/* Agent Tokens (ClawPump) */}
-          <div className="p-3.5 rounded-lg bg-sentinel-surfaceMuted border border-emerald-500/20 space-y-2">
-            <div className="flex justify-between items-center">
-              <span className="text-white font-semibold">Anti-Self-Dealing Cap</span>
-              <span className="text-emerald-400 font-bold">≤ {maxAgentTokenExposurePct.toFixed(1)}%</span>
-            </div>
-            <input
-              type="range"
-              min="1"
-              max="10"
-              step="0.5"
-              value={maxAgentTokenExposurePct}
-              onChange={(e) => setMaxAgentTokenExposurePct(parseFloat(e.target.value))}
-              className="w-full accent-emerald-500 cursor-pointer"
-            />
-            <span className="text-[10px] text-sentinel-textMuted block font-sans">
-              Prevents agent from allocating into self-issued tokens
             </span>
           </div>
         </div>

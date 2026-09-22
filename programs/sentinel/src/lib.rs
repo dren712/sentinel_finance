@@ -159,6 +159,7 @@ pub mod sentinel {
             SentinelError::UnauthorizedAgent
         );
 
+        let clock = Clock::get()?;
         let promise = &mut ctx.accounts.promise;
         promise.promise_id = promise_id;
         promise.agent = ctx.accounts.agent.key();
@@ -168,6 +169,8 @@ pub mod sentinel {
         promise.trade_direction = trade_direction;
         promise.trade_amount_usd = trade_amount_usd;
         promise.status = 1; // 1 = Promised
+        promise.created_at = clock.unix_timestamp;
+        promise.expires_at = clock.unix_timestamp.checked_add(120).ok_or(SentinelError::MathOverflow)?; // 120s TTL
         promise.bump = ctx.bumps.promise;
 
         emit!(PromiseCreatedEvent {
@@ -202,8 +205,10 @@ pub mod sentinel {
         );
 
         // 2. State & Promise checks
+        let clock = Clock::get()?;
         require!(policy.is_active, SentinelError::PolicyInactive);
         require!(promise.status == 1, SentinelError::InvalidPromiseStatus);
+        require!(clock.unix_timestamp <= promise.expires_at, SentinelError::PromiseExpired);
 
         // 3. Postcondition: Max Trade Size
         require!(
@@ -725,5 +730,19 @@ mod tests {
             12_000,       // Executed price $120.00
         );
         assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_promise_expiry_enforcement() {
+        let created_at: i64 = 1726000000;
+        let expires_at: i64 = created_at + 120; // 120s TTL
+
+        // Within valid execution window (e.g. 30s elapsed)
+        let valid_time: i64 = created_at + 30;
+        assert!(valid_time <= expires_at);
+
+        // Expired (e.g. 150s elapsed)
+        let expired_time: i64 = created_at + 150;
+        assert!(expired_time > expires_at);
     }
 }

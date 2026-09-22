@@ -128,7 +128,7 @@ export const SentinelReceiptCard: React.FC<SentinelReceiptCardProps> = ({
               Agent
             </span>
             <div className="font-bold text-blue-400 truncate">{agentName}</div>
-            <div className="text-[10px] text-sentinel-textMuted font-sans">ClawPump authority</div>
+            <div className="text-[10px] text-sentinel-textMuted font-sans">Agent Ed25519 signer</div>
           </div>
 
           {/* Row 1, Col 3: Policy */}

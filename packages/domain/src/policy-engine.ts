@@ -12,7 +12,6 @@ import {
 } from './types';
 import { getAssetMetadata, getAssetCategory } from './asset-registry';
 import { hashPortfolioProjection } from './portfolio-reader';
-import { getTesseraTranche, evaluateTesseraEligibility } from './tessera-vault';
 
 /**
  * Calculates total portfolio value in USD, rounded to 2 decimal places
@@ -308,72 +307,6 @@ export function checkPublicEquitiesExposure(
   };
 }
 
-/**
- * Checks Anti-Self-Dealing Guard (Phase 12: ClawPump Agent Token)
- * Prevents autonomous agents from allocating excessive portfolio capital into their own agent token.
- */
-export function checkAgentSelfDealing(
-  postState: PortfolioSnapshot,
-  maxAgentTokenBps: number = 500,
-  targetAssetSymbol?: string
-): PostconditionCheckResult {
-  const isAgentToken = targetAssetSymbol === 'ROBOx' || targetAssetSymbol?.includes('ROBO');
-  if (!isAgentToken) {
-    return {
-      checkName: 'AGENT_SELF_DEALING_CAP',
-      passed: true,
-      expectedBpsOrValue: maxAgentTokenBps,
-      actualBpsOrValue: 0,
-      description: 'Asset is not an autonomous agent token; anti-self-dealing check satisfied',
-    };
-  }
-
-  const asset = postState.assets.find(a => a.symbol === targetAssetSymbol);
-  const exposureBps = asset ? asset.exposureBps : 0;
-  const passed = exposureBps <= maxAgentTokenBps;
-
-  return {
-    checkName: 'AGENT_SELF_DEALING_CAP',
-    passed,
-    expectedBpsOrValue: maxAgentTokenBps,
-    actualBpsOrValue: exposureBps,
-    description: passed
-      ? `Agent self-allocation ${(exposureBps / 100).toFixed(2)}% is within authorized limit (≤ ${(maxAgentTokenBps / 100).toFixed(2)}%)`
-      : `Agent self-allocation ${(exposureBps / 100).toFixed(2)}% breaches anti-self-dealing cap of ${(maxAgentTokenBps / 100).toFixed(2)}%`,
-    failureCode: passed ? undefined : 'ERR_AGENT_SELF_DEALING_EXCEEDED',
-  };
-}
-
-/**
- * Checks Tessera Fractional SPV Tranche Eligibility (Phase 12: Tessera Private Equity)
- * Verifies that secondary transfer lockups have expired and trade price is within NAV premium limits.
- */
-export function checkTesseraTrancheEligibility(
-  intent: TradeIntent,
-  maxNavPremiumBps: number = 1500,
-  currentTimeMs: number = Date.now()
-): PostconditionCheckResult {
-  const tranche = getTesseraTranche(intent.assetSymbol);
-  if (!tranche) {
-    return {
-      checkName: 'TESSERA_TRANCHE_ELIGIBILITY',
-      passed: true,
-      expectedBpsOrValue: maxNavPremiumBps,
-      actualBpsOrValue: 0,
-      description: 'Asset is not a Tessera fractional SPV tranche; check satisfied',
-    };
-  }
-
-  const result = evaluateTesseraEligibility(tranche, intent.referencePriceUsd, maxNavPremiumBps, currentTimeMs);
-  return {
-    checkName: 'TESSERA_TRANCHE_ELIGIBILITY',
-    passed: result.passed,
-    expectedBpsOrValue: maxNavPremiumBps,
-    actualBpsOrValue: result.premiumBps,
-    description: result.reason,
-    failureCode: result.failureCode,
-  };
-}
 
 /**
  * Comprehensive tripartite Asset Class Allocation Report
@@ -869,7 +802,8 @@ export function evaluatePostconditions(
   priceSource?: PriceSource | NormalizedMarketPrice,
   agentRiskState?: AgentRiskState,
   venueDetails?: { venueType?: string; isHealthy?: boolean; liquidityDepthUsd?: number },
-  currentTime: number = Date.now()
+  currentTime: number = Date.now(),
+  actualPostStateOverride?: PortfolioSnapshot
 ): EvaluationOutcome {
   if (!policy.isActive) {
     throw new Error('Cannot evaluate against an inactive policy');
@@ -877,7 +811,7 @@ export function evaluatePostconditions(
 
   // Pre-check Emergency Pause (Kill switch)
   if (policy.isEmergencyPaused) {
-    const postState = simulateStateTransition(preState, intent, actualExecutionPrice);
+    const postState = actualPostStateOverride ?? simulateStateTransition(preState, intent, actualExecutionPrice);
     return {
       allPassed: false,
       checks: [{
@@ -977,8 +911,8 @@ export function evaluatePostconditions(
     };
   }
 
-  // 1. Simulate hypothetical state transition
-  const postState = simulateStateTransition(preState, intent, actualExecutionPrice);
+  // 1. Simulate hypothetical state transition or use actual post-state (Point 24)
+  const postState = actualPostStateOverride ?? simulateStateTransition(preState, intent, actualExecutionPrice);
 
   // 2. Evaluate all postconditions across 5 risk tiers
   const checks: PostconditionCheckResult[] = [
@@ -1015,16 +949,6 @@ export function evaluatePostconditions(
 
   if (policy.maxPublicEquitiesExposureBps !== undefined) {
     checks.push(checkPublicEquitiesExposure(postState, policy.maxPublicEquitiesExposureBps));
-  }
-
-  // Phase 12: ClawPump Anti-Self-Dealing Guard (Evaluated when trading agent token)
-  if (intent.assetSymbol === 'ROBOx' || intent.assetSymbol.includes('ROBO')) {
-    checks.push(checkAgentSelfDealing(postState, policy.maxAgentTokenExposureBps ?? 500, intent.assetSymbol));
-  }
-
-  // Phase 12: Tessera Fractional SPV Tranche Safeguards (Evaluated when trading Tessera private assets)
-  if (getTesseraTranche(intent.assetSymbol) && (policy.maxTesseraNavPremiumBps !== undefined || venueDetails?.venueType === 'TESSERA_VAULT')) {
-    checks.push(checkTesseraTrancheEligibility(intent, policy.maxTesseraNavPremiumBps ?? 1500, currentTime));
   }
 
   // Tier 3: Trading & Pyth Oracle Security Input Constraints
@@ -1096,6 +1020,35 @@ export function evaluatePostconditions(
   };
 }
 
+/**
+ * Point 24: Authoritative Post-State Invariant Verification
+ * Evaluates policy invariants directly on an authentic post-execution portfolio state
+ * resulting from venue balance deltas.
+ */
+export function evaluatePostStateInvariants(
+  postState: PortfolioSnapshot,
+  intent: TradeIntent,
+  policy: FinancialPolicy,
+  preState: PortfolioSnapshot,
+  actualExecutionPrice?: number,
+  priceSource?: PriceSource | NormalizedMarketPrice,
+  agentRiskState?: AgentRiskState,
+  venueDetails?: { venueType?: string; isHealthy?: boolean; liquidityDepthUsd?: number },
+  currentTime: number = Date.now()
+): EvaluationOutcome {
+  return evaluatePostconditions(
+    preState,
+    intent,
+    policy,
+    actualExecutionPrice,
+    priceSource,
+    agentRiskState,
+    venueDetails,
+    currentTime,
+    postState
+  );
+}
+
 // -----------------------------------------------------------------------------
 // Canonical Risk-Policy DSL Profiles (with Phase 11 PreStocks Asset Classes)
 // -----------------------------------------------------------------------------
@@ -1107,8 +1060,6 @@ export const CONSERVATIVE_INSTITUTIONAL_POLICY: FinancialPolicy = {
   minStablecoinBps: 3000,  // 30.00%
   maxPublicEquitiesExposureBps: 6000, // 60.00%
   maxPreIpoExposureBps: 1000,         // 10.00%
-  maxAgentTokenExposureBps: 0,        // 0.00% (No agent self-dealing permitted)
-  maxTesseraNavPremiumBps: 1000,      // 10.00% max secondary premium over NAV
   maxTradeValueUsd: 5000,  // $5,000
   maxSlippageBps: 50,      // 0.50%
   maxSectorExposureBps: 3000, // 30.00%
@@ -1134,8 +1085,6 @@ export const BALANCED_MULTI_ASSET_POLICY: FinancialPolicy = {
   minStablecoinBps: 2000,  // 20.00%
   maxPublicEquitiesExposureBps: 8000, // 80.00%
   maxPreIpoExposureBps: 2000,         // 20.00%
-  maxAgentTokenExposureBps: 500,      // 5.00% cap on agent's own token
-  maxTesseraNavPremiumBps: 1500,      // 15.00% max secondary premium over NAV
   maxTradeValueUsd: 10000, // $10,000
   maxSlippageBps: 100,     // 1.00%
   maxSectorExposureBps: 4500, // 45.00%
@@ -1161,8 +1110,6 @@ export const HIGH_ALPHA_GROWTH_POLICY: FinancialPolicy = {
   minStablecoinBps: 1500,  // 15.00%
   maxPublicEquitiesExposureBps: 7500, // 75.00%
   maxPreIpoExposureBps: 2500,         // 25.00%
-  maxAgentTokenExposureBps: 1000,     // 10.00% cap on agent's own token
-  maxTesseraNavPremiumBps: 2000,      // 20.00% max secondary premium over NAV
   maxTradeValueUsd: 25000, // $25,000
   maxSlippageBps: 150,     // 1.50%
   maxSectorExposureBps: 6000, // 60.00%

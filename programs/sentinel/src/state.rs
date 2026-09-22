@@ -40,11 +40,13 @@ pub struct PromiseAccount {
     pub trade_direction: u8, // 0 = BUY, 1 = SELL
     pub trade_amount_usd: u64,
     pub status: u8,          // 0 = Created, 1 = Promised, 2 = Validating, 3 = Settled, 4 = Rejected
+    pub created_at: i64,
+    pub expires_at: i64,
     pub bump: u8,
 }
 
 impl PromiseAccount {
-    pub const LEN: usize = 8 + (4 + 32) + 32 + 32 + 32 + 32 + 1 + 8 + 1 + 1;
+    pub const LEN: usize = 8 + (4 + 32) + 32 + 32 + 32 + 32 + 1 + 8 + 1 + 8 + 8 + 1;
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Default, PartialEq, Eq, Debug)]

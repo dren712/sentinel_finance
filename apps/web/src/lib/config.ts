@@ -11,7 +11,7 @@ export interface AppEnvironment {
   vaultPda: string;
   explorerBaseUrl: string;
   features: {
-    clawPumpAgentWallet: boolean;
+    agentSignerWallet: boolean;
     meteoraVerifier: boolean;
     livePrices: boolean; // Currently false: simulated benchmark prices for tokenized stocks
     demoMode: boolean;
@@ -29,7 +29,7 @@ export const APP_CONFIG: AppEnvironment = {
   vaultPda: '7TffMKzUgVme4eod8Wh9ANAQ3YrRMzj4c2JrfKm6AY4Y',
   explorerBaseUrl: 'https://explorer.solana.com',
   features: {
-    clawPumpAgentWallet: true,
+    agentSignerWallet: true,
     meteoraVerifier: true,
     livePrices: false,
     demoMode: true,

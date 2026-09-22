@@ -1,49 +1,77 @@
-# Sentinel Robo (Sentinel Finance)
+# Sentinel Robo
 
-> **Autonomous Robo-Portfolio for Tokenized Equities on Solana with Authoritative On-Chain Financial Postcondition Guarantees.**
+> **Autonomous Robo-Portfolio on Solana with Authoritative On-Chain Financial Postcondition Guarantees.**
 
-Sentinel Robo is an autonomous portfolio manager on Solana where the agent can choose the trade, but Sentinel enforces what the resulting portfolio is allowed to become.
-
-**Core Invariant Moat Pipeline**:
-$$\text{Intent} \longrightarrow \text{Promise} \longrightarrow \text{Post-State} \longrightarrow \text{Financial Invariants} \longrightarrow \text{Decision} \longrightarrow \text{Adaptation} \longrightarrow \text{Evidence (PROVN)}$$
+Sentinel Robo is an autonomous portfolio manager where the AI agent chooses the trade, but Sentinel enforces what the resulting portfolio is allowed to become.
 
 ---
 
-## 🧭 Technical Status & Definition of Truth
+## ⚡ The First Screen: WHAT • WHY • HOW • DEMO
 
-Sentinel maintains absolute architectural honesty. We distinguish clearly between verified on-chain code, cryptographic engines, and simulated execution:
+### 1. WHAT: The Product
+**Sentinel Robo** is an autonomous portfolio manager on Solana designed for tokenized equities, pre-IPO tech assets, and stable reserves.
+- **The Core Wedge**: Investing → Autonomous Robo-Portfolios on Solana.
+- **Sponsor Tracks**: **PreStocks** ($10K Target) • **Meteora** ($5K Target) • **Pyth Network** (Security Input).
+
+### 2. WHY: The Financial State-Transition Boundary
+- **The Delegation Dilemma**: Standard Web3 wallet delegation only checks *who signed the transaction*. It never checks *what financial state results*. If an autonomous AI agent hallucinates, drifts, or hits illiquid routing, it can wipe out cash reserves or concentrate 90% into a single equity.
+- **Why Solana**: *"Our enforcement lives at the financial state-transition boundary."* The Policy PDA, Promise PDA, Portfolio State, and Trade Execution settle within the **exact same Solana execution environment**. Enforcement is authoritative and on-chain—not an advisory off-chain API.
+
+### 3. HOW: The Sentinel Loop
 
 ```
-[LIVE ON SOLANA DEVNET]
-Program ID: 3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK
-IDL Account: H28SmQxnyeTQFUQFFyKjwbLBi77w78vtHmbQzQWrGHx6
-Policy PDA:  3wTp1YDSG3xmf9TtuwZ64b11uLuLNUgQRwdesMbFJUUh
-Agent PDA:   62vpHzSG92GUbAXtNh4czG6U6HyTpndrY4NvZM9euUnQ
-Vault PDA:   7TffMKzUgVme4eod8Wh9ANAQ3YrRMzj4c2JrfKm6AY4Y
-Solana Explorer: https://explorer.solana.com/address/3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK?cluster=devnet
+       ┌────────────────────────┐
+       │      AGENT INTENT      │ (Agent proposes trade from market thesis)
+       └───────────┬────────────┘
+                   │
+                   ▼
+       ┌────────────────────────┐
+       │   POST-STATE PROJECTION│ (Prospective state transition calculated)
+       └───────────┬────────────┘
+                   │
+                   ▼
+       ┌────────────────────────┐
+       │ ON-CHAIN GUARANTEES    │ (Authoritative Anchor & SWARM verifiers)
+       └───────────┬────────────┘
+                   │
+         ┌─────────┴─────────┐
+         ▼                   ▼
+   [PASS: SETTLE]      [BREACH: BLOCK]
+   Actual SPL Deltas   Atomic On-Chain Revert
+   Zero State Leak     Zero Funds Moved
+         │                   │
+         │                   ▼
+         │             ┌───────────┐
+         │             │   ADAPT   │ (Agent autonomously computes headroom)
+         │             └─────┬─────┘
+         │                   │ (Re-submits compliant trade)
+         ▼                   ▼
+       ┌────────────────────────┐
+       │      PROVN PROOF       │ (Two-tier verified cryptographic receipt)
+       └────────────────────────┘
 ```
 
-### Definition of Truth Matrix
-
-| Metric / Concept | Concrete Source of Truth | Verification Method | UI Badge / Representation |
-| :--- | :--- | :--- | :--- |
-| **Wallet Balance** | Solana SPL Token Account / System Account | Direct RPC account query via `@solana/web3.js` | `[DEVNET]` or `[SIMULATION]` |
-| **Stock / Asset Price** | Pyth Network Price Feed (Dual-feed) | Pyth SDK deserialization + staleness & confidence bounds check | `[LIVE PYTH]` or `[SIMULATION PRICE]` |
-| **Portfolio Allocation** | $\sum(\text{Balance} \times \text{Pyth Price})$ | Computed portfolio valuation engine (`SentinelValuationEngine`) | `[DERIVED METRIC]` |
-| **Trade Approved / Rejected** | Sentinel Anchor `execute_guarded_trade` instruction | On-chain execution simulation or confirmed transaction signature | `[PROGRAM CONFIRMED]` |
-| **Transaction Status** | Solana RPC Cluster | Block commitment level (`confirmed` / `finalized`) | `[TX PENDING/CONFIRMED/FAILED]` |
-| **Venue Liquidity** | Meteora DBC / AMM Pool State | On-chain pool account reserves & invariant checks | `[LIVE VENUE]` or `[ADAPTER VERIFIED]` |
-| **Financial Evidence** | PROVN Cryptographic Commitment | On-chain event log / Deterministic SHA-256 preimage | `[CRYPTOGRAPHIC PROOF]` |
-| **Offline Test Scenarios** | Local deterministic scenario fixture | Evaluated in memory; badge clearly displayed | `[SIMULATION MODE]` |
+### 4. DEMO: Three Flagship "Aha" Cases
+Sentinel does not blindly trust the **AGENT**, the **MARKET**, or the **DATA**:
+- **Case A (Doesn't trust the AGENT)**: Agent proposes `BUY NVDAx $15,000` (would breach 25% single-asset cap & 20% cash floor) ➔ **BLOCK** ➔ Agent auto-calculates remaining compliant capacity ➔ Proposes `BUY NVDAx $5,000` ➔ **SETTLES**!
+- **Case B (Doesn't trust the MARKET)**: Agent proposes `BUY NVDAx $8,000` into shallow Meteora DBC pool (1.70% price impact > 1.00% limit) ➔ **BLOCK** by Equity Market Guard ➔ Agent adapts size along DBC curve to `$2,500` (0.45% impact) ➔ **SETTLES**!
+- **Case C (Doesn't trust the DATA)**: Agent proposes `BUY AAPLx $4,000` on 140s stale Pyth oracle quote (> 60s limit) ➔ **REFUSED** (`ERR_QUOTE_STALE`) ➔ Pyth Hermès on-demand pull update delivers fresh quote (age 0s) ➔ **SETTLES**!
 
 ---
 
-## 🛡️ Permanent Copilot & Architectural Rules
+## 🔍 Verified Solana Devnet Evidence
 
-1. **The Smallest Implementation Rule**:
-   Prefer the minimal working implementation that satisfies user intent over bloated architecture. We reject unnecessary microservices, external databases, or superfluous abstractions. Every feature lives in a streamlined **Modular Monolith**.
-2. **The Anti-Churn Rule**:
-   Preserve working code and existing verified test baselines. Do not churn frameworks, rewrites, or dependencies for superficial aesthetics. Correctness and financial invariants take precedence over novelty.
+| Component | Solana Devnet Address / Link | Role / Invariant Guaranteed |
+| :--- | :--- | :--- |
+| **Program ID** | [`3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK`](https://explorer.solana.com/address/3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK?cluster=devnet) | Anchor Program holding `execute_guarded_trade` |
+| **Policy PDA** | [`3wTp1YDSG3xmf9TtuwZ64b11uLuLNUgQRwdesMbFJUUh`](https://explorer.solana.com/address/3wTp1YDSG3xmf9TtuwZ64b11uLuLNUgQRwdesMbFJUUh?cluster=devnet) | Seeds `[b"policy", owner]` — 25% cap, 20% floor, $10k size |
+| **Agent PDA** | [`62vpHzSG92GUbAXtNh4czG6U6HyTpndrY4NvZM9euUnQ`](https://explorer.solana.com/address/62vpHzSG92GUbAXtNh4czG6U6HyTpndrY4NvZM9euUnQ?cluster=devnet) | Seeds `[b"agent", owner, agent_id]` — Unprivileged agent authority |
+| **Vault PDA** | [`7TffMKzUgVme4eod8Wh9ANAQ3YrRMzj4c2JrfKm6AY4Y`](https://explorer.solana.com/address/7TffMKzUgVme4eod8Wh9ANAQ3YrRMzj4c2JrfKm6AY4Y?cluster=devnet) | Seeds `[b"vault", owner]` — Authoritative on-chain execution authority |
+| **IDL Account** | [`H28SmQxnyeTQFUQFFyKjwbLBi77w78vtHmbQzQWrGHx6`](https://explorer.solana.com/address/H28SmQxnyeTQFUQFFyKjwbLBi77w78vtHmbQzQWrGHx6?cluster=devnet) | Verified Anchor IDL definition deployed on Devnet |
+
+> 📹 **Submission Video Materials**:
+> - **Pitch Video (3 min)**: [`docs/PITCH_VIDEO_SCRIPT.md`](docs/PITCH_VIDEO_SCRIPT.md) — Product, market opportunity, live demo, and vision.
+> - **Technical Video (5 min)**: [`docs/TECHNICAL_VIDEO_SCRIPT.md`](docs/TECHNICAL_VIDEO_SCRIPT.md) — Anchor accounts, PDAs, postconditions, adapt loop, and PROVN state roots.
 
 ---
 
@@ -57,7 +85,7 @@ Solana Explorer: https://explorer.solana.com/address/3gh1Cc2Qc65hJhxZKneXphWJa27
      - *Demo Moment (Mode 2: MARKET_FAILURE)*: Agent proposes `BUY NVDAx $8,000`. User policy passes ($8k ≤ $10k ✓), Portfolio exposure passes (28% ≤ 30% ✓) ➔ BLOCKED by Sentinel Equity Market Guard because Meteora DBC curve estimates 1.70% price impact (> 1.00% max slippage cap) and pool depth is shallow ($12,000 < $25,000 floor) ➔ Agent reads DBC bonding curve equation and auto-adapts trade down to $2,500 along the curve (0.45% ≤ 1.00% impact) ➔ Approved & Settled on Meteora DBC!
   3. **Pyth Network (Pyth Pro)**: Pyth as an authoritative **Security Input** (`STALE / LOW CONFIDENCE ➔ NO EXECUTION`). Dual-feed mark-to-market pricing, confidence bounds ($\pm \sigma$), tracking error detection, and staleness rejection via Pyth pull updates.
      - *Demo Moment (Mode 3: DATA_INTEGRITY_FAILURE)*: Agent proposes `BUY AAPLx $4,000`. Sizing and exposure pass, but Pyth oracle quote is 140s old (> 60s freshness limit) ➔ Execution refused (`ERR_QUOTE_STALE`) ➔ Pyth Hermès on-demand pull update delivers fresh price (age 0s, ±$0.03) ➔ Approved & Settled!
-- *Strict Sponsor Compliance*: 100% of pre-IPO assets belong exclusively to PreStocks Protocol. No competing pre-IPO tokens are integrated. ClawPump is retained cleanly as an internal Ed25519 agent-wallet identity pattern.
+- *Strict Sponsor Compliance*: 100% of pre-IPO assets belong exclusively to PreStocks Protocol ($10K Bounty). Meteora DBC provides dynamic liquidity curves with liquidity floor guards ($5K Bounty). Pyth Network provides pull oracle market truth and security bounds. Unprivileged agent execution uses standard Solana Ed25519 keypair signatures.
 
 ---
 

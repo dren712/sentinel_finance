@@ -100,16 +100,6 @@ export const PYTH_METADATA_REGISTRY: Record<string, FeedMetadata> = {
     defaultUnderlyingUsd: 110.00,
     confidenceUsd: 0.45,
   },
-  ROBOx: {
-    tokenizedFeedId: '0x10f6b657ede6b7e024e883494747e7eb16752765377f0a67272b1660d2b27004',
-    tokenizedDisplayId: 'ClawPump.ROBO/USD',
-    underlyingFeedId: '0x10f6b657ede6b7e024e883494747e7eb16752765377f0a67272b1660d2b27004',
-    underlyingDisplayId: 'Meteora.DBC.ROBO/USD',
-    underlyingSymbol: 'ROBO',
-    defaultPriceUsd: 1.00,
-    defaultUnderlyingUsd: 1.00,
-    confidenceUsd: 0.005,
-  },
 };
 
 /**

@@ -189,5 +189,5 @@ Our pitch video is structured precisely under the 3-minute Colosseum guideline (
 ## 8. Colosseum Graduation Roadmap
 
 1. **Testnet / Mainnet-Beta Tokenized Stock Whitelisting**: Onboard regulated tokenized stock issuers (Backed Finance, Ondo, Dinari).
-2. **Permissionless Policy Attestation**: Allow third-party algorithmic agents (ClawPump, Eliza, Autonomous SDKs) to bind to Sentinel vaults via standard CPI.
+2. **Permissionless Policy Attestation**: Allow third-party algorithmic agents (Eliza, LangChain, Autonomous SDKs) to bind to Sentinel vaults via standard CPI.
 3. **Institutional Multi-Sig Delegation**: Support Squads v4 multi-sig governance for institutional fund managers delegating sub-vaults to automated strategies.

@@ -1,8 +1,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
 import { SentinelClient } from '../src/client';
+import { AgentSignerWallet } from '../src/agent-wallet';
 import { MeteoraDBCMarketQualityVerifier } from '../src/sponsors/meteora';
-import { ClawPumpAgentWallet } from '../src/sponsors/clawpump';
 import { LiveExecutionAdapter } from '../src/adapters/execution-adapter';
 
 describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
@@ -115,7 +115,7 @@ describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
 
   describe('Real Cryptographic Ed25519 Signatures (Finding 6)', () => {
     it('generates and verifies genuine Ed25519 signatures over canonical intent bytes', () => {
-      const agentWallet = new ClawPumpAgentWallet('claw_agent_test', 'Test Robo-Agent');
+      const agentWallet = new AgentSignerWallet('agent_test', 'Test Robo-Agent');
       const intent = client.getAgent().proposeIntent({
         assetSymbol: 'NVDAx',
         assetMint: 'NVDA111111111111111111111111111111111111111',
@@ -129,7 +129,7 @@ describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
       assert.ok(signedIntent.signatureBase64.length > 40);
 
       // Verify authentic signature
-      const isValid = ClawPumpAgentWallet.verifySignature(signedIntent);
+      const isValid = AgentSignerWallet.verifySignature(signedIntent);
       assert.strictEqual(isValid, true);
 
       // Tampering detection: if trade amount is altered, signature must FAIL
@@ -137,7 +137,7 @@ describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
         ...signedIntent,
         canonicalMessage: signedIntent.canonicalMessage.replace('5000', '15000'),
       };
-      const isTamperedValid = ClawPumpAgentWallet.verifySignature(tampered);
+      const isTamperedValid = AgentSignerWallet.verifySignature(tampered);
       assert.strictEqual(isTamperedValid, false);
     });
   });

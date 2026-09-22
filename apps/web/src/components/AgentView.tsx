@@ -106,17 +106,16 @@ export const AgentView: React.FC<AgentViewProps> = ({
     }, 1500);
   };
 
-  // Asset universe covering public stocks, PreStocks pre-IPO equities, and ClawPump agent tokens
+  // Asset universe covering public stocks and PreStocks pre-IPO equities
   const availableAssets = [
-    ...portfolio.assets.filter((a) => !a.isStablecoin && a.symbol !== 'USDC' && a.symbol !== 'ROBOx'),
+    ...portfolio.assets.filter((a) => !a.isStablecoin && a.symbol !== 'USDC'),
     { symbol: 'SPACEXx', name: 'SpaceX Pre-IPO Equity', priceUsd: 220, isPreIpo: true },
     { symbol: 'OPENAIx', name: 'OpenAI Pre-IPO Equity', priceUsd: 150, isPreIpo: true },
     { symbol: 'STRIPEx', name: 'Stripe Pre-IPO Equity', priceUsd: 85, isPreIpo: true },
-    { symbol: 'ROBOx', name: 'Sentinel Robo Strategy Token', priceUsd: 1.0, isAgentToken: true },
+    { symbol: 'ANTHROPICx', name: 'Anthropic Pre-IPO Equity', priceUsd: 110, isPreIpo: true },
   ];
 
-  const isPreIpoSelected = ['SPACEXx', 'OPENAIx', 'STRIPEx'].includes(selectedAsset);
-  const isAgentTokenSelected = selectedAsset === 'ROBOx';
+  const isPreIpoSelected = ['SPACEXx', 'OPENAIx', 'STRIPEx', 'ANTHROPICx'].includes(selectedAsset);
 
   let targetVenueName = 'Meteora Dynamic Bonding Curve';
   let targetVenueType: ExecutionVenueType = activeVenue;
@@ -127,11 +126,6 @@ export const AgentView: React.FC<AgentViewProps> = ({
     targetVenueName = 'Sentinel Local Simulator (Offline Demo)';
     targetPoolAddress = 'SimulatedLocalEngine111111111111111111111111111';
     targetRoute = `USDC ATA ➔ Local Simulator ➔ ${selectedAsset} ATA`;
-  } else if (isAgentTokenSelected) {
-    targetVenueName = 'Meteora DBC (ClawPump Paired Liquidity)';
-    targetVenueType = 'METEORA_DBC';
-    targetPoolAddress = 'MeteoraRoboDbcPool111111111111111111111111111';
-    targetRoute = `USDC ATA ➔ Meteora DBC ($ROBOx) ➔ ROBOx ATA`;
   } else if (isPreIpoSelected || activeVenue === 'PRESTOCKS_SECONDARY') {
     targetVenueName = 'PreStocks Secondary Market';
     targetVenueType = 'PRESTOCKS_SECONDARY';
@@ -148,8 +142,6 @@ export const AgentView: React.FC<AgentViewProps> = ({
   const postExposureBps = Math.round((postAssetVal / (portfolio.totalValueUsd || 100_000)) * 10_000);
   const willExceedExposure = postExposureBps > policy.maxSingleAssetBps;
   const willExceedTradeLimit = amountNum > policy.maxTradeValueUsd;
-  const maxAgentTokenBps = policy.maxAgentTokenExposureBps ?? 500;
-  const willExceedSelfDealing = isAgentTokenSelected && postExposureBps > maxAgentTokenBps;
   const postUsdcVal =
     direction === 'BUY'
       ? portfolio.stablecoinValueUsd - amountNum
@@ -161,9 +153,9 @@ export const AgentView: React.FC<AgentViewProps> = ({
   const effectiveTrackingErrorBps = simulateDepeg ? 320 : (currentMarketPrice?.trackingErrorBps ?? 18);
   const willExceedTrackingError = effectiveTrackingErrorBps > (policy.maxTrackingErrorBps ?? 250);
   const willBeRejected =
-    willExceedExposure || willExceedTradeLimit || willBreachReserve || willExceedTrackingError || willExceedSelfDealing;
+    willExceedExposure || willExceedTradeLimit || willBreachReserve || willExceedTrackingError;
 
-  const riskVerifierPassed = !willExceedExposure && !willExceedTradeLimit && !willExceedSelfDealing;
+  const riskVerifierPassed = !willExceedExposure && !willExceedTradeLimit;
   const balanceVerifierPassed = !willBreachReserve;
   const policyVerifierPassed = policy.isActive;
   const liquidityVerifierPassed = true;
@@ -171,7 +163,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
   const portfolioVerifierPassed = true;
 
   const swarmPreFlightVerdicts = [
-    { name: 'RiskVerifier', role: isAgentTokenSelected ? 'Anti-Self-Dealing' : 'Concentration Cap', passed: riskVerifierPassed },
+    { name: 'RiskVerifier', role: 'Concentration Cap', passed: riskVerifierPassed },
     { name: 'BalanceVerifier', role: 'Reserve Floor', passed: balanceVerifierPassed },
     { name: 'PolicyVerifier', role: 'Authority Check', passed: policyVerifierPassed },
     { name: 'LiquidityVerifier', role: 'Venue Depth', passed: liquidityVerifierPassed },
@@ -738,15 +730,6 @@ export const AgentView: React.FC<AgentViewProps> = ({
                     .map((a) => (
                       <option key={a.symbol} value={a.symbol}>
                         {a.symbol} (${a.priceUsd.toFixed(2)}) · Pre-IPO
-                      </option>
-                    ))}
-                </optgroup>
-                <optgroup label="Agent Strategy Tokens (ClawPump)">
-                  {availableAssets
-                    .filter((a) => 'isAgentToken' in a)
-                    .map((a) => (
-                      <option key={a.symbol} value={a.symbol}>
-                        {a.symbol} (${a.priceUsd.toFixed(2)}) · Agent Token
                       </option>
                     ))}
                 </optgroup>

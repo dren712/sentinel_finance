@@ -44,9 +44,7 @@ export type VenueType =
   | 'ORCA_WHIRLPOOL'
   | 'RAYDIUM_CPMM'
   | 'PRESTOCKS_SECONDARY'
-  | 'PYTH_ORACLE'
-  | 'TESSERA_VAULT'
-  | 'CLAWPUMP_DBC';
+  | 'PYTH_ORACLE';
 
 export interface AssetVenue {
   id: string;
@@ -261,10 +259,6 @@ export interface Policy {
   maxPublicEquitiesExposureBps?: number; // e.g. 7000 for 70.00% max public equities
   maxPreIpoExposureBps?: number;         // e.g. 2000 for 20.00% max private equity (PreStocks)
 
-  // Phase 12: ClawPump & Tessera Constraints
-  maxAgentTokenExposureBps?: number;     // e.g. 500 for 5.00% max exposure to agent's own token (Anti-Self-Dealing)
-  minAgentTokenLiquidityUsd?: number;    // e.g. 25000 for $25,000 liquidity floor in agent token Meteora DBC
-  maxTesseraNavPremiumBps?: number;      // e.g. 1500 for 15.00% max premium over certified Tessera SPV NAV
   policyVersion: number;
   isActive: boolean;
   updatedAt: number;
@@ -460,11 +454,7 @@ export type FailureCode =
   | 'ERR_EMERGENCY_PAUSE'
   | 'ERR_MARKET_UNAVAILABLE'
   | 'ERR_VENUE_UNHEALTHY'
-  | 'ERR_PUBLIC_EQUITIES_EXCEEDED'
-  // Phase 12 ClawPump & Tessera Failure Codes
-  | 'ERR_AGENT_SELF_DEALING_EXCEEDED'
-  | 'ERR_TESSERA_LOCKUP_ACTIVE'
-  | 'ERR_TESSERA_NAV_PREMIUM_EXCEEDED';
+  | 'ERR_PUBLIC_EQUITIES_EXCEEDED';
 
 /**
  * The Three Canonical Rejection Modes of Sentinel:
@@ -606,7 +596,7 @@ export interface SentinelAuthorizationTicket {
 }
 
 export interface ExecutionVenueDetails {
-  venueType: 'METEORA_DBC' | 'PRESTOCKS_SECONDARY' | 'DEMO_SIMULATION' | 'SOLANA_MAINNET' | 'TESSERA_VAULT' | 'CLAWPUMP_DBC';
+  venueType: 'METEORA_DBC' | 'PRESTOCKS_SECONDARY' | 'DEMO_SIMULATION' | 'SOLANA_MAINNET';
   venueName: string;
   poolAddress?: string;
   route?: string;

@@ -111,7 +111,7 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
         { asset: 'SPYx', before: '20.0%', proposed: '20.0%', limit: 'Limit 25.0%', passed: true },
       ],
       checks: [
-        { name: 'Authority valid (ClawPump Ed25519)', passed: true },
+        { name: 'Authority valid (Agent Signer Ed25519)', passed: true },
         { name: 'Policy active & non-paused', passed: true },
         { name: 'Pyth price fresh & within confidence', passed: true },
         { name: 'Concentration limit (24.1% ≤ 25.0%)', passed: true },

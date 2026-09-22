@@ -37,4 +37,7 @@ pub enum SentinelError {
 
     #[msg("Vault does not have sufficient stablecoin balance to fund trade")]
     InsufficientStablecoinReserve,
+
+    #[msg("Promise has expired and can no longer be executed")]
+    PromiseExpired,
 }
