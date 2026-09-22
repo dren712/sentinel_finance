@@ -9,6 +9,7 @@
     "test": "npm run test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "dev": "npm --workspace apps/web run dev",
+    "start": "npm --workspace apps/web run start",
     "init:devnet": "node packages/sdk/scripts/init-devnet.mjs"
   },
   "workspaces": [

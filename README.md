@@ -210,6 +210,16 @@ pnpm --filter @sentinel/web run dev
 # Open http://localhost:3000
 ```
 
+### 3. Or Run with Docker (Zero Node/Rust Setup)
+```bash
+# Run locally with Docker Compose
+docker compose up -d --build
+
+# Or run directly from Docker Hub
+docker run -d -p 3000:3000 --name sentinel-finance <your-username>/sentinel-finance:latest
+```
+See [DOCKER_GUIDE.md](file:///e:/Sentinel/sentinel_finance/DOCKER_GUIDE.md) for full Docker Hub publishing instructions.
+
 ---
 
 ## 📄 License
