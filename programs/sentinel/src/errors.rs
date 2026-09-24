@@ -40,4 +40,19 @@ pub enum SentinelError {
 
     #[msg("Promise has expired and can no longer be executed")]
     PromiseExpired,
+
+    #[msg("Security domain mismatch: Agent, Policy, and Vault must share the same owner")]
+    SecurityDomainMismatch,
+
+    #[msg("The agent account is currently paused or inactive")]
+    AgentInactive,
+
+    #[msg("Executed trade amount does not match the authorized promise amount")]
+    TradeAmountMismatch,
+
+    #[msg("Invalid trade direction: only 0 (BUY) and 1 (SELL) are permitted")]
+    InvalidTradeDirection,
+
+    #[msg("Missing, zero, or invalid market price: execution fails closed")]
+    InvalidPrice,
 }

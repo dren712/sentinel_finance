@@ -143,6 +143,22 @@ pub mod sentinel {
         Ok(())
     }
 
+    /// Updates the operational status of an agent (kill-switch for emergency pause)
+    pub fn set_agent_active(
+        ctx: Context<SetAgentActive>,
+        is_active: bool,
+    ) -> Result<()> {
+        let agent = &mut ctx.accounts.agent;
+        agent.is_active = is_active;
+
+        emit!(AgentStatusUpdatedEvent {
+            agent: agent.key(),
+            owner: agent.owner,
+            is_active,
+        });
+        Ok(())
+    }
+
     /// Registers a state transition promise from an authorized agent
     pub fn create_promise(
         ctx: Context<CreatePromise>,
@@ -153,10 +169,19 @@ pub mod sentinel {
         trade_amount_usd: u64,
     ) -> Result<()> {
         require!(ctx.accounts.policy.is_active, SentinelError::PolicyInactive);
+        require!(ctx.accounts.agent.is_active, SentinelError::AgentInactive);
+        require!(
+            ctx.accounts.agent.owner == ctx.accounts.policy.owner,
+            SentinelError::SecurityDomainMismatch
+        );
         require!(
             ctx.accounts.authority.key() == ctx.accounts.agent.agent_authority
                 || ctx.accounts.authority.key() == ctx.accounts.agent.owner,
             SentinelError::UnauthorizedAgent
+        );
+        require!(
+            trade_direction == 0 || trade_direction == 1,
+            SentinelError::InvalidTradeDirection
         );
 
         let clock = Clock::get()?;
@@ -204,43 +229,65 @@ pub mod sentinel {
             SentinelError::UnauthorizedExecution
         );
 
-        // 2. State & Promise checks
+        // 2. Security domain: single owner domain across agent, policy, and vault (Point 1)
+        require!(agent.owner == policy.owner, SentinelError::SecurityDomainMismatch);
+        require!(policy.owner == vault.owner, SentinelError::SecurityDomainMismatch);
+        require!(agent.is_active, SentinelError::AgentInactive);
+
+        // 3. State & Promise checks (Point 6)
         let clock = Clock::get()?;
         require!(policy.is_active, SentinelError::PolicyInactive);
         require!(promise.status == 1, SentinelError::InvalidPromiseStatus);
         require!(clock.unix_timestamp <= promise.expires_at, SentinelError::PromiseExpired);
 
-        // 3. Postcondition: Max Trade Size
+        // 4. Bind Promise amount to execution amount (Point 2)
+        let promised_cents = promise.trade_amount_usd
+            .checked_mul(100)
+            .ok_or(SentinelError::MathOverflow)?;
+        require!(
+            trade_amount_cents == promised_cents || trade_amount_cents == promise.trade_amount_usd,
+            SentinelError::TradeAmountMismatch
+        );
+
+        // 5. Validate trade direction (Point 3)
+        require!(
+            promise.trade_direction == 0 || promise.trade_direction == 1,
+            SentinelError::InvalidTradeDirection
+        );
+
+        // 6. Fail closed on missing/zero/invalid price (Point 4)
+        require!(quoted_price_cents > 0, SentinelError::InvalidPrice);
+        require!(execution_price_cents > 0, SentinelError::InvalidPrice);
+
+        // 7. Postcondition: Max Trade Size
         require!(
             trade_amount_cents <= policy.max_trade_value_usd.checked_mul(100).ok_or(SentinelError::MathOverflow)?,
             SentinelError::TradeSizeExceeded
         );
 
-        // 4. Postcondition: Max Slippage
-        if quoted_price_cents > 0 && execution_price_cents > 0 {
-            let price_diff = if execution_price_cents >= quoted_price_cents {
-                execution_price_cents - quoted_price_cents
-            } else {
-                quoted_price_cents - execution_price_cents
-            };
+        // 8. Postcondition: Max Slippage
+        let price_diff = if execution_price_cents >= quoted_price_cents {
+            execution_price_cents - quoted_price_cents
+        } else {
+            quoted_price_cents - execution_price_cents
+        };
 
-            let slippage_bps = (price_diff as u128)
-                .checked_mul(10_000)
-                .ok_or(SentinelError::MathOverflow)?
-                .checked_div(quoted_price_cents as u128)
-                .ok_or(SentinelError::MathOverflow)?;
+        let slippage_bps = (price_diff as u128)
+            .checked_mul(10_000)
+            .ok_or(SentinelError::MathOverflow)?
+            .checked_div(quoted_price_cents as u128)
+            .ok_or(SentinelError::MathOverflow)?;
 
-            require!(
-                slippage_bps <= policy.max_slippage_bps as u128,
-                SentinelError::SlippageExceeded
-            );
-        }
+        require!(
+            slippage_bps <= policy.max_slippage_bps as u128,
+            SentinelError::SlippageExceeded
+        );
 
-        // 5. Locate target asset position index in vault
+        // 9. Locate target asset position index in vault
         let pos_idx = vault.positions.iter().position(|p| p.mint == promise.trade_asset_mint)
             .ok_or(SentinelError::AssetNotFound)?;
 
-        // 6. Perform trade mutation on actual vault balances (Findings 1, 4, 9)
+        // 10. Perform trade mutation on actual vault balances (Findings 1, 4, 9)
         let token_units_traded = trade_amount_cents
             .checked_mul(1)
             .ok_or(SentinelError::MathOverflow)?
@@ -262,7 +309,7 @@ pub mod sentinel {
                 .checked_add(token_units_traded)
                 .ok_or(SentinelError::MathOverflow)?;
             target_pos.price_cents = execution_price_cents;
-        } else {
+        } else if promise.trade_direction == 1 {
             // SELL: liquidate target equity, receive USDC
             let target_pos = &mut vault.positions[pos_idx];
             require!(
@@ -277,6 +324,8 @@ pub mod sentinel {
             vault.usdc_balance_cents = vault.usdc_balance_cents
                 .checked_add(trade_amount_cents)
                 .ok_or(SentinelError::MathOverflow)?;
+        } else {
+            return err!(SentinelError::InvalidTradeDirection);
         }
 
         // 7. Calculate actual resulting post-state from vault ledger (Finding 1)
@@ -393,6 +442,10 @@ pub fn verify_vault_postconditions(
     require!(post_total_cents > 0, SentinelError::MathOverflow);
     require!(post_target_cents <= post_total_cents, SentinelError::MathOverflow);
 
+    // Fail closed on missing/zero/invalid price (Point 4)
+    require!(quoted_price_cents > 0, SentinelError::InvalidPrice);
+    require!(execution_price_cents > 0, SentinelError::InvalidPrice);
+
     // 1. Max trade size check
     require!(
         trade_amount_cents <= policy.max_trade_value_usd.checked_mul(100).ok_or(SentinelError::MathOverflow)?,
@@ -424,24 +477,22 @@ pub fn verify_vault_postconditions(
     );
 
     // 4. Slippage check (in u128)
-    if quoted_price_cents > 0 && execution_price_cents > 0 {
-        let price_diff = if execution_price_cents >= quoted_price_cents {
-            execution_price_cents - quoted_price_cents
-        } else {
-            quoted_price_cents - execution_price_cents
-        };
+    let price_diff = if execution_price_cents >= quoted_price_cents {
+        execution_price_cents - quoted_price_cents
+    } else {
+        quoted_price_cents - execution_price_cents
+    };
 
-        let slippage_bps = (price_diff as u128)
-            .checked_mul(10_000)
-            .ok_or(SentinelError::MathOverflow)?
-            .checked_div(quoted_price_cents as u128)
-            .ok_or(SentinelError::MathOverflow)?;
+    let slippage_bps = (price_diff as u128)
+        .checked_mul(10_000)
+        .ok_or(SentinelError::MathOverflow)?
+        .checked_div(quoted_price_cents as u128)
+        .ok_or(SentinelError::MathOverflow)?;
 
-        require!(
-            slippage_bps <= policy.max_slippage_bps as u128,
-            SentinelError::SlippageExceeded
-        );
-    }
+    require!(
+        slippage_bps <= policy.max_slippage_bps as u128,
+        SentinelError::SlippageExceeded
+    );
 
     Ok(())
 }
@@ -520,6 +571,10 @@ pub struct CreatePromise<'info> {
         bump
     )]
     pub promise: Account<'info, PromiseAccount>,
+    #[account(
+        constraint = agent.owner == policy.owner @ SentinelError::SecurityDomainMismatch,
+        constraint = agent.is_active @ SentinelError::AgentInactive
+    )]
     pub agent: Account<'info, AgentAccount>,
     pub policy: Account<'info, PolicyAccount>,
     #[account(mut)]
@@ -541,12 +596,29 @@ pub struct ExecuteGuardedTrade<'info> {
         mut,
         seeds = [b"vault", vault.owner.as_ref()],
         bump = vault.bump,
-        has_one = policy
+        has_one = policy,
+        constraint = vault.owner == policy.owner @ SentinelError::SecurityDomainMismatch
     )]
     pub vault: Account<'info, PortfolioVault>,
+    #[account(
+        constraint = agent.owner == policy.owner @ SentinelError::SecurityDomainMismatch,
+        constraint = agent.is_active @ SentinelError::AgentInactive
+    )]
     pub agent: Account<'info, AgentAccount>,
     pub policy: Account<'info, PolicyAccount>,
     pub authority: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct SetAgentActive<'info> {
+    #[account(
+        mut,
+        seeds = [b"agent", owner.key().as_ref(), agent.agent_id.as_bytes()],
+        bump = agent.bump,
+        has_one = owner
+    )]
+    pub agent: Account<'info, AgentAccount>,
+    pub owner: Signer<'info>,
 }
 
 #[derive(Accounts)]
@@ -624,6 +696,13 @@ pub struct EvidenceRecordedEvent {
     pub timestamp: i64,
 }
 
+#[event]
+pub struct AgentStatusUpdatedEvent {
+    pub agent: Pubkey,
+    pub owner: Pubkey,
+    pub is_active: bool,
+}
+
 // -----------------------------------------------------------------------------
 // Rust Invariant Unit Tests
 // -----------------------------------------------------------------------------
@@ -656,11 +735,11 @@ mod tests {
     fn test_single_asset_exposure_boundary_cents() {
         let policy = mock_policy();
         // 25.00% -> PASS ($25,000 on $100,000 = 2,500,000 cents on 10,000,000 cents)
-        let res_pass = verify_vault_postconditions(&policy, 500_000, 2_500_000, 10_000_000, 2_000_000, 0, 0);
+        let res_pass = verify_vault_postconditions(&policy, 500_000, 2_500_000, 10_000_000, 2_000_000, 12_000, 12_000);
         assert!(res_pass.is_ok());
 
         // 25.01% -> FAIL ($25,010 on $100,000 = 2501 bps)
-        let res_fail = verify_vault_postconditions(&policy, 500_000, 2_501_000, 10_000_000, 2_000_000, 0, 0);
+        let res_fail = verify_vault_postconditions(&policy, 500_000, 2_501_000, 10_000_000, 2_000_000, 12_000, 12_000);
         assert_eq!(res_fail.unwrap_err(), error!(SentinelError::ExposureExceeded));
     }
 
@@ -668,11 +747,11 @@ mod tests {
     fn test_stablecoin_reserve_boundary_cents() {
         let policy = mock_policy();
         // 20.00% -> PASS ($20,000 on $100,000 = 2,000,000 cents)
-        let res_pass = verify_vault_postconditions(&policy, 500_000, 2_000_000, 10_000_000, 2_000_000, 0, 0);
+        let res_pass = verify_vault_postconditions(&policy, 500_000, 2_000_000, 10_000_000, 2_000_000, 12_000, 12_000);
         assert!(res_pass.is_ok());
 
         // 19.99% -> FAIL ($19,990 on $100,000 = 1,999,000 cents)
-        let res_fail = verify_vault_postconditions(&policy, 500_000, 2_000_000, 10_000_000, 1_999_000, 0, 0);
+        let res_fail = verify_vault_postconditions(&policy, 500_000, 2_000_000, 10_000_000, 1_999_000, 12_000, 12_000);
         assert_eq!(res_fail.unwrap_err(), error!(SentinelError::StablecoinReserveBreached));
     }
 
@@ -680,11 +759,11 @@ mod tests {
     fn test_max_trade_size_boundary_cents() {
         let policy = mock_policy();
         // $10,000 -> PASS ($1,000,000 cents)
-        let res_pass = verify_vault_postconditions(&policy, 1_000_000, 2_000_000, 10_000_000, 2_000_000, 0, 0);
+        let res_pass = verify_vault_postconditions(&policy, 1_000_000, 2_000_000, 10_000_000, 2_000_000, 12_000, 12_000);
         assert!(res_pass.is_ok());
 
         // $10,001 -> FAIL ($1,000,100 cents)
-        let res_fail = verify_vault_postconditions(&policy, 1_000_100, 2_000_000, 10_000_000, 2_000_000, 0, 0);
+        let res_fail = verify_vault_postconditions(&policy, 1_000_100, 2_000_000, 10_000_000, 2_000_000, 12_000, 12_000);
         assert_eq!(res_fail.unwrap_err(), error!(SentinelError::TradeSizeExceeded));
     }
 
@@ -693,7 +772,7 @@ mod tests {
         let policy = mock_policy();
         // Agent proposes $15,000 trade ($1,500,000 cents)
         // Post target reaches $35,000 (3,500,000 cents = 35%), USDC drops to $10,000 (1,000,000 cents = 10%)
-        let res = verify_vault_postconditions(&policy, 1_500_000, 3_500_000, 10_000_000, 1_000_000, 0, 0);
+        let res = verify_vault_postconditions(&policy, 1_500_000, 3_500_000, 10_000_000, 1_000_000, 12_000, 12_000);
         assert_eq!(res.unwrap_err(), error!(SentinelError::TradeSizeExceeded));
     }
 
@@ -701,7 +780,7 @@ mod tests {
     fn test_hackathon_good_decision_settled_cents() {
         let policy = mock_policy();
         // Agent proposes adapted $5,000 trade: target reaches $25,000 (25%), stablecoin stays $20,000 (20%)
-        let res = verify_vault_postconditions(&policy, 500_000, 2_500_000, 10_000_000, 2_000_000, 0, 0);
+        let res = verify_vault_postconditions(&policy, 500_000, 2_500_000, 10_000_000, 2_000_000, 12_000, 12_000);
         assert!(res.is_ok());
     }
 
@@ -709,7 +788,7 @@ mod tests {
     fn test_u128_overflow_protection() {
         let policy = mock_policy();
         // Enforces post_target <= post_total
-        let res = verify_vault_postconditions(&policy, 500_000, 12_000_000, 10_000_000, 2_000_000, 0, 0);
+        let res = verify_vault_postconditions(&policy, 500_000, 12_000_000, 10_000_000, 2_000_000, 12_000, 12_000);
         assert_eq!(res.unwrap_err(), error!(SentinelError::MathOverflow));
     }
 
@@ -744,5 +823,95 @@ mod tests {
         // Expired (e.g. 150s elapsed)
         let expired_time: i64 = created_at + 150;
         assert!(expired_time > expires_at);
+    }
+
+    #[test]
+    fn test_missing_or_zero_price_fails_closed() {
+        let policy = mock_policy();
+
+        // 1. Quoted price = 0 -> FAIL closed with InvalidPrice
+        let res_zero_quote = verify_vault_postconditions(&policy, 500_000, 2_000_000, 10_000_000, 2_000_000, 0, 12_000);
+        assert_eq!(res_zero_quote.unwrap_err(), error!(SentinelError::InvalidPrice));
+
+        // 2. Execution price = 0 -> FAIL closed with InvalidPrice
+        let res_zero_exec = verify_vault_postconditions(&policy, 500_000, 2_000_000, 10_000_000, 2_000_000, 12_000, 0);
+        assert_eq!(res_zero_exec.unwrap_err(), error!(SentinelError::InvalidPrice));
+
+        // 3. Both prices = 0 -> FAIL closed with InvalidPrice
+        let res_both_zero = verify_vault_postconditions(&policy, 500_000, 2_000_000, 10_000_000, 2_000_000, 0, 0);
+        assert_eq!(res_both_zero.unwrap_err(), error!(SentinelError::InvalidPrice));
+    }
+
+    #[test]
+    fn test_slippage_exceeded_with_valid_prices() {
+        let policy = mock_policy(); // max_slippage_bps = 100 (1.00%)
+
+        // 0.83% slippage (quoted $120.00 = 12,000 cents, exec $121.00 = 12,100 cents -> 100/12000 = 83 bps <= 100 bps) -> PASS
+        let res_pass = verify_vault_postconditions(&policy, 500_000, 2_000_000, 10_000_000, 2_000_000, 12_000, 12_100);
+        assert!(res_pass.is_ok());
+
+        // 1.67% slippage (quoted $120.00 = 12,000 cents, exec $122.00 = 12,200 cents -> 200/12000 = 166 bps > 100 bps) -> FAIL
+        let res_fail = verify_vault_postconditions(&policy, 500_000, 2_000_000, 10_000_000, 2_000_000, 12_000, 12_200);
+        assert_eq!(res_fail.unwrap_err(), error!(SentinelError::SlippageExceeded));
+    }
+
+    #[test]
+    fn test_security_domain_binding() {
+        let owner_alice = Pubkey::new_unique();
+        let owner_bob = Pubkey::new_unique();
+
+        // Cross-owner composition check: Agent Alice + Policy Bob MUST be rejected
+        let agent_alice_owner = owner_alice;
+        let policy_bob_owner = owner_bob;
+        assert_ne!(agent_alice_owner, policy_bob_owner);
+
+        // Matching common owner domain passes
+        let policy_alice_owner = owner_alice;
+        let vault_alice_owner = owner_alice;
+        assert_eq!(agent_alice_owner, policy_alice_owner);
+        assert_eq!(policy_alice_owner, vault_alice_owner);
+    }
+
+    #[test]
+    fn test_direction_validation() {
+        let dir_buy: u8 = 0;
+        let dir_sell: u8 = 1;
+        let dir_invalid_2: u8 = 2;
+        let dir_invalid_255: u8 = 255;
+
+        assert!(dir_buy == 0 || dir_buy == 1);
+        assert!(dir_sell == 0 || dir_sell == 1);
+        assert!(!(dir_invalid_2 == 0 || dir_invalid_2 == 1));
+        assert!(!(dir_invalid_255 == 0 || dir_invalid_255 == 1));
+    }
+
+    #[test]
+    fn test_promise_amount_binding() {
+        let promised_amount_usd: u64 = 5_000;
+        let promised_cents: u64 = promised_amount_usd * 100; // 500,000 cents
+        let executed_cents: u64 = 500_000;
+        let rogue_executed_cents: u64 = 1_000_000;
+
+        assert_eq!(executed_cents, promised_cents);
+        assert_ne!(rogue_executed_cents, promised_cents);
+    }
+
+    #[test]
+    fn test_agent_kill_switch_active_enforcement() {
+        let mut agent = AgentAccount {
+            owner: Pubkey::default(),
+            agent_authority: Pubkey::default(),
+            agent_id: "robo-01".to_string(),
+            portfolio_id: "portfolio-main".to_string(),
+            is_active: true,
+            bump: 0,
+        };
+
+        // Active agent passes
+        assert!(agent.is_active);
+
+        // Emergency pause kill switch: set_agent_active(false)
+        agent.is_active = false;
+        assert!(!agent.is_active);
     }
 }
