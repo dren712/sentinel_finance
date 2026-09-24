@@ -575,6 +575,11 @@ export class SentinelReadHistoryRepository {
           decision_id: r.decision_id,
           run_id: r.run_id,
           wallet_address: r.wallet_address,
+          model_provider: r.model_provider ?? undefined,
+          structured_intent_json:
+            typeof r.structured_intent_json === 'string'
+              ? JSON.parse(r.structured_intent_json)
+              : (r.structured_intent_json ?? undefined),
           asset_symbol: r.asset_symbol,
           direction: r.direction as 'BUY' | 'SELL',
           amount_usd: Number(r.amount_usd),
@@ -582,6 +587,14 @@ export class SentinelReadHistoryRepository {
           failure_code: r.failure_code ?? undefined,
           failure_reason: r.failure_reason ?? undefined,
           rationale: r.rationale ?? undefined,
+          policy_version:
+            r.policy_version !== null && r.policy_version !== undefined
+              ? Number(r.policy_version)
+              : undefined,
+          policy_snapshot_json:
+            typeof r.policy_snapshot_json === 'string'
+              ? JSON.parse(r.policy_snapshot_json)
+              : (r.policy_snapshot_json ?? undefined),
           evidence_id: r.evidence_id ?? '',
           transaction_signature: r.transaction_signature ?? undefined,
           created_at: Number(r.created_at),

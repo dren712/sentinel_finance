@@ -212,11 +212,26 @@ export async function ensureSeededDevnetHistory(
   badReport.evidenceRecord.transactionSignature = APP_CONFIG.devnetTransactions.rejectBadTradeTx;
   badReport.evidenceRecord.isSimulation = false;
 
+  const seedPolicySnapshot = {
+    policyVersion: store.policy.policyVersion,
+    maxSingleAssetBps: store.policy.maxSingleAssetBps,
+    minStablecoinBps: store.policy.minStablecoinBps,
+    maxTradeValueUsd: store.policy.maxTradeValueUsd,
+    maxPreIpoExposureBps: store.policy.maxPreIpoExposureBps ?? 2000,
+  };
+
   const dec1Id = 'dec_devnet_reject_15k';
   await store.db.recordDecision({
     decision_id: dec1Id,
     run_id: seedRunId,
     wallet_address: owner,
+    model_provider: 'OpenAIProvider',
+    structured_intent_json: {
+      action: badIntent.direction,
+      asset: badIntent.assetSymbol,
+      amountUsd: badIntent.tradeAmountUsd,
+      rationale: badIntent.strategyRationale,
+    },
     asset_symbol: 'NVDAx',
     direction: 'BUY',
     amount_usd: 15_000,
@@ -226,6 +241,8 @@ export async function ensureSeededDevnetHistory(
       badReport.evidenceRecord.failureReason ||
       'NVDAx post-trade exposure 35.0% > 25.0% limit; USDC reserve 10.0% < 20.0% minimum; Trade $15K > $10K max',
     rationale: badIntent.strategyRationale,
+    policy_version: store.policy.policyVersion,
+    policy_snapshot_json: seedPolicySnapshot,
     evidence_id: badReport.evidenceRecord.id,
     transaction_signature: APP_CONFIG.devnetTransactions.rejectBadTradeTx,
     created_at: now - 125_000,
@@ -263,11 +280,20 @@ export async function ensureSeededDevnetHistory(
     decision_id: dec2Id,
     run_id: seedRunId,
     wallet_address: owner,
+    model_provider: 'OpenAIProvider',
+    structured_intent_json: {
+      action: goodIntent.direction,
+      asset: goodIntent.assetSymbol,
+      amountUsd: goodIntent.tradeAmountUsd,
+      rationale: goodIntent.strategyRationale,
+    },
     asset_symbol: 'NVDAx',
     direction: 'BUY',
     amount_usd: 5_000,
     status: 'ADAPTED',
     rationale: goodIntent.strategyRationale,
+    policy_version: store.policy.policyVersion,
+    policy_snapshot_json: seedPolicySnapshot,
     evidence_id: goodReport.evidenceRecord.id,
     transaction_signature: APP_CONFIG.devnetTransactions.executeValidTradeTx,
     created_at: now - 120_000,
@@ -286,10 +312,12 @@ export async function ensureSeededDevnetHistory(
     created_at: now - 120_000,
   });
   await store.db.recordEvidenceIndex(goodReport.evidenceRecord, dec2Id, owner);
+  await store.db.recordPortfolioSnapshot(store.portfolio);
 }
 
 /**
  * Reconciles authoritative financial policy from Solana RPC (PolicyAccount PDA: [b"policy", owner]).
+ * If uninitialized or offline on-chain, reconstructs policy invariants from Postgres read history.
  */
 export async function reconcilePolicyFromSolana(walletAddress?: string): Promise<FinancialPolicy> {
   const store = getServerStore();
@@ -327,10 +355,37 @@ export async function reconcilePolicyFromSolana(walletAddress?: string): Promise
           policyVersion,
           isActive,
         };
+        return store.policy;
       }
     }
   } catch {
     // Keep existing session policy if RPC is unreachable or wallet address is synthetic
+  }
+
+  // State Reconstruction from Postgres read history (across restarts or container replicas)
+  try {
+    const decisions = await store.db.queryDecisions(targetOwner, 1);
+    if (decisions.length > 0 && decisions[0]?.policy_snapshot_json) {
+      const ps: any = decisions[0].policy_snapshot_json;
+      if (typeof ps === 'object' && ps !== null) {
+        store.policy = {
+          ...store.policy,
+          owner: targetOwner,
+          policyVersion: Number(ps.policyVersion ?? decisions[0].policy_version ?? store.policy.policyVersion),
+          maxSingleAssetBps: Number(ps.maxSingleAssetBps ?? store.policy.maxSingleAssetBps),
+          minStablecoinBps: Number(ps.minStablecoinBps ?? store.policy.minStablecoinBps),
+          maxTradeValueUsd: Number(ps.maxTradeValueUsd ?? store.policy.maxTradeValueUsd),
+          maxPreIpoExposureBps: Number(ps.maxPreIpoExposureBps ?? store.policy.maxPreIpoExposureBps ?? 2000),
+        };
+        return store.policy;
+      }
+    }
+  } catch {
+    // Fallback gracefully
+  }
+
+  if (targetOwner && targetOwner !== 'default') {
+    store.policy.owner = targetOwner;
   }
 
   return store.policy;
@@ -338,6 +393,7 @@ export async function reconcilePolicyFromSolana(walletAddress?: string): Promise
 
 /**
  * Reconciles authoritative portfolio state from Solana RPC.
+ * If unprojected or offline on-chain, reconstructs state from Postgres read history.
  */
 export async function reconcilePortfolioFromSolana(walletAddress?: string): Promise<PortfolioSnapshot> {
   const store = getServerStore();
@@ -371,6 +427,35 @@ export async function reconcilePortfolioFromSolana(walletAddress?: string): Prom
     }
   } catch {
     // Fallback to session simulated projection when offline
+  }
+
+  // State Reconstruction from Postgres read history (across restarts or container replicas)
+  try {
+    const snapshots = await store.db.queryPortfolioSnapshots(targetOwner, 1);
+    if (snapshots.length > 0 && snapshots[0]?.assets_json) {
+      const snap = snapshots[0];
+      const parsedAssets =
+        typeof snap.assets_json === 'string' ? JSON.parse(snap.assets_json) : snap.assets_json;
+      if (Array.isArray(parsedAssets) && parsedAssets.length > 0) {
+        store.portfolio = {
+          portfolioId: snap.snapshot_id || 'default-portfolio',
+          owner: snap.wallet_address || targetOwner,
+          totalValueUsd: Number(snap.total_value_usd),
+          stablecoinValueUsd: Number(snap.stablecoin_value_usd),
+          stablecoinExposureBps: Number(snap.stablecoin_exposure_bps),
+          assets: parsedAssets,
+          timestamp: Number(snap.created_at),
+          source: (snap.source as any) || 'SIMULATED_PROJECTION',
+        };
+        return store.portfolio;
+      }
+    }
+  } catch {
+    // Fallback gracefully
+  }
+
+  if (targetOwner && targetOwner !== 'default') {
+    store.portfolio.owner = targetOwner;
   }
 
   return store.portfolio;
