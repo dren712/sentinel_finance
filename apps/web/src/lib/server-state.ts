@@ -38,7 +38,7 @@ import {
   SENTINEL_PROGRAM_ID,
 } from '@sentinel/domain';
 import { SentinelReadHistoryRepository } from './database';
-import { APP_CONFIG } from './config';
+import { APP_CONFIG, getServerSolanaRpcUrl } from './config';
 
 if (typeof window !== 'undefined') {
   throw new Error(
@@ -102,8 +102,7 @@ function loadServerAgentKeypair(): Keypair | undefined {
 
 /**
  * Builds an execution adapter that targets REAL Solana Devnet via LiveExecutionAdapter
- * whenever the autonomous agent authority keypair is available, with graceful fallback
- * to DemoAdapter only if Devnet RPC is unreachable or unconfigured.
+ * using the Server RPC (`SOLANA_RPC_URL`) whenever the autonomous agent authority keypair is available.
  */
 function createRealDevnetOrFallbackAdapter(client: SentinelClient): ExecutionAdapter {
   const agentKeypair = loadServerAgentKeypair();
@@ -113,8 +112,9 @@ function createRealDevnetOrFallbackAdapter(client: SentinelClient): ExecutionAda
     return demoFallback;
   }
 
+  const serverRpcUrl = getServerSolanaRpcUrl();
   const liveAdapter = new LiveExecutionAdapter(
-    APP_CONFIG.rpcUrl,
+    serverRpcUrl,
     agentKeypair,
     APP_CONFIG.sentinelProgramId || SENTINEL_PROGRAM_ID.toBase58(),
     APP_CONFIG.cluster
@@ -148,6 +148,7 @@ function createRealDevnetOrFallbackAdapter(client: SentinelClient): ExecutionAda
 // Server runtime singleton (stateless across restarts because reads reconcile from Solana + Postgres)
 const globalState: ServerStateStore = (() => {
   const client = new SentinelClient();
+  client.setConnection(new Connection(getServerSolanaRpcUrl(), 'confirmed'));
   const db = new SentinelReadHistoryRepository();
   const portfolio = client.createDefaultPortfolio();
   const policy = client.createDefaultPolicy();
@@ -172,7 +173,10 @@ export function getServerStore(): ServerStateStore {
  * lifecycle events if no runs exist yet, so `GET /api/activity/:wallet` is always the canonical
  * source of transaction history for `ActivityView.tsx`.
  */
-async function ensureSeededDevnetHistory(store: ServerStateStore, walletAddress: string): Promise<void> {
+export async function ensureSeededDevnetHistory(
+  store: ServerStateStore = getServerStore(),
+  walletAddress: string = 'default'
+): Promise<void> {
   if (store.seededCanonicalHistory) return;
   store.seededCanonicalHistory = true;
 
@@ -300,7 +304,7 @@ export async function reconcilePolicyFromSolana(walletAddress?: string): Promise
       programPubkey
     );
 
-    const connection = new Connection(APP_CONFIG.rpcUrl, 'confirmed');
+    const connection = new Connection(getServerSolanaRpcUrl(), 'confirmed');
     const accountInfo = await connection.getAccountInfo(policyPda);
 
     if (accountInfo && accountInfo.data.length >= 60) {
@@ -355,7 +359,7 @@ export async function reconcilePortfolioFromSolana(walletAddress?: string): Prom
       programPubkey
     );
 
-    const connection = new Connection(APP_CONFIG.rpcUrl, 'confirmed');
+    const connection = new Connection(getServerSolanaRpcUrl(), 'confirmed');
     const vaultInfo = await connection.getAccountInfo(vaultPda);
     if (vaultInfo && vaultInfo.data.length >= 60) {
       store.portfolio = {

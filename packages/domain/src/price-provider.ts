@@ -152,25 +152,37 @@ export class PythLivePriceProvider implements PriceProvider {
       ? await this.fetchHermesPrice(feedInfo.underlyingFeedId)
       : liveData;
 
-    if (!liveData && this.fallbackProvider) {
-      const fallback = await this.fallbackProvider.getPrice(symbol);
+    if (!liveData) {
+      if (this.fallbackProvider) {
+        const fallback = await this.fallbackProvider.getPrice(symbol);
+        return {
+          ...fallback,
+          source: 'Pyth Network Live Oracle (Hermes Fallback)',
+        };
+      }
+      // DEVNET LIVE fail-closed: Pyth unavailable -> status = STALE -> NO EXECUTION
+      const basePrice = meta?.basePriceUsd ?? 100.0;
       return {
-        ...fallback,
-        source: 'Pyth Network Live Oracle (Hermes Fallback)',
+        symbol,
+        priceUsd: basePrice,
+        timestamp: 0,
+        status: 'STALE',
+        source: 'Pyth Hermes Unavailable — NO EXECUTION',
+        confidence: Math.round(basePrice * 0.05 * 100) / 100,
+        exponent: -8,
+        underlyingPrice: basePrice,
+        trackingErrorBps: 0,
+        marketStatus: 'MARKET_CLOSED',
       };
     }
 
     const now = Date.now();
-    const priceUsd = liveData
-      ? liveData.price * Math.pow(10, liveData.expo)
-      : (meta?.basePriceUsd ?? 100.0);
+    const priceUsd = liveData.price * Math.pow(10, liveData.expo);
     const underlyingPrice = underlyingLiveData
       ? underlyingLiveData.price * Math.pow(10, underlyingLiveData.expo)
       : priceUsd;
-    const confidence = liveData
-      ? liveData.conf * Math.pow(10, liveData.expo)
-      : Math.round(priceUsd * 0.001 * 100) / 100;
-    const publishTime = liveData ? liveData.publishTime : now;
+    const confidence = liveData.conf * Math.pow(10, liveData.expo);
+    const publishTime = liveData.publishTime;
 
     const ageSeconds = Math.max(0, Math.floor((now - publishTime) / 1000));
     const isStale = ageSeconds > this.maxStaleAgeSeconds;

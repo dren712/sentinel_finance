@@ -1,6 +1,6 @@
 import { Connection } from '@solana/web3.js';
 import { getServerStore } from '../../../lib/server-state';
-import { APP_CONFIG } from '../../../lib/config';
+import { APP_CONFIG, browserRpcUrl, getServerSolanaRpcUrl } from '../../../lib/config';
 
 /**
  * GET /api/health
@@ -25,11 +25,12 @@ export async function GET() {
       store.db.queryStats(),
     ]);
 
-    // 2. Check Solana RPC connectivity (`connected` | `configured`)
+    // 2. Check Solana Server RPC (`SOLANA_RPC_URL`) connectivity (`connected` | `configured`)
+    const serverRpcUrl = getServerSolanaRpcUrl();
     let solanaStatus: 'connected' | 'configured' = 'configured';
-    if (APP_CONFIG.rpcUrl) {
+    if (serverRpcUrl) {
       try {
-        const connection = new Connection(APP_CONFIG.rpcUrl, 'confirmed');
+        const connection = new Connection(serverRpcUrl, 'confirmed');
         const slot = await Promise.race([
           connection.getSlot(),
           new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000)),
@@ -57,13 +58,15 @@ export async function GET() {
       solana: solanaStatus,
       postgres: postgresStatus,
       llm: llmStatus,
+      deploymentTarget: 'DOCKER_SINGLE_CONTAINER_PLUS_MANAGED_POSTGRES',
       service: 'sentinel-finance',
       version: '1.2.0',
       authority: 'SOLANA_ON_CHAIN',
       cluster: {
         environment: APP_CONFIG.clusterLabel,
         solanaCluster: APP_CONFIG.cluster,
-        rpcUrl: APP_CONFIG.rpcUrl,
+        browserRpcUrl,
+        serverRpcConfigured: Boolean(process.env.SOLANA_RPC_URL),
         sentinelProgramId: APP_CONFIG.sentinelProgramId,
         policyPda: APP_CONFIG.policyPda,
         agentPda: APP_CONFIG.agentPda,

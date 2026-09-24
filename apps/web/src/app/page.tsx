@@ -144,11 +144,17 @@ export default function Home() {
     client.setExecutionVenue(venue);
   };
 
-  // Poll Pyth market truth prices periodically
+  // Poll Pyth market truth prices periodically via /api/market/:symbol -> PythLivePriceProvider -> Hermes
   useEffect(() => {
     let isMounted = true;
     const updatePrices = async () => {
       try {
+        const res = await fetch(`/api/market/ALL?mode=${mode}`);
+        const data = await res.json().catch(() => null);
+        if (isMounted && data?.success && data?.prices) {
+          setMarketPrices(data.prices);
+          return;
+        }
         const prices = await client.getMarketPrices();
         if (isMounted) {
           setMarketPrices(prices);
@@ -164,7 +170,7 @@ export default function Home() {
       isMounted = false;
       clearInterval(interval);
     };
-  }, [client]);
+  }, [client, mode]);
 
   // Transaction Lifecycle Modal State
   const [txModalOpen, setTxModalOpen] = useState(false);

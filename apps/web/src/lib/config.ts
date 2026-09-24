@@ -133,7 +133,30 @@ export function deriveSentinelDomainPdas(
 const clusterEnv = resolveClusterEnvironment(process.env.NEXT_PUBLIC_SOLANA_CLUSTER);
 const cluster = clusterEnvToSolanaCluster(clusterEnv);
 const clusterLabel = clusterEnv;
-const rpcUrl = resolveClusterRpcUrl(clusterEnv, process.env.NEXT_PUBLIC_SOLANA_RPC);
+
+/**
+ * Browser RPC (NEXT_PUBLIC_SOLANA_RPC):
+ * Used exclusively by browser clients for wallet balances, account reads,
+ * transaction status, and Solana Explorer links.
+ */
+export const browserRpcUrl = resolveClusterRpcUrl(
+  clusterEnv,
+  process.env.NEXT_PUBLIC_SOLANA_RPC || process.env.NEXT_PUBLIC_SOLANA_RPC_URL
+);
+
+/**
+ * Server RPC (SOLANA_RPC_URL):
+ * Used exclusively on the Next.js server for agent execution, Pyth update workflows,
+ * server-side verification, and indexing/reconciliation without exposing private RPC credentials.
+ */
+export function getServerSolanaRpcUrl(): string {
+  return resolveClusterRpcUrl(
+    clusterEnv,
+    process.env.SOLANA_RPC_URL || process.env.NEXT_PUBLIC_SOLANA_RPC
+  );
+}
+
+const rpcUrl = browserRpcUrl;
 
 const sentinelProgramId =
   process.env.SENTINEL_PROGRAM_ID ||

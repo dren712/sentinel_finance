@@ -138,7 +138,10 @@ export class PythPriceAdapter {
       this.customPrices = { ...initialPrices };
     }
     this.benchmarkProvider = new PythBenchmarkPriceProvider(this.customPrices);
-    this.liveProvider = liveProvider ?? new PythLivePriceProvider({ fallbackProvider: this.benchmarkProvider });
+    // Do NOT attach synthetic fallbackProvider to liveProvider:
+    // DEVNET LIVE: Pyth unavailable -> NO EXECUTION
+    // SIMULATION (BENCHMARK): fallback allowed
+    this.liveProvider = liveProvider ?? new PythLivePriceProvider();
   }
 
   setMode(mode: 'LIVE' | 'BENCHMARK'): void {
@@ -279,14 +282,14 @@ export class PythPriceAdapter {
           confidenceMaxUsd: Math.round((livePrice.priceUsd + (livePrice.confidence ?? 0.05)) * 100) / 100,
           confidenceRatioBps,
           publishTime: livePrice.timestamp,
-          publishTimeFormatted: formatPublishTimeUtc(livePrice.timestamp),
+          publishTimeFormatted: livePrice.timestamp > 0 ? formatPublishTimeUtc(livePrice.timestamp) : 'UNAVAILABLE',
           exponent: livePrice.exponent ?? -8,
           feedId: meta?.tokenizedFeedId ?? PYTH_FEED_IDS[symbol]?.tokenizedFeedId ?? '0x0000000000000000000000000000000000000000000000000000000000000000',
           feedDisplayId: meta?.tokenizedDisplayId ?? `Crypto.${symbol.toUpperCase()}/USD`,
-          source: 'Pyth Hermes Live',
+          source: livePrice.source || 'Pyth Hermes Live',
           status: livePrice.status,
           isSimulation: false,
-          ageSeconds,
+          ageSeconds: livePrice.timestamp > 0 ? ageSeconds : 999999,
           underlyingSymbol: meta?.underlyingSymbol ?? assetMeta?.underlyingAsset,
           underlyingFeedId: meta?.underlyingDisplayId ?? meta?.underlyingFeedId,
           underlyingPriceUsd: livePrice.underlyingPrice ?? livePrice.priceUsd,
@@ -295,7 +298,13 @@ export class PythPriceAdapter {
           marketStatus: livePrice.marketStatus ?? 'MARKET_OPEN',
         };
       } catch {
-        return this.getNormalizedMarketPriceSync(symbol);
+        // DEVNET LIVE: Pyth unavailable -> NO EXECUTION (never fall back to synthetic price)
+        const stale = this.createStalePrice(symbol, 999999);
+        return {
+          ...stale,
+          source: 'Pyth Hermes Unavailable — NO EXECUTION',
+          isSimulation: false,
+        };
       }
     }
     return this.getNormalizedMarketPriceSync(symbol);
