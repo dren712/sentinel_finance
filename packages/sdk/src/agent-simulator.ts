@@ -44,11 +44,18 @@ import { MeteoraExecutionAdapter } from './adapters/meteora-adapter';
 import { DemoExecutionAdapter } from './adapters/demo-adapter';
 import { AgentSignerWallet } from './agent-wallet';
 import { deriveSplAta } from './portfolio-indexer';
+import {
+  LLMProvider,
+  DemoProvider,
+  TradeIntentDraftSchema,
+  AgentPromptContext,
+} from './llm-provider';
 
 export interface AgentConfig {
   agentId?: string;
   name?: string;
   objective?: string;
+  llmProvider?: LLMProvider;
 }
 
 /**
@@ -64,6 +71,7 @@ export class AutonomousRoboAgent {
   public readonly wallet: AgentSignerWallet;
   public agentRiskState: AgentRiskState;
   public currentLoopState?: AgentLoopState;
+  public llmProvider: LLMProvider;
 
   constructor(config: AgentConfig = {}) {
     this.agentId = config.agentId ?? 'sentinel_robo_agent_1';
@@ -71,6 +79,7 @@ export class AutonomousRoboAgent {
     this.objective = config.objective ?? 'Earnings Momentum & Growth Allocation';
     this.status = 'ACTIVE';
     this.wallet = new AgentSignerWallet(this.agentId, this.name);
+    this.llmProvider = config.llmProvider ?? new DemoProvider();
     this.agentRiskState = {
       agentId: this.agentId,
       tradesExecuted24hUsd: 0,
@@ -90,6 +99,14 @@ export class AutonomousRoboAgent {
       breachedInvariants: [],
       updatedAt: Date.now(),
     };
+  }
+
+  setLLMProvider(provider: LLMProvider): void {
+    this.llmProvider = provider;
+  }
+
+  getLLMProvider(): LLMProvider {
+    return this.llmProvider;
   }
 
 
@@ -652,7 +669,11 @@ export class AutonomousRoboAgent {
     initialProposedAmountUsd: number = 15_000,
     adapter: ExecutionAdapter,
     priceSource?: PriceSource | NormalizedMarketPrice,
-    onStageChange?: (state: AgentLoopState) => void
+    onStageChange?: (state: AgentLoopState) => void,
+    options?: {
+      llmProvider?: LLMProvider;
+      userGoal?: string;
+    }
   ): Promise<AutonomousAdaptationResult> {
     const cycleId = `cycle_${Date.now()}`;
     const targetAsset = preState.assets.find(a => a.symbol === targetSymbol);
@@ -689,20 +710,52 @@ export class AutonomousRoboAgent {
     updateState('OBSERVE', 1, 'RUNNING');
 
     // -------------------------------------------------------------------------
-    // Stage 2: FORMULATE
+    // Stage 2: FORMULATE (LLM Intelligence Consultation)
     // -------------------------------------------------------------------------
     updateState('FORMULATE', 2, 'RUNNING');
+    const activeLlm = options?.llmProvider ?? this.llmProvider;
+    const promptContext: AgentPromptContext = {
+      portfolio: preState,
+      policy,
+      targetAsset: targetSymbol,
+      marketPrices: {
+        [targetSymbol]: {
+          priceUsd: referencePrice,
+          status: 'TRADING',
+        },
+      },
+      marketHealth: {
+        isLiquid: true,
+        poolDepthUsd: 145_000,
+        priceImpactBps: 18,
+      },
+      userGoal: options?.userGoal ?? this.objective,
+    };
+
+    let formulatedDraft = await activeLlm.proposeTrade(promptContext);
+    formulatedDraft = TradeIntentDraftSchema.parse(formulatedDraft);
+
+    const actualProposedAmount =
+      initialProposedAmountUsd !== 15_000
+        ? initialProposedAmountUsd
+        : (formulatedDraft.amountUsd || initialProposedAmountUsd);
+    const actualTargetSymbol =
+      targetSymbol && targetSymbol !== 'NVDAx'
+        ? targetSymbol
+        : (formulatedDraft.asset || targetSymbol || 'NVDAx');
+    const actualTargetAsset = preState.assets.find(a => a.symbol === actualTargetSymbol) || targetAsset;
+    const actualTargetMint = actualTargetAsset ? actualTargetAsset.mint : `${actualTargetSymbol}111111111111111111111111111111111111111`;
 
     // -------------------------------------------------------------------------
     // Stage 3: PROPOSE
     // -------------------------------------------------------------------------
     const initialIntent = this.proposeIntent({
-      assetSymbol: targetSymbol,
-      assetMint: targetMint,
-      direction: 'BUY',
-      tradeAmountUsd: initialProposedAmountUsd,
+      assetSymbol: actualTargetSymbol,
+      assetMint: actualTargetMint,
+      direction: formulatedDraft.action,
+      tradeAmountUsd: actualProposedAmount,
       referencePriceUsd: referencePrice,
-      strategyRationale: `Aggressive ${targetSymbol} allocation to capture earnings momentum`,
+      strategyRationale: formulatedDraft.rationale || `[${activeLlm.providerName}] Aggressive ${actualTargetSymbol} allocation to capture earnings momentum`,
     });
     updateState('PROPOSE', 3, 'RUNNING');
 

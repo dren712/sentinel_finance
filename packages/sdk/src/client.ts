@@ -55,6 +55,7 @@ import { AutonomousRoboAgent } from './agent-simulator';
 import { MeteoraDBCMarketQualityVerifier } from './sponsors/meteora';
 import { PortfolioIndexer, deriveSplAta } from './portfolio-indexer';
 import { Connection } from '@solana/web3.js';
+import { LLMProvider } from './llm-provider';
 
 export interface SentinelClientConfig {
   adapter?: ExecutionAdapter;
@@ -189,6 +190,14 @@ export class SentinelClient {
 
   getAgent(): AutonomousRoboAgent {
     return this.agent;
+  }
+
+  setLLMProvider(provider: LLMProvider): void {
+    this.agent.setLLMProvider(provider);
+  }
+
+  getLLMProvider(): LLMProvider {
+    return this.agent.getLLMProvider();
   }
 
   getEvidenceHistory(): EvidenceRecord[] {
@@ -690,6 +699,10 @@ export class SentinelClient {
         oracleConfidenceUsd: record.oracleProvenance?.confidenceUsd,
       },
     };
+  }
+
+  getSentinelReceipt(record: EvidenceRecord, index?: number): SentinelReceipt {
+    return this.formatReceipt(record, index);
   }
 
 

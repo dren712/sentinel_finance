@@ -1260,5 +1260,189 @@ describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
       assert.strictEqual(execution.venueType, 'METEORA_DBC');
     });
   });
+
+  describe('P10 & P11: LLM Connector, Tool Dispatcher & 10-Stage Real Autonomous Loop', () => {
+    const {
+      TradeIntentDraftSchema,
+      DemoProvider,
+      OpenAIProvider,
+      executeAgentTool,
+      convertDraftToIntent,
+    } = require('../src/llm-provider');
+
+    it('P10: TradeIntentDraftSchema validates structured trade drafts and rejects malformed payloads', () => {
+      // Valid draft
+      const valid = TradeIntentDraftSchema.parse({
+        action: 'BUY',
+        asset: 'NVDAx',
+        amountUsd: 15000,
+        rationale: 'Earnings momentum and AI compute infrastructure thesis',
+      });
+      assert.strictEqual(valid.action, 'BUY');
+      assert.strictEqual(valid.amountUsd, 15000);
+
+      // Rejects invalid action
+      assert.throws(() => {
+        TradeIntentDraftSchema.parse({
+          action: 'HOLD',
+          asset: 'NVDAx',
+          amountUsd: 5000,
+          rationale: 'Invalid action',
+        });
+      });
+
+      // Rejects negative trade amount
+      assert.throws(() => {
+        TradeIntentDraftSchema.parse({
+          action: 'BUY',
+          asset: 'NVDAx',
+          amountUsd: -1000,
+          rationale: 'Negative amount',
+        });
+      });
+    });
+
+    it('P10: executeAgentTool dispatches all 6 required agent tools accurately', () => {
+      const pClient = new SentinelClient();
+      const port = pClient.createDefaultPortfolio();
+      const pol = pClient.createDefaultPolicy();
+      const context = {
+        portfolio: port,
+        policy: pol,
+        marketPrices: {
+          NVDAx: { priceUsd: 120.0, status: 'TRADING' },
+        },
+        marketHealth: {
+          isLiquid: true,
+          poolDepthUsd: 145_000,
+          priceImpactBps: 18,
+        },
+        rejectionHistory: {
+          intent: { assetSymbol: 'NVDAx' } as any,
+          failureCode: 'ERR_CONCENTRATION_EXCEEDED',
+          failureReason: '35% exceeds 25% max single-asset allocation limit',
+          breachedInvariants: [{ name: 'NVDAx exposure', actual: '35.0%', limit: '25.0%', rule: 'Cap: 25%' }],
+        },
+      };
+
+      // 1. getPortfolio
+      const portResult = executeAgentTool('getPortfolio', {}, context);
+      assert.strictEqual(portResult.totalValueUsd, 100_000);
+      assert.strictEqual(portResult.stablecoinValueUsd, 25_000);
+      assert.ok(portResult.assets.length >= 4);
+
+      // 2. getPolicy
+      const polResult = executeAgentTool('getPolicy', {}, context);
+      assert.strictEqual(polResult.maxSingleAssetExposurePct, '25.0%');
+      assert.strictEqual(polResult.minCashReserveFloorPct, '20.0%');
+      assert.strictEqual(polResult.maxTradeSizeUsd, 10_000);
+
+      // 3. getMarketPrice
+      const priceResult = executeAgentTool('getMarketPrice', { assetSymbol: 'NVDAx' }, context);
+      assert.strictEqual(priceResult.priceUsd, 120.0);
+
+      // 4. getMarketHealth
+      const healthResult = executeAgentTool('getMarketHealth', { assetSymbol: 'NVDAx' }, context);
+      assert.strictEqual(healthResult.isLiquid, true);
+      assert.strictEqual(healthResult.poolDepthUsd, 145_000);
+
+      // 5. simulateTrade
+      const simResult = executeAgentTool('simulateTrade', { assetSymbol: 'NVDAx', action: 'BUY', amountUsd: 15_000 }, context);
+      assert.strictEqual(simResult.passesAllInvariants, false);
+      assert.strictEqual(simResult.invariants.singleAssetCap.passes, false);
+
+      const compliantSim = executeAgentTool('simulateTrade', { assetSymbol: 'NVDAx', action: 'BUY', amountUsd: 5_000 }, context);
+      assert.strictEqual(compliantSim.passesAllInvariants, true);
+
+      // 6. readRejection
+      const rejResult = executeAgentTool('readRejection', {}, context);
+      assert.strictEqual(rejResult.failureCode, 'ERR_CONCENTRATION_EXCEEDED');
+      assert.strictEqual(rejResult.breachedInvariants[0].name, 'NVDAx exposure');
+    });
+
+    it('P10: DemoProvider and OpenAIProvider fallback to safe, validated TradeIntentDrafts', async () => {
+      const pClient = new SentinelClient();
+      const port = pClient.createDefaultPortfolio();
+      const pol = pClient.createDefaultPolicy();
+      const context = {
+        portfolio: port,
+        policy: pol,
+        marketPrices: { NVDAx: { priceUsd: 120.0 } },
+      };
+
+      const demo = new DemoProvider('flagship');
+      const draft = await demo.proposeTrade(context);
+      assert.strictEqual(draft.action, 'BUY');
+      assert.strictEqual(draft.asset, 'NVDAx');
+      assert.strictEqual(draft.amountUsd, 15_000);
+
+      // OpenAI provider without API key gracefully falls back to demo provider
+      const openai = new OpenAIProvider({ fallbackToDemo: true });
+      const openaiDraft = await openai.proposeTrade(context);
+      assert.strictEqual(openaiDraft.action, 'BUY');
+      assert.strictEqual(openaiDraft.asset, 'NVDAx');
+    });
+
+    it('P10: convertDraftToIntent creates untrusted TradeIntent with non-bypass invariant', () => {
+      const draft = {
+        action: 'BUY' as const,
+        asset: 'NVDAx',
+        amountUsd: 15_000,
+        rationale: 'Growth thesis',
+      };
+      const intent = convertDraftToIntent(draft, 'agent_1', 120.0);
+      assert.strictEqual(intent.assetSymbol, 'NVDAx');
+      assert.strictEqual(intent.direction, 'BUY');
+      assert.strictEqual(intent.tradeAmountUsd, 15_000);
+      assert.strictEqual(intent.referencePriceUsd, 120.0);
+      assert.ok(intent.intentId.startsWith('intent_llm_'));
+    });
+
+    it('P11: executes 10-stage autonomous loop with initial LLM proposal and deterministic Sentinel enforcement', async () => {
+      const pClient = new SentinelClient();
+      const agent = pClient.getAgent();
+      const port = pClient.createDefaultPortfolio();
+      const pol = pClient.createDefaultPolicy();
+
+      const stagesVisited: string[] = [];
+      const result = await agent.executeAutonomousAdaptationLoop(
+        port,
+        pol,
+        'NVDAx',
+        15_000,
+        pClient.getDemoAdapter(),
+        undefined,
+        (loopState) => {
+          stagesVisited.push(loopState.stage);
+        },
+        {
+          llmProvider: new DemoProvider('flagship'),
+          userGoal: 'High-conviction growth in semiconductors',
+        }
+      );
+
+      // Verify all 10 stages were traversed
+      assert.ok(stagesVisited.includes('OBSERVE'));
+      assert.ok(stagesVisited.includes('FORMULATE'));
+      assert.ok(stagesVisited.includes('PROPOSE'));
+      assert.ok(stagesVisited.includes('SENTINEL_CHECK'));
+      assert.ok(stagesVisited.includes('REJECTED'));
+      assert.ok(stagesVisited.includes('READ_FAILURE'));
+      assert.ok(stagesVisited.includes('ADAPT'));
+      assert.ok(stagesVisited.includes('REPROPOSE'));
+      assert.ok(stagesVisited.includes('SENTINEL_RECHECK'));
+      assert.ok(stagesVisited.includes('SETTLED'));
+
+      // Verify adaptation outcome
+      assert.strictEqual(result.step1RejectedDecision.status, 'REJECTED');
+      assert.strictEqual(result.step1RejectedDecision.intent.tradeAmountUsd, 15_000);
+      assert.strictEqual(result.step2SettledDecision.status, 'SETTLED');
+      assert.strictEqual(result.step2SettledDecision.intent.tradeAmountUsd, 5_000);
+      assert.strictEqual(result.adaptationDetails.adaptedAmountUsd, 5_000);
+      assert.ok(result.step2SettledDecision.evidenceRecord.id);
+      assert.strictEqual(result.step2SettledDecision.evidenceRecord.verificationResult, 'SETTLED');
+    });
+  });
 });
+
 
