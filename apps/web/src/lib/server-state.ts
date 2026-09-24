@@ -518,10 +518,25 @@ export async function runServerAgentCycle(params: {
   const dec1Id = `dec_${step1.cycleId}_step1`;
   const dec2Id = `dec_${step2.cycleId}_step2`;
 
+  const policySnapshot = {
+    policyVersion: store.policy.policyVersion,
+    maxSingleAssetBps: store.policy.maxSingleAssetBps,
+    minStablecoinBps: store.policy.minStablecoinBps,
+    maxTradeValueUsd: store.policy.maxTradeValueUsd,
+    maxPreIpoExposureBps: store.policy.maxPreIpoExposureBps ?? 2000,
+  };
+
   await store.db.recordDecision({
     decision_id: dec1Id,
     run_id: result.cycleId,
     wallet_address: walletAddress,
+    model_provider: provider.providerName,
+    structured_intent_json: {
+      action: step1.intent.direction,
+      asset: step1.intent.assetSymbol,
+      amountUsd: step1.intent.tradeAmountUsd,
+      rationale: step1.intent.strategyRationale,
+    },
     asset_symbol: step1.intent.assetSymbol,
     direction: step1.intent.direction,
     amount_usd: step1.intent.tradeAmountUsd,
@@ -529,6 +544,8 @@ export async function runServerAgentCycle(params: {
     failure_code: step1.evidenceRecord.failureCode,
     failure_reason: step1.evidenceRecord.failureReason,
     rationale: step1.intent.strategyRationale,
+    policy_version: store.policy.policyVersion,
+    policy_snapshot_json: policySnapshot,
     evidence_id: step1.evidenceRecord.id,
     transaction_signature: step1.evidenceRecord.transactionSignature,
     created_at: now - 1000,
@@ -545,11 +562,20 @@ export async function runServerAgentCycle(params: {
     decision_id: dec2Id,
     run_id: result.cycleId,
     wallet_address: walletAddress,
+    model_provider: provider.providerName,
+    structured_intent_json: {
+      action: step2.intent.direction,
+      asset: step2.intent.assetSymbol,
+      amountUsd: step2.intent.tradeAmountUsd,
+      rationale: step2.intent.strategyRationale,
+    },
     asset_symbol: step2.intent.assetSymbol,
     direction: step2.intent.direction,
     amount_usd: step2.intent.tradeAmountUsd,
     status: 'ADAPTED',
     rationale: step2.intent.strategyRationale,
+    policy_version: store.policy.policyVersion,
+    policy_snapshot_json: policySnapshot,
     evidence_id: step2.evidenceRecord.id,
     transaction_signature: settledSignature,
     created_at: now,

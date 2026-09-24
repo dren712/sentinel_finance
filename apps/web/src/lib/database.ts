@@ -21,8 +21,19 @@ if (typeof window !== 'undefined') {
   );
 }
 
+if (
+  typeof process !== 'undefined' &&
+  (process.env?.NEXT_PUBLIC_OPENAI_API_KEY || process.env?.NEXT_PUBLIC_DATABASE_URL)
+) {
+  console.error(
+    '[ERROR] security_violation_public_secret_detected Never set NEXT_PUBLIC_OPENAI_API_KEY or NEXT_PUBLIC_DATABASE_URL. Stripping from environment.'
+  );
+  delete process.env.NEXT_PUBLIC_OPENAI_API_KEY;
+  delete process.env.NEXT_PUBLIC_DATABASE_URL;
+}
+
 export const POSTGRES_READ_HISTORY_DDL = `
--- 1. agent_runs: Autonomous 10-stage decision loop executions
+-- 1. agent_runs: Autonomous 10-stage decision loop executions (AGENTS domain)
 CREATE TABLE IF NOT EXISTS agent_runs (
   run_id TEXT PRIMARY KEY,
   agent_id TEXT NOT NULL,
@@ -35,11 +46,13 @@ CREATE TABLE IF NOT EXISTS agent_runs (
   created_at BIGINT NOT NULL
 );
 
--- 2. decisions: Individual trade intents evaluated by Sentinel postconditions
+-- 2. decisions: Individual trade intents evaluated by Sentinel postconditions (DECISIONS domain)
 CREATE TABLE IF NOT EXISTS decisions (
   decision_id TEXT PRIMARY KEY,
   run_id TEXT NOT NULL REFERENCES agent_runs(run_id),
   wallet_address TEXT NOT NULL,
+  model_provider TEXT NOT NULL DEFAULT 'DemoProvider',
+  structured_intent_json JSONB,
   asset_symbol TEXT NOT NULL,
   direction TEXT NOT NULL,
   amount_usd NUMERIC NOT NULL,
@@ -47,11 +60,17 @@ CREATE TABLE IF NOT EXISTS decisions (
   failure_code TEXT,
   failure_reason TEXT,
   rationale TEXT,
+  policy_version INTEGER NOT NULL DEFAULT 1,
+  policy_snapshot_json JSONB,
   evidence_id TEXT NOT NULL DEFAULT '',
   transaction_signature TEXT,
   created_at BIGINT NOT NULL
 );
 
+ALTER TABLE decisions ADD COLUMN IF NOT EXISTS model_provider TEXT NOT NULL DEFAULT 'DemoProvider';
+ALTER TABLE decisions ADD COLUMN IF NOT EXISTS structured_intent_json JSONB;
+ALTER TABLE decisions ADD COLUMN IF NOT EXISTS policy_version INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE decisions ADD COLUMN IF NOT EXISTS policy_snapshot_json JSONB;
 ALTER TABLE decisions ADD COLUMN IF NOT EXISTS evidence_id TEXT NOT NULL DEFAULT '';
 ALTER TABLE decisions ADD COLUMN IF NOT EXISTS transaction_signature TEXT;
 
@@ -122,6 +141,8 @@ export interface DecisionRow {
   decision_id: string;
   run_id: string;
   wallet_address: string;
+  model_provider?: string;
+  structured_intent_json?: Record<string, unknown>;
   asset_symbol: string;
   direction: 'BUY' | 'SELL';
   amount_usd: number;
@@ -129,6 +150,8 @@ export interface DecisionRow {
   failure_code?: string;
   failure_reason?: string;
   rationale?: string;
+  policy_version?: number;
+  policy_snapshot_json?: Record<string, unknown>;
   evidence_id: string;
   transaction_signature?: string;
   created_at: number;
@@ -320,15 +343,24 @@ export class SentinelReadHistoryRepository {
       await this.pgPool
         .query(
           `INSERT INTO decisions (
-             decision_id, run_id, wallet_address, asset_symbol, direction, amount_usd,
-             status, failure_code, failure_reason, rationale, evidence_id, transaction_signature, created_at
+             decision_id, run_id, wallet_address, model_provider, structured_intent_json,
+             asset_symbol, direction, amount_usd, status, failure_code, failure_reason,
+             rationale, policy_version, policy_snapshot_json, evidence_id, transaction_signature, created_at
            )
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+           VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15, $16, $17)
            ON CONFLICT (decision_id) DO NOTHING`,
           [
             row.decision_id,
             row.run_id,
             row.wallet_address,
+            row.model_provider ?? 'DemoProvider',
+            JSON.stringify(
+              row.structured_intent_json ?? {
+                action: row.direction,
+                asset: row.asset_symbol,
+                amountUsd: row.amount_usd,
+              }
+            ),
             row.asset_symbol,
             row.direction,
             row.amount_usd,
@@ -336,6 +368,8 @@ export class SentinelReadHistoryRepository {
             row.failure_code ?? null,
             row.failure_reason ?? null,
             row.rationale ?? null,
+            row.policy_version ?? 1,
+            row.policy_snapshot_json ? JSON.stringify(row.policy_snapshot_json) : null,
             row.evidence_id ?? '',
             row.transaction_signature ?? null,
             row.created_at,

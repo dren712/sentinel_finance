@@ -100,7 +100,12 @@ export class PythLivePriceProvider implements PriceProvider {
     fallbackProvider?: PriceProvider;
     cacheTtlMs?: number;
   }) {
-    this.hermesEndpoint = options?.hermesEndpoint ?? 'https://hermes.pyth.network';
+    const envHermesUrl =
+      typeof process !== 'undefined' && process.env?.PYTH_HERMES_URL
+        ? process.env.PYTH_HERMES_URL
+        : undefined;
+    this.hermesEndpoint =
+      options?.hermesEndpoint ?? envHermesUrl ?? 'https://hermes.pyth.network';
     this.maxStaleAgeSeconds = options?.maxStaleAgeSeconds ?? 60;
     this.maxConfidenceRatioBps = options?.maxConfidenceRatioBps ?? 100; // 1.00%
     this.fallbackProvider = options?.fallbackProvider;
