@@ -207,7 +207,8 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
     fetch(`/api/activity/${encodeURIComponent(portfolio.owner || 'default')}`)
       .then((res) => res.json())
       .then((data) => {
-        if (mounted && data?.tables?.evidence_index && Array.isArray(data.tables.evidence_index)) {
+        if (!mounted) return;
+        if (data?.tables?.evidence_index && Array.isArray(data.tables.evidence_index)) {
           setServerEvidenceList(data.tables.evidence_index);
         }
       })
@@ -217,7 +218,15 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
     };
   }, [portfolio.owner, evidenceList.length]);
 
-  const combinedEvidence = evidenceList.length > 0 ? evidenceList : serverEvidenceList;
+  const combinedEvidence = React.useMemo(() => {
+    const merged = [...evidenceList];
+    for (const srvRec of serverEvidenceList) {
+      if (!merged.some((r) => r.id === srvRec.id)) {
+        merged.push(srvRec);
+      }
+    }
+    return merged;
+  }, [evidenceList, serverEvidenceList]);
 
   // Map indexed EvidenceRecord items into timeline with real state projections & signatures
   const dynamicTimelineItems: TimelineItem[] = combinedEvidence.map((rec) => {

@@ -54,7 +54,9 @@ import {
 import { AutonomousRoboAgent } from './agent-simulator';
 import { MeteoraDBCMarketQualityVerifier } from './sponsors/meteora';
 import { PortfolioIndexer, deriveSplAta } from './portfolio-indexer';
-import { Connection } from '@solana/web3.js';
+import { Connection, PublicKey, SystemProgram, Transaction } from '@solana/web3.js';
+import { AnchorProvider, BN, Program } from '@coral-xyz/anchor';
+import { SENTINEL_IDL, Sentinel } from './idl';
 import { LLMProvider } from './llm-provider';
 
 export interface SentinelClientConfig {
@@ -750,5 +752,106 @@ export class SentinelClient {
       policyVersion: profile.policyVersion,
       updatedAt: Date.now(),
     };
+  }
+
+  getConnection(): Connection {
+    return (
+      (this.indexer as any).connection ??
+      new Connection(
+        process.env.SOLANA_RPC_URL ||
+          process.env.NEXT_PUBLIC_SOLANA_RPC_URL ||
+          'https://api.devnet.solana.com',
+        'confirmed'
+      )
+    );
+  }
+
+  /**
+   * Prepares an unsigned Anchor update_policy or initialize_policy transaction
+   * for the user's browser wallet to sign. The backend never signs user Policy PDA transactions.
+   */
+  async prepareUnsignedPolicyUpdateTx(
+    ownerAddress: string,
+    policy: FinancialPolicy
+  ): Promise<{
+    serializedTxBase64: string;
+    policyPda: string;
+    instructionName: 'updatePolicy' | 'initializePolicy';
+    signerRequired: string;
+    note: string;
+  } | null> {
+    try {
+      const ownerPubkey = new PublicKey(ownerAddress);
+      const programId = new PublicKey(SENTINEL_IDL.address);
+      const [policyPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from('policy'), ownerPubkey.toBuffer()],
+        programId
+      );
+      const connection = this.getConnection();
+
+      const readOnlyWallet = {
+        publicKey: ownerPubkey,
+        signTransaction: async (tx: any) => tx,
+        signAllTransactions: async (txs: any[]) => txs,
+      };
+      const provider = new AnchorProvider(connection, readOnlyWallet as any, {
+        commitment: 'confirmed',
+      });
+      const program = new Program(SENTINEL_IDL as any, provider);
+
+      const policyInfo = await connection.getAccountInfo(policyPda).catch(() => null);
+      const maxTradeScaled = new BN(Math.floor(policy.maxTradeValueUsd * 1_000_000));
+      let instructionName: 'updatePolicy' | 'initializePolicy' = 'updatePolicy';
+      let tx: Transaction;
+
+      if (policyInfo) {
+        tx = await (program.methods as any)
+          .updatePolicy(
+            policy.maxSingleAssetBps,
+            policy.minStablecoinBps,
+            maxTradeScaled,
+            policy.maxSlippageBps,
+            Boolean(policy.isEmergencyPaused)
+          )
+          .accounts({
+            policyAccount: policyPda,
+            owner: ownerPubkey,
+          })
+          .transaction();
+      } else {
+        instructionName = 'initializePolicy';
+        tx = await (program.methods as any)
+          .initializePolicy(
+            policy.maxSingleAssetBps,
+            policy.minStablecoinBps,
+            maxTradeScaled,
+            policy.maxSlippageBps
+          )
+          .accounts({
+            policyAccount: policyPda,
+            owner: ownerPubkey,
+            systemProgram: SystemProgram.programId,
+          })
+          .transaction();
+      }
+
+      const latestBlockhash = await connection.getLatestBlockhash('confirmed');
+      tx.recentBlockhash = latestBlockhash.blockhash;
+      tx.feePayer = ownerPubkey;
+
+      const serializedTxBase64 = tx
+        .serialize({ requireAllSignatures: false, verifySignatures: false })
+        .toString('base64');
+
+      return {
+        serializedTxBase64,
+        policyPda: policyPda.toBase58(),
+        instructionName,
+        signerRequired: ownerPubkey.toBase58(),
+        note: 'Unsigned Anchor transaction prepared by server. Browser wallet must sign to mutate on-chain Policy PDA.',
+      };
+    } catch {
+      return null;
+    }
   }
 }

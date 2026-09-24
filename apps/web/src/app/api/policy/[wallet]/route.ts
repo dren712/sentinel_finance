@@ -4,7 +4,9 @@ import { getServerStore, reconcilePolicyFromSolana } from '../../../../lib/serve
  * /api/policy/[wallet]
  *
  * GET: Reconciles the authoritative financial policy invariants from Solana PolicyAccount PDA.
- * POST: Updates financial policy risk boundaries.
+ * POST: Prepares an unsigned Anchor update_policy / initialize_policy transaction for the user's
+ *       browser wallet to sign, while updating the server preview state.
+ *       IMPORTANT: The backend NEVER signs the user's Policy PDA transaction.
  */
 export async function GET(
   _req: Request,
@@ -75,10 +77,19 @@ export async function POST(
     store.policy.policyVersion += 1;
     store.policy.updatedAt = Date.now();
 
+    const ownerAddress =
+      params.wallet && params.wallet !== 'default' ? params.wallet : store.policy.owner;
+
+    const preparedTransaction = await store.client.prepareUnsignedPolicyUpdateTx(
+      ownerAddress,
+      store.policy
+    );
+
     return Response.json({
       success: true,
-      message: 'Financial policy updated successfully',
+      message: 'Unsigned Policy PDA transaction prepared for wallet signature',
       policy: store.policy,
+      preparedTransaction,
     });
   } catch (error: any) {
     return Response.json(
@@ -90,3 +101,4 @@ export async function POST(
     );
   }
 }
+

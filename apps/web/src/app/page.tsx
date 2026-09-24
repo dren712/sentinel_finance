@@ -18,6 +18,7 @@ import {
   AgentLoopState,
 } from '@sentinel/sdk';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
+import { Transaction } from '@solana/web3.js';
 import { ArrowUpRight } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { Navigation, NavTab } from '@/components/Navigation';
@@ -66,6 +67,29 @@ export default function Home() {
     if (sample && sample.isSimulation === false) return 'Pyth Hermes Live';
     return mode === 'LIVE' ? 'Pyth Hermes Live' : 'Pyth Benchmark';
   }, [marketPrices, mode]);
+
+  // Hydrate portfolio, policy, and activity history from the server API & Solana RPC
+  useEffect(() => {
+    const targetWallet = connected && publicKey ? publicKey.toBase58() : 'default';
+
+    fetch(`/api/portfolio/${encodeURIComponent(targetWallet)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.success && data?.portfolio) {
+          setPortfolio(data.portfolio);
+        }
+      })
+      .catch(() => {});
+
+    fetch(`/api/activity/${encodeURIComponent(targetWallet)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.tables?.evidence_index && Array.isArray(data.tables.evidence_index)) {
+          setEvidenceList((prev) => (prev.length > 0 ? prev : data.tables.evidence_index));
+        }
+      })
+      .catch(() => {});
+  }, [connected, publicKey]);
 
   // Sync connected wallet with portfolio owner, bind signer, index live on-chain token accounts, and fetch Devnet balance
   useEffect(() => {
@@ -454,11 +478,22 @@ export default function Home() {
     }
   };
 
-  // Phase 8: Run full 10-stage autonomous reactive adaptation loop
+  // Phase 8: Run full 10-stage autonomous reactive adaptation loop via POST /api/agent/run
   const handleRunAdaptation = async () => {
     setIsRunningAdaptation(true);
     try {
-      const result = await client.runAutonomousAdaptation(
+      const serverRunPromise = fetch('/api/agent/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assetSymbol: 'NVDAx',
+          initialAmountUsd: 15_000,
+        }),
+      })
+        .then((res) => res.json())
+        .catch(() => null);
+
+      const localResult = await client.runAutonomousAdaptation(
         portfolio,
         policy,
         'NVDAx',
@@ -468,11 +503,31 @@ export default function Home() {
         }
       );
 
+      const apiResponse = await serverRunPromise;
+      const result: AutonomousAdaptationResult =
+        apiResponse?.success && apiResponse?.result ? apiResponse.result : localResult;
+
       setAdaptationResult(result);
       setLoopState(result.loopState);
       setLatestReport(result.step2SettledDecision);
-      setPortfolio(result.step2SettledDecision.resultingPortfolio);
-      setEvidenceList(client.getEvidenceHistory());
+      setPortfolio(
+        apiResponse?.resultingPortfolio ?? result.step2SettledDecision.resultingPortfolio
+      );
+
+      const targetWallet = connected && publicKey ? publicKey.toBase58() : portfolio.owner || 'default';
+      fetch(`/api/activity/${encodeURIComponent(targetWallet)}`)
+        .then((res) => res.json())
+        .then((actData) => {
+          if (actData?.tables?.evidence_index && Array.isArray(actData.tables.evidence_index)) {
+            setEvidenceList(actData.tables.evidence_index);
+          } else {
+            setEvidenceList(client.getEvidenceHistory());
+          }
+        })
+        .catch(() => {
+          setEvidenceList(client.getEvidenceHistory());
+        });
+
       setSelectedEvidenceId(result.step2SettledDecision.evidenceRecord.id);
     } finally {
       setIsRunningAdaptation(false);
@@ -496,16 +551,39 @@ export default function Home() {
     setActiveTab('activity');
   };
 
-  const handleUpdatePolicy = (updated: Partial<FinancialPolicy>) => {
-    setPolicy(prev => ({
+  const handleUpdatePolicy = async (updated: Partial<FinancialPolicy>) => {
+    setPolicy((prev) => ({
       ...prev,
       ...updated,
     }));
-    fetch(`/api/policy/${encodeURIComponent(portfolio.owner || 'default')}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updated),
-    }).catch(() => {});
+
+    const targetWallet =
+      connected && publicKey ? publicKey.toBase58() : portfolio.owner || 'default';
+
+    try {
+      const res = await fetch(`/api/policy/${encodeURIComponent(targetWallet)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      });
+      const data = await res.json().catch(() => null);
+
+      // Server prepares an UNSIGNED transaction; browser wallet signs & submits to Solana
+      if (
+        connected &&
+        publicKey &&
+        signTransaction &&
+        data?.preparedTransaction?.serializedTxBase64
+      ) {
+        const txBuffer = Buffer.from(data.preparedTransaction.serializedTxBase64, 'base64');
+        const unsignedTx = Transaction.from(txBuffer);
+        const signedTx = await signTransaction(unsignedTx);
+        const signature = await connection.sendRawTransaction(signedTx.serialize());
+        await connection.confirmTransaction(signature, 'confirmed');
+      }
+    } catch {
+      // Wallet declined signature or operating in local preview mode
+    }
   };
 
   // Phase 11: Build Your Portfolio custom multi-asset projection handler

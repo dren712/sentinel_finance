@@ -159,13 +159,15 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
         this.programId
       );
 
-      const agentId = intent.agentId || 'sentinel-robo-01';
+      const rawAgentId = intent.agentId === 'sentinel-robo-01' ? 'robo-01' : (intent.agentId || 'robo-01');
+      const agentId = rawAgentId.slice(0, 28);
       const [agentPda] = PublicKey.findProgramAddressSync(
         [Buffer.from('agent'), authorityPubkey.toBuffer(), Buffer.from(agentId)],
         this.programId
       );
 
-      const promiseId = intent.intentId || 'promise_default';
+      const rawPromiseId = intent.intentId || `prm_${Date.now()}`;
+      const promiseId = rawPromiseId.length > 28 ? rawPromiseId.slice(-28) : rawPromiseId;
       const [promisePda] = PublicKey.findProgramAddressSync(
         [Buffer.from('promise'), agentPda.toBuffer(), Buffer.from(promiseId)],
         this.programId
@@ -173,6 +175,24 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
 
       const program = this.getProgram();
       const tx = new Transaction();
+
+      // Synchronize vault baseline ($100k total, $25k USDC, $20k target) if VaultAccount exists on-chain
+      const vaultAccountInfo = await this.connection.getAccountInfo(vaultPda);
+      if (vaultAccountInfo) {
+        const preTotalCents = new BN(Math.round((_preState.totalValueUsd || 100_000) * 100));
+        const preStableCents = new BN(Math.round((_preState.stablecoinValueUsd || 25_000) * 100));
+        const targetAssetPre = _preState.assets.find((a) => a.symbol === intent.assetSymbol);
+        const preTargetCents = new BN(Math.round(((targetAssetPre?.valueUsd ?? 20_000)) * 100));
+
+        const syncVaultIx = await (program.methods as any)
+          .syncVault(preTotalCents, preStableCents, preTargetCents)
+          .accountsPartial({
+            vault: vaultPda,
+            owner: authorityPubkey,
+          })
+          .instruction();
+        tx.add(syncVaultIx);
+      }
 
       // Check if promise exists, otherwise build create_promise instruction via Anchor IDL
       const promiseAccountInfo = await this.connection.getAccountInfo(promisePda);
