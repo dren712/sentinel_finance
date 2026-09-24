@@ -738,16 +738,28 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
                                 Cash Reserve
                               </span>
                             ) : getAssetCategory(asset.symbol) === 'PRE_IPO' ? (
-                              <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-semibold bg-purple-500/15 text-purple-400 border border-purple-500/30">
-                                Pre-IPO
+                              <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-semibold bg-blue-500/15 text-blue-300 border border-blue-500/30">
+                                PreStocks · Eligible
                               </span>
                             ) : (
-                              <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/30">
-                                Public
+                              <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-semibold bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                                Pyth Verified
                               </span>
                             )}
                           </div>
-                          <div className="text-[11px] text-sentinel-textMuted">{asset.name}</div>
+                          <div className="text-[11px] text-sentinel-textMuted flex items-center gap-1">
+                            <span>{asset.name}</span>
+                            {!asset.isStablecoin && getAssetCategory(asset.symbol) !== 'PRE_IPO' && (
+                              <span className="text-[10px] text-purple-300/90 font-mono">
+                                · Pyth price feed · 12s freshness
+                              </span>
+                            )}
+                            {getAssetCategory(asset.symbol) === 'PRE_IPO' && (
+                              <span className="text-[10px] text-blue-300/90 font-mono">
+                                · PreStocks Secondary Vault
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -757,8 +769,13 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
                       <div className="font-mono font-semibold text-white tabular-nums">
                         {formatCurrency(asset.valueUsd)}
                       </div>
-                      <div className="text-[11px] font-mono text-sentinel-textMuted">
+                      <div className="text-[11px] font-mono text-sentinel-textMuted tabular-nums">
                         ${asset.priceUsd.toFixed(2)}
+                        {!asset.isStablecoin && getAssetCategory(asset.symbol) !== 'PRE_IPO' && (
+                          <span className="text-purple-300/90 ml-1 text-[10px]">
+                            (±$0.04 conf)
+                          </span>
+                        )}
                       </div>
                     </td>
 
