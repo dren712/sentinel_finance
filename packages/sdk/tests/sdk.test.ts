@@ -4,6 +4,8 @@ import { SentinelClient } from '../src/client';
 import { AgentSignerWallet } from '../src/agent-wallet';
 import { MeteoraDBCMarketQualityVerifier } from '../src/sponsors/meteora';
 import { LiveExecutionAdapter } from '../src/adapters/execution-adapter';
+import { PublicKey, Keypair, SystemProgram } from '@solana/web3.js';
+import { BN } from '@coral-xyz/anchor';
 
 describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
   const client = new SentinelClient();
@@ -110,6 +112,79 @@ describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
           message: /Live execution requires an authorized Solana signer keypair or connected wallet/,
         }
       );
+    });
+
+    it('LiveExecutionAdapter builds typed Anchor instructions via IDL without manual buffer manipulation', async () => {
+      const liveAdapter = new LiveExecutionAdapter();
+      const program = liveAdapter.getProgram();
+
+      assert.ok(program);
+      assert.strictEqual(program.programId.toBase58(), '3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK');
+      assert.ok(typeof program.methods.createPromise === 'function');
+      assert.ok(typeof program.methods.executeGuardedTrade === 'function');
+      assert.ok(typeof program.methods.setAgentActive === 'function');
+
+      const mockAuthority = Keypair.generate().publicKey;
+      const [agentPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from('agent'), mockAuthority.toBuffer(), Buffer.from('sentinel-robo-01')],
+        program.programId
+      );
+      const [promisePda] = PublicKey.findProgramAddressSync(
+        [Buffer.from('promise'), agentPda.toBuffer(), Buffer.from('promise_test')],
+        program.programId
+      );
+      const [policyPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from('policy'), mockAuthority.toBuffer()],
+        program.programId
+      );
+      const [vaultPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from('vault'), mockAuthority.toBuffer()],
+        program.programId
+      );
+
+      // Verify createPromise instruction building
+      const createIx = await program.methods
+        .createPromise(
+          'promise_test',
+          Array(32).fill(7),
+          PublicKey.default,
+          0,
+          new BN(5000)
+        )
+        .accountsPartial({
+          promise: promisePda,
+          agent: agentPda,
+          policy: policyPda,
+          authority: mockAuthority,
+          systemProgram: SystemProgram.programId,
+        })
+        .instruction();
+
+      assert.strictEqual(createIx.programId.toBase58(), program.programId.toBase58());
+      assert.strictEqual(createIx.keys.length, 5);
+      // Anchor discriminator for create_promise: [233, 170, 35, 24, 34, 120, 82, 200]
+      assert.deepStrictEqual(Array.from(createIx.data.subarray(0, 8)), [233, 170, 35, 24, 34, 120, 82, 200]);
+
+      // Verify executeGuardedTrade instruction building
+      const executeIx = await program.methods
+        .executeGuardedTrade(
+          new BN(500000),
+          new BN(12000),
+          new BN(12000)
+        )
+        .accountsPartial({
+          promise: promisePda,
+          vault: vaultPda,
+          agent: agentPda,
+          policy: policyPda,
+          authority: mockAuthority,
+        })
+        .instruction();
+
+      assert.strictEqual(executeIx.programId.toBase58(), program.programId.toBase58());
+      assert.strictEqual(executeIx.keys.length, 5);
+      // Anchor discriminator for execute_guarded_trade: [173, 223, 79, 146, 151, 58, 98, 99]
+      assert.deepStrictEqual(Array.from(executeIx.data.subarray(0, 8)), [173, 223, 79, 146, 151, 58, 98, 99]);
     });
   });
 

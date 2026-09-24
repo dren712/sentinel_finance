@@ -4,7 +4,6 @@ import {
   SentinelAuthorizationTicket,
   hashTradeIntent,
 } from '@sentinel/domain';
-import { createHash } from 'crypto';
 import {
   ExecutionAdapter,
   ExecutionResult,
@@ -17,10 +16,11 @@ import {
   PublicKey,
   Keypair,
   Transaction,
-  TransactionInstruction,
   sendAndConfirmTransaction,
   SystemProgram,
 } from '@solana/web3.js';
+import { Program, AnchorProvider, BN, Idl } from '@coral-xyz/anchor';
+import { SENTINEL_IDL, Sentinel } from '../idl';
 
 export { DemoExecutionAdapter, SimulatedExecutionAdapter } from './demo-adapter';
 export { MeteoraExecutionAdapter, METEORA_DBC_POOLS } from './meteora-adapter';
@@ -66,6 +66,21 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
 
   getConnection(): Connection {
     return this.connection;
+  }
+
+  /**
+   * Initializes a typed Anchor Program client instance targeting the Sentinel IDL
+   */
+  public getProgram(): Program<Sentinel> {
+    const dummyWallet = {
+      publicKey: this.signer?.publicKey ?? PublicKey.default,
+      signTransaction: async (tx: any) => tx,
+      signAllTransactions: async (txs: any[]) => txs,
+    };
+    const provider = new AnchorProvider(this.connection, dummyWallet, {
+      commitment: 'confirmed',
+    });
+    return new Program<Sentinel>(SENTINEL_IDL as Idl as Sentinel, provider);
   }
 
   /**
@@ -120,23 +135,6 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
       const inputAmount = isBuy ? intent.tradeAmountUsd : intent.tradeAmountUsd / intent.referencePriceUsd;
       const outputAmount = isBuy ? intent.tradeAmountUsd / intent.referencePriceUsd : intent.tradeAmountUsd;
 
-      // Construct Anchor instruction data for execute_guarded_trade
-      const discriminator = createHash('sha256')
-        .update('global:execute_guarded_trade')
-        .digest()
-        .subarray(0, 8);
-
-      const instructionData = Buffer.alloc(32);
-      discriminator.copy(instructionData, 0);
-
-      const tradeAmountCents = BigInt(Math.round(intent.tradeAmountUsd * 100));
-      const executionPriceCents = BigInt(Math.round(intent.referencePriceUsd * 100));
-      const quotedPriceCents = BigInt(Math.round(intent.referencePriceUsd * 100));
-
-      instructionData.writeBigUInt64LE(tradeAmountCents, 8);
-      instructionData.writeBigUInt64LE(executionPriceCents, 16);
-      instructionData.writeBigUInt64LE(quotedPriceCents, 24);
-
       // Derive PDAs matching Anchor on-chain constraints
       const authorityPubkey = this.signer.publicKey;
       const [vaultPda] = PublicKey.findProgramAddressSync(
@@ -161,70 +159,65 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
         this.programId
       );
 
+      const program = this.getProgram();
       const tx = new Transaction();
 
-      // Check if promise exists, otherwise add create_promise instruction
+      // Check if promise exists, otherwise build create_promise instruction via Anchor IDL
       const promiseAccountInfo = await this.connection.getAccountInfo(promisePda);
       if (!promiseAccountInfo) {
-        const promiseDiscriminator = createHash('sha256')
-          .update('global:create_promise')
-          .digest()
-          .subarray(0, 8);
-
-        const promiseIdBuffer = Buffer.from(promiseId, 'utf8');
-        const createPromiseData = Buffer.alloc(8 + 4 + promiseIdBuffer.length + 32 + 32 + 1 + 8);
-        let offset = 0;
-        promiseDiscriminator.copy(createPromiseData, offset);
-        offset += 8;
-        createPromiseData.writeUInt32LE(promiseIdBuffer.length, offset);
-        offset += 4;
-        promiseIdBuffer.copy(createPromiseData, offset);
-        offset += promiseIdBuffer.length;
-        Buffer.from(authorization.intentHash.slice(0, 32), 'utf8').copy(createPromiseData, offset);
-        offset += 32;
-
         let mintPubkey: PublicKey;
         try {
           mintPubkey = new PublicKey(intent.assetMint);
         } catch {
           mintPubkey = PublicKey.default;
         }
-        mintPubkey.toBuffer().copy(createPromiseData, offset);
-        offset += 32;
 
-        createPromiseData.writeUInt8(intent.direction === 'BUY' ? 0 : 1, offset);
-        offset += 1;
-        createPromiseData.writeBigUInt64LE(BigInt(Math.round(intent.tradeAmountUsd)), offset);
+        const intentHashBytes = Array.from(Buffer.from(authorization.intentHash.slice(0, 32), 'utf8'));
+        while (intentHashBytes.length < 32) {
+          intentHashBytes.push(0);
+        }
 
-        tx.add(
-          new TransactionInstruction({
-            programId: this.programId,
-            keys: [
-              { pubkey: promisePda, isSigner: false, isWritable: true },
-              { pubkey: agentPda, isSigner: false, isWritable: false },
-              { pubkey: policyPda, isSigner: false, isWritable: false },
-              { pubkey: authorityPubkey, isSigner: true, isWritable: true },
-              { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-            ],
-            data: createPromiseData,
+        const createPromiseIx = await program.methods
+          .createPromise(
+            promiseId,
+            intentHashBytes,
+            mintPubkey,
+            intent.direction === 'BUY' ? 0 : 1,
+            new BN(Math.round(intent.tradeAmountUsd))
+          )
+          .accountsPartial({
+            promise: promisePda,
+            agent: agentPda,
+            policy: policyPda,
+            authority: authorityPubkey,
+            systemProgram: SystemProgram.programId,
           })
-        );
+          .instruction();
+
+        tx.add(createPromiseIx);
       }
 
-      // Add execute_guarded_trade instruction
-      tx.add(
-        new TransactionInstruction({
-          programId: this.programId,
-          keys: [
-            { pubkey: promisePda, isSigner: false, isWritable: true },
-            { pubkey: vaultPda, isSigner: false, isWritable: true },
-            { pubkey: agentPda, isSigner: false, isWritable: false },
-            { pubkey: policyPda, isSigner: false, isWritable: false },
-            { pubkey: authorityPubkey, isSigner: true, isWritable: true },
-          ],
-          data: instructionData,
+      // Build execute_guarded_trade instruction via Anchor IDL typed method builder
+      const tradeAmountCents = new BN(Math.round(intent.tradeAmountUsd * 100));
+      const executionPriceCents = new BN(Math.round(intent.referencePriceUsd * 100));
+      const quotedPriceCents = new BN(Math.round(intent.referencePriceUsd * 100));
+
+      const executeTradeIx = await program.methods
+        .executeGuardedTrade(
+          tradeAmountCents,
+          executionPriceCents,
+          quotedPriceCents
+        )
+        .accountsPartial({
+          promise: promisePda,
+          vault: vaultPda,
+          agent: agentPda,
+          policy: policyPda,
+          authority: authorityPubkey,
         })
-      );
+        .instruction();
+
+      tx.add(executeTradeIx);
 
       tx.recentBlockhash = blockhash;
       tx.feePayer = authorityPubkey;

@@ -5,3 +5,4 @@ export * from './agent-wallet';
 export * from './agent-simulator';
 export * from './client';
 export * from './portfolio-indexer';
+export * from './idl';
