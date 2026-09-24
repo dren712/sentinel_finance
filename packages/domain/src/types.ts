@@ -600,7 +600,7 @@ export interface SentinelAuthorizationTicket {
 }
 
 export interface ExecutionVenueDetails {
-  venueType: 'METEORA_DBC' | 'PRESTOCKS_SECONDARY' | 'DEMO_SIMULATION' | 'SOLANA' | 'SOLANA_MAINNET';
+  venueType: 'METEORA_DBC' | 'PRESTOCKS_SECONDARY' | 'DEMO_SIMULATION' | 'SOLANA';
   venueName: string;
   cluster?: 'devnet' | 'mainnet' | 'localnet';
   explorerUrl?: string;

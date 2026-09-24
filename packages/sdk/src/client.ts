@@ -172,7 +172,7 @@ export class SentinelClient {
   }
 
   resolveAdapterForIntent(intent: TradeIntent): ExecutionAdapter {
-    if (this.selectedVenue === 'SOLANA' || this.selectedVenue === 'SOLANA_MAINNET' || this.adapter instanceof LiveExecutionAdapter) {
+    if (this.selectedVenue === 'SOLANA' || this.adapter instanceof LiveExecutionAdapter) {
       return this.adapter;
     }
     if (this.selectedVenue === 'DEMO_SIMULATION') {

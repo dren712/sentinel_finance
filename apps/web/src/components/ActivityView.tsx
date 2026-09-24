@@ -196,12 +196,57 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
     },
   ];
 
-  // Map dynamic evidenceList items into timeline
-  const dynamicTimelineItems: TimelineItem[] = evidenceList.map((rec) => {
+  const [serverEvidenceList, setServerEvidenceList] = useState<EvidenceRecord[]>([]);
+
+  React.useEffect(() => {
+    let mounted = true;
+    fetch(`/api/activity/${encodeURIComponent(portfolio.owner || 'default')}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (mounted && data?.tables?.evidence_index && Array.isArray(data.tables.evidence_index)) {
+          setServerEvidenceList(data.tables.evidence_index);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, [portfolio.owner, evidenceList.length]);
+
+  const combinedEvidence = evidenceList.length > 0 ? evidenceList : serverEvidenceList;
+
+  // Map indexed EvidenceRecord items into timeline with real state projections & signatures
+  const dynamicTimelineItems: TimelineItem[] = combinedEvidence.map((rec) => {
     const isSettled = rec.verificationResult === 'SETTLED';
     const direction = rec.promise?.what?.side ?? rec.promise?.intent?.direction ?? 'BUY';
     const symbol = rec.promise?.what?.assetSymbol ?? rec.promise?.intent?.assetSymbol ?? 'NVDAx';
     const tradeAmountUsd = rec.promise?.what?.amountUsd ?? rec.promise?.intent?.tradeAmountUsd ?? 5000;
+
+    const totalVal = portfolio.totalValueUsd || 100_000;
+    const currentAssetVal = portfolio.assets?.find((a) => a.symbol === symbol)?.valueUsd ?? 20_000;
+    const currentUsdcVal = portfolio.stablecoinValueUsd ?? 25_000;
+
+    const preAssetVal = isSettled
+      ? Math.max(0, currentAssetVal - (direction === 'BUY' ? tradeAmountUsd : -tradeAmountUsd))
+      : 20_000;
+    const postAssetVal = isSettled
+      ? currentAssetVal
+      : preAssetVal + (direction === 'BUY' ? tradeAmountUsd : -tradeAmountUsd);
+
+    const preUsdcVal = isSettled
+      ? currentUsdcVal + (direction === 'BUY' ? tradeAmountUsd : -tradeAmountUsd)
+      : 25_000;
+    const postUsdcVal = isSettled
+      ? currentUsdcVal
+      : Math.max(0, preUsdcVal + (direction === 'BUY' ? -tradeAmountUsd : tradeAmountUsd));
+
+    const beforeAssetPct = `${((preAssetVal / totalVal) * 100).toFixed(1)}%`;
+    const proposedAssetPct = `${((postAssetVal / totalVal) * 100).toFixed(1)}%`;
+    const beforeUsdcPct = `${((preUsdcVal / totalVal) * 100).toFixed(1)}%`;
+    const proposedUsdcPct = `${((postUsdcVal / totalVal) * 100).toFixed(1)}%`;
+
+    const assetCapPct = policy.maxSingleAssetBps / 100;
+    const reserveFloorPct = policy.minStablecoinBps / 100;
 
     return {
       id: rec.id,
@@ -212,39 +257,37 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
       statusLabel: isSettled ? 'Settled' : 'Rejected by Sentinel',
       headline: isSettled ? 'TRADE SETTLED' : 'TRADE REJECTED',
       subheadline: isSettled
-        ? 'Satisfied all on-chain invariants'
+        ? `Executed via ${rec.executionVenue?.venueName || 'Sentinel Verified Venue'} · TX ${formatAddress(rec.transactionSignature, 6)}`
         : (rec.failureReason || rec.failureCode || 'Sentinel prevented execution'),
       evidenceRecord: rec,
       checks: rec.checks.map((c) => ({ name: c.checkName ?? c.description, passed: c.passed })),
       beforeVsProposed: [
         {
           asset: symbol,
-          before: '20.0%',
-          proposed: isSettled ? '24.1%' : '35.0%',
-          limit: `Limit ${(policy.maxSingleAssetBps / 100).toFixed(0)}%`,
-          passed: isSettled,
+          before: beforeAssetPct,
+          proposed: proposedAssetPct,
+          limit: `Limit ${assetCapPct.toFixed(0)}%`,
+          passed: (postAssetVal / totalVal) * 100 <= assetCapPct + 0.01,
         },
         {
           asset: 'USDC',
-          before: '25.0%',
-          proposed: isSettled ? '22.3%' : '10.0%',
-          limit: `Floor ${(policy.minStablecoinBps / 100).toFixed(0)}%`,
-          passed: isSettled,
+          before: beforeUsdcPct,
+          proposed: proposedUsdcPct,
+          limit: `Floor ${reserveFloorPct.toFixed(0)}%`,
+          passed: (postUsdcVal / totalVal) * 100 >= reserveFloorPct - 0.01,
         },
       ],
-      adaptationNarrative: !isSettled
-        ? {
-            adaptedAction: `BUY ${symbol} $5,000`,
-            settlementTx: 'Adapted & settled via Sentinel client',
-          }
-        : undefined,
+      adaptationNarrative: {
+        adaptedAction: isSettled
+          ? `${direction} ${symbol} ${formatCurrency(tradeAmountUsd)} (Verified Compliant)`
+          : `Auto-adapts to compliant headroom`,
+        settlementTx: `Signature: ${rec.transactionSignature}`,
+      },
     };
   });
 
-  // Combine items (dynamic first, fallback to canonical)
-  const allTimelineItems = dynamicTimelineItems.length > 0
-    ? [...dynamicTimelineItems, ...defaultTimelineItems.slice(dynamicTimelineItems.length)]
-    : defaultTimelineItems;
+  // Use real indexed evidence records when available; fallback to baseline only before first run
+  const allTimelineItems = dynamicTimelineItems.length > 0 ? dynamicTimelineItems : defaultTimelineItems;
 
   const filteredItems = allTimelineItems.filter((item) => {
     if (filter === 'SETTLED' && item.status !== 'SETTLED' && item.status !== 'ADAPTED') return false;

@@ -14,6 +14,9 @@ const WalletMultiButtonDynamic = dynamic(
 
 interface HeaderProps {
   mode: 'SIMULATION' | 'LIVE';
+  portfolioSource?: 'ON_CHAIN_PROJECTION' | 'SIMULATED_PROJECTION';
+  pythSource?: string;
+  walletAddress?: string;
   onToggleMode: () => void;
   onRunDemo: () => void;
   onRunPreStocksDemo?: () => void;
@@ -25,6 +28,9 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   mode,
+  portfolioSource = 'SIMULATED_PROJECTION',
+  pythSource = 'Pyth Benchmark',
+  walletAddress,
   onToggleMode,
   onRunDemo,
   onRunPreStocksDemo,
@@ -37,6 +43,13 @@ export const Header: React.FC<HeaderProps> = ({
   const [isDemoMenuOpen, setIsDemoMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const demoMenuRef = useRef<HTMLDivElement>(null);
+
+  const isOnChainState = portfolioSource === 'ON_CHAIN_PROJECTION';
+  const sourceStatusLabel = isOnChainState
+    ? `${APP_CONFIG.clusterLabel} · ON-CHAIN RPC`
+    : mode === 'LIVE'
+    ? `${APP_CONFIG.clusterLabel} · WALLET SIGNER`
+    : `${APP_CONFIG.clusterLabel} · SIMULATED`;
 
   // Close menus on click outside
   useEffect(() => {
@@ -81,31 +94,31 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Action Controls & Top Right */}
         <div className="flex items-center gap-2.5">
-          {/* Interactive Dual-Mode Badge (DEVNET vs SIMULATION) */}
+          {/* Interactive Source Status Badge (Actual State & Cluster Source) */}
           <button
             type="button"
             onClick={onToggleMode}
             className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs font-mono font-medium transition cursor-pointer ${
-              mode === 'LIVE'
+              isOnChainState || mode === 'LIVE'
                 ? 'bg-emerald-950/50 border-emerald-500/50 text-emerald-300 hover:bg-emerald-900/60 shadow-sm shadow-emerald-950'
                 : 'bg-amber-950/50 border-amber-500/40 text-amber-300 hover:bg-amber-900/50'
             }`}
-            title={`Active Mode: ${mode}. Click to switch to ${mode === 'LIVE' ? 'SIMULATION' : 'DEVNET LIVE'} mode.`}
+            title={`Source Status: ${sourceStatusLabel} (${pythSource}). Click to switch execution mode.`}
           >
             <span className="relative flex h-2 w-2">
               <span
                 className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                  mode === 'LIVE' ? 'bg-emerald-400' : 'bg-amber-400'
+                  isOnChainState || mode === 'LIVE' ? 'bg-emerald-400' : 'bg-amber-400'
                 }`}
               />
               <span
                 className={`relative inline-flex rounded-full h-2 w-2 ${
-                  mode === 'LIVE' ? 'bg-emerald-500' : 'bg-amber-500'
+                  isOnChainState || mode === 'LIVE' ? 'bg-emerald-500' : 'bg-amber-500'
                 }`}
               />
             </span>
             <span className="font-semibold tracking-wider">
-              {mode === 'LIVE' ? 'DEVNET LIVE' : 'SIMULATION'}
+              {sourceStatusLabel}
             </span>
           </button>
 
@@ -290,8 +303,12 @@ export const Header: React.FC<HeaderProps> = ({
                   </button>
                 </div>
 
-                {/* Anchor Program Link */}
-                <div className="pt-2 border-t border-sentinel-border text-[11px] space-y-1">
+                {/* Anchor Program & Source Telemetry */}
+                <div className="pt-2 border-t border-sentinel-border text-[11px] space-y-1.5">
+                  <div className="flex items-center justify-between text-sentinel-textMuted">
+                    <span>Cluster:</span>
+                    <span className="text-emerald-400 font-mono text-[10px] font-bold">{APP_CONFIG.clusterLabel}</span>
+                  </div>
                   <div className="flex items-center justify-between text-sentinel-textMuted">
                     <span>Anchor Program:</span>
                     <a
@@ -305,8 +322,14 @@ export const Header: React.FC<HeaderProps> = ({
                     </a>
                   </div>
                   <div className="flex items-center justify-between text-sentinel-textMuted">
-                    <span>Market Data:</span>
-                    <span className="text-purple-400 font-mono text-[10px]">Pyth Network</span>
+                    <span>State Source:</span>
+                    <span className="text-amber-300 font-mono text-[10px]">
+                      {portfolioSource === 'ON_CHAIN_PROJECTION' ? 'On-Chain SPL RPC' : 'Simulated Projection'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sentinel-textMuted">
+                    <span>Oracle Source:</span>
+                    <span className="text-purple-400 font-mono text-[10px]">{pythSource}</span>
                   </div>
                 </div>
               </div>

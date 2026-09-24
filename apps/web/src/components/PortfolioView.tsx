@@ -336,9 +336,18 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
             {formatCurrency(portfolio.totalValueUsd)}
           </div>
           <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs text-sentinel-textMuted font-mono">
-            <span className="text-sentinel-textSubtle">Since inception: —</span>
+            <span className="text-sentinel-textSubtle" title={portfolio.owner}>
+              Wallet: <span className="text-white">{formatAddress(portfolio.owner, 4)}</span>
+            </span>
             <span>·</span>
-            <span>Updated 2s ago</span>
+            <span>
+              Oracle:{' '}
+              <span className="text-purple-400 font-semibold">
+                {Object.values(marketPrices || {})[0]?.isSimulation === false
+                  ? 'Pyth Hermes Live'
+                  : 'Pyth Benchmark'}
+              </span>
+            </span>
             <span>·</span>
             <span className="inline-flex items-center gap-1.5 text-emerald-400 font-semibold">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -351,7 +360,7 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono"
               >
                 <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                ON-CHAIN PROJECTION
+                ON-CHAIN PROJECTION (SPL RPC)
               </span>
             ) : (
               <span

@@ -15,12 +15,18 @@ export async function GET(
     const store = getServerStore();
     const decisionId = params.decision;
 
-    // Check evidence history or latest loop result
-    const evidenceHistory = store.client.getEvidenceHistory();
-    let record = evidenceHistory.find(e => e.id === decisionId);
+    // 1. Check P13 evidence_index table first
+    const indexedRow = store.db.getEvidenceById(decisionId);
+    let record = indexedRow?.record;
 
-    if (!record && (decisionId === 'latest' || decisionId === 'current')) {
-      record = evidenceHistory[0] ?? store.lastLoopResult?.step2SettledDecision?.evidenceRecord;
+    // 2. Fallback to SDK evidence history or latest loop result
+    if (!record) {
+      const evidenceHistory = store.client.getEvidenceHistory();
+      record = evidenceHistory.find(e => e.id === decisionId);
+
+      if (!record && (decisionId === 'latest' || decisionId === 'current')) {
+        record = evidenceHistory[0] ?? store.lastLoopResult?.step2SettledDecision?.evidenceRecord;
+      }
     }
 
     if (!record) {

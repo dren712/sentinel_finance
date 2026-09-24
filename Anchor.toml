@@ -1,3 +1,7 @@
+[toolchain]
+anchor_version = "0.30.1"
+package_manager = "pnpm"
+
 [features]
 resolution = true
 skip-lint = false
@@ -8,6 +12,9 @@ sentinel = "3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK"
 [programs.devnet]
 sentinel = "3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK"
 
+[programs.mainnet]
+sentinel = "3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK"
+
 [registry]
 url = "https://api.apr.dev"
 
@@ -16,4 +23,4 @@ cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
-test = "npm test"
+test = "pnpm test"

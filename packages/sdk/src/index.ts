@@ -7,3 +7,4 @@ export * from './client';
 export * from './portfolio-indexer';
 export * from './idl';
 export * from './llm-provider';
+export * from './database';

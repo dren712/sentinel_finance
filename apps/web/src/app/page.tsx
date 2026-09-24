@@ -27,7 +27,7 @@ import { AgentView } from '@/components/AgentView';
 import { GuaranteesView } from '@/components/GuaranteesView';
 import { ActivityView } from '@/components/ActivityView';
 import { TransactionModal, TxLifecycleStep, TxDetails } from '@/components/ui/TransactionModal';
-import { APP_CONFIG, getExplorerAddressUrl } from '@/lib/config';
+import { APP_CONFIG, getExplorerAddressUrl, deriveSentinelDomainPdas } from '@/lib/config';
 import { formatAddress } from '@/lib/formatters';
 
 export default function Home() {
@@ -55,6 +55,17 @@ export default function Home() {
   const [totalDemoSteps, setTotalDemoSteps] = useState<number>(5);
   const [walletBalanceSol, setWalletBalanceSol] = useState<number | null>(null);
   const [selectedHeroScenario, setSelectedHeroScenario] = useState<DemoScenarioKey>('FLAGSHIP');
+
+  const activePdas = useMemo(
+    () => deriveSentinelDomainPdas(portfolio.owner, APP_CONFIG.sentinelProgramId),
+    [portfolio.owner]
+  );
+
+  const pythSourceLabel = useMemo(() => {
+    const sample = Object.values(marketPrices)[0];
+    if (sample && sample.isSimulation === false) return 'Pyth Hermes Live';
+    return mode === 'LIVE' ? 'Pyth Hermes Live' : 'Pyth Benchmark';
+  }, [marketPrices, mode]);
 
   // Sync connected wallet with portfolio owner, bind signer, index live on-chain token accounts, and fetch Devnet balance
   useEffect(() => {
@@ -490,6 +501,11 @@ export default function Home() {
       ...prev,
       ...updated,
     }));
+    fetch(`/api/policy/${encodeURIComponent(portfolio.owner || 'default')}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated),
+    }).catch(() => {});
   };
 
   // Phase 11: Build Your Portfolio custom multi-asset projection handler
@@ -511,9 +527,12 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col bg-sentinel-bg text-sentinel-text">
-      {/* Header Bar with Devnet Badge & Mode Switch */}
+      {/* Header Bar with Actual Source Status & Mode Switch */}
       <Header
         mode={mode}
+        portfolioSource={portfolio.source}
+        pythSource={pythSourceLabel}
+        walletAddress={portfolio.owner}
         onToggleMode={handleToggleMode}
         onRunDemo={handleRunDemo}
         onRunPreStocksDemo={handleRunPreStocksDemo}
@@ -628,11 +647,15 @@ export default function Home() {
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span>Wallet Connected: {formatAddress(publicKey.toBase58(), 4)}</span>
               {walletBalanceSol !== null && (
-                <span className="text-emerald-400/80">({walletBalanceSol.toFixed(3)} SOL Devnet)</span>
+                <span className="text-emerald-400/80">
+                  ({walletBalanceSol.toFixed(3)} SOL {APP_CONFIG.clusterLabel})
+                </span>
               )}
             </div>
             <div className="flex items-center gap-3">
-              <span className="text-[11px] text-slate-400">Anchor PDA: {formatAddress(APP_CONFIG.vaultPda, 4)}</span>
+              <span className="text-[11px] text-slate-400">
+                Vault PDA: {formatAddress(activePdas.vaultPda, 4)} · Policy PDA: {formatAddress(activePdas.policyPda, 4)}
+              </span>
               <a
                 href={getExplorerAddressUrl(publicKey.toBase58())}
                 target="_blank"
@@ -714,7 +737,7 @@ export default function Home() {
         onClose={() => setTxModalOpen(false)}
       />
 
-      {/* Clean Institutional Footer with Devnet Identifier */}
+      {/* Clean Institutional Footer with Dynamic Cluster Identifier */}
       <footer className="border-t border-sentinel-border bg-sentinel-surface/60 py-6 mb-16 md:mb-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-sentinel-textMuted">
           <div className="flex items-center gap-2">
@@ -722,7 +745,9 @@ export default function Home() {
             <span>•</span>
             <span>Stocklana Tokenized-Stock Hackathon</span>
             <span>•</span>
-            <span className="text-purple-400 font-mono font-semibold">Devnet Deployment</span>
+            <span className="text-purple-400 font-mono font-semibold">
+              {APP_CONFIG.clusterLabel} Deployment
+            </span>
           </div>
           <div className="flex items-center gap-4 font-mono text-xs">
             <a
@@ -734,7 +759,9 @@ export default function Home() {
               Anchor Program: {formatAddress(APP_CONFIG.sentinelProgramId, 4)}
             </a>
             <span>•</span>
-            <span className="text-emerald-400 font-semibold">On-Chain Vault: Authoritative</span>
+            <span className="text-emerald-400 font-semibold">
+              Vault PDA: {formatAddress(activePdas.vaultPda, 4)} (Authoritative)
+            </span>
           </div>
         </div>
       </footer>

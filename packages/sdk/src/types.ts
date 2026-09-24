@@ -18,8 +18,7 @@ export type ExecutionVenueType =
   | 'METEORA_DBC'
   | 'PRESTOCKS_SECONDARY'
   | 'DEMO_SIMULATION'
-  | 'SOLANA'
-  | 'SOLANA_MAINNET';
+  | 'SOLANA';
 
 export class SecurityViolationError extends Error {
   public readonly violationType: 'BYPASS_ATTEMPT' | 'INVALID_TICKET' | 'EXPIRED_TICKET' | 'POLICY_BREACH';

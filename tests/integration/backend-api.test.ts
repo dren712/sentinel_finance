@@ -140,4 +140,52 @@ describe('P12: Next.js Server Routes (Backend Orchestrator Integration Test)', (
     assert.strictEqual(data.tier2InstitutionalAudit.postStateHash.length, 64);
     assert.ok(data.tier2InstitutionalAudit.transactionSignature);
   });
+
+  it('8. P14: GET /api/health exposes Docker liveness probe, cluster config, and P13 table counts', async () => {
+    const { GET: getHealth } = await import('../../apps/web/src/app/api/health/route');
+    const res = await getHealth();
+    const data = await res.json();
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(data.status, 'ok');
+    assert.strictEqual(data.service, 'sentinel-finance');
+    assert.strictEqual(data.authority, 'SOLANA_ON_CHAIN');
+    assert.ok(['LOCAL', 'DEVNET', 'MAINNET'].includes(data.cluster.environment));
+    assert.ok(data.cluster.policyPda.length >= 32);
+    assert.ok(data.cluster.vaultPda.length >= 32);
+
+    // Verify all 5 P13 persistent read history tables are tracked
+    assert.ok(data.historyStore.tables.agent_runs >= 1);
+    assert.ok(data.historyStore.tables.decisions >= 2);
+    assert.ok(data.historyStore.tables.executions >= 2);
+    assert.ok(data.historyStore.tables.portfolio_snapshots >= 1);
+    assert.ok(data.historyStore.tables.evidence_index >= 2);
+  });
+
+  it('9. P15: Dynamic cluster environment (LOCAL | DEVNET | MAINNET) and Anchor PDA derivation', async () => {
+    const {
+      resolveClusterEnvironment,
+      resolveClusterRpcUrl,
+      deriveSentinelDomainPdas,
+    } = await import('../../apps/web/src/lib/config');
+
+    assert.strictEqual(resolveClusterEnvironment('localnet'), 'LOCAL');
+    assert.strictEqual(resolveClusterEnvironment('LOCAL'), 'LOCAL');
+    assert.strictEqual(resolveClusterEnvironment('devnet'), 'DEVNET');
+    assert.strictEqual(resolveClusterEnvironment('mainnet-beta'), 'MAINNET');
+    assert.strictEqual(resolveClusterEnvironment('MAINNET'), 'MAINNET');
+
+    assert.strictEqual(resolveClusterRpcUrl('LOCAL'), 'http://127.0.0.1:8899');
+    assert.strictEqual(resolveClusterRpcUrl('DEVNET'), 'https://api.devnet.solana.com');
+    assert.strictEqual(resolveClusterRpcUrl('MAINNET'), 'https://api.mainnet-beta.solana.com');
+
+    const walletA = 'GR9CtiUswZtay68U2fGqcDeB1dg8sHtpVi9kk2nCEwzw';
+    const walletB = '11111111111111111111111111111111';
+    const pdasA = deriveSentinelDomainPdas(walletA);
+    const pdasB = deriveSentinelDomainPdas(walletB);
+
+    assert.notStrictEqual(pdasA.vaultPda, pdasB.vaultPda);
+    assert.notStrictEqual(pdasA.policyPda, pdasB.policyPda);
+    assert.notStrictEqual(pdasA.agentPda, pdasB.agentPda);
+  });
 });
