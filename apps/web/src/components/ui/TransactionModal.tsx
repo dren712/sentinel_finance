@@ -63,6 +63,68 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           )}
         </div>
 
+        {/* State Machine Progression Strip */}
+        <div className="px-5 py-2.5 bg-sentinel-surfaceMuted border-b border-sentinel-border overflow-x-auto">
+          <div className="flex items-center justify-between min-w-[280px] text-[10px] font-mono tracking-wider">
+            {[
+              { id: 'preparing', label: 'PREPARING' },
+              { id: 'awaiting_signature', label: 'WALLET' },
+              { id: 'submitting', label: 'SUBMITTED' },
+              { id: 'confirming', label: 'CONFIRMING' },
+              { id: 'confirmed', label: 'VERIFIED' },
+            ].map((s, idx, arr) => {
+              const orderMap: Record<string, number> = {
+                idle: -1,
+                preparing: 0,
+                awaiting_signature: 1,
+                submitting: 2,
+                confirming: 3,
+                confirmed: 4,
+                rejected: 1,
+                failed: 2,
+              };
+              const currentOrder = orderMap[step] ?? 0;
+              const isCurrent = step === s.id;
+              const isPast = currentOrder > idx;
+              const isFailed = (step === 'rejected' || step === 'failed') && idx === currentOrder;
+
+              return (
+                <React.Fragment key={s.id}>
+                  <div className="flex items-center gap-1">
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        isFailed
+                          ? 'bg-sentinel-danger'
+                          : isCurrent
+                          ? 'bg-sentinel-accent animate-pulse'
+                          : isPast
+                          ? 'bg-sentinel-success'
+                          : 'bg-sentinel-borderStrong'
+                      }`}
+                    />
+                    <span
+                      className={`font-bold ${
+                        isFailed
+                          ? 'text-sentinel-danger'
+                          : isCurrent
+                          ? 'text-sentinel-accent'
+                          : isPast
+                          ? 'text-sentinel-success'
+                          : 'text-sentinel-textSubtle'
+                      }`}
+                    >
+                      {s.label}
+                    </span>
+                  </div>
+                  {idx < arr.length - 1 && (
+                    <span className="text-sentinel-borderStrong">→</span>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Modal Body */}
         <div className="p-6 space-y-5">
           {/* Action intent breakdown */}
@@ -80,7 +142,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 
             <div className="flex items-center justify-between text-sm">
               <span className="text-sentinel-textMuted">Amount</span>
-              <span className="font-mono font-bold text-sentinel-text">
+              <span className="font-mono font-bold text-sentinel-text tabular-nums">
                 {formatCurrency(details.amountUsd)}
               </span>
             </div>
@@ -172,13 +234,13 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             <>
               <button
                 onClick={onClose}
-                className="px-4 py-2 rounded-lg text-xs font-semibold text-sentinel-textMuted hover:text-white transition"
+                className="px-4 py-2 rounded-lg text-xs font-semibold text-sentinel-textMuted hover:text-white sentinel-interactive sentinel-focus transition cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 onClick={onConfirm}
-                className="px-5 py-2 rounded-lg text-xs font-semibold bg-sentinel-accent hover:bg-sentinel-accentHover text-white shadow-lg shadow-blue-500/20 transition flex items-center gap-1.5"
+                className="px-5 py-2 rounded-lg text-xs font-semibold bg-sentinel-accent hover:bg-sentinel-accentHover text-white shadow-lg shadow-blue-500/20 sentinel-interactive sentinel-focus transition flex items-center gap-1.5 cursor-pointer"
               >
                 <span>Confirm & Sign</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -187,7 +249,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           ) : (
             <button
               onClick={onClose}
-              className="px-5 py-2 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-white transition"
+              className="px-5 py-2 rounded-lg text-xs font-semibold bg-sentinel-surfaceElevated hover:bg-sentinel-borderStrong text-white border border-sentinel-border sentinel-interactive sentinel-focus transition cursor-pointer"
             >
               Close
             </button>

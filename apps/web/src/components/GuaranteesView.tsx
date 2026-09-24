@@ -71,6 +71,7 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
   // Advanced Expansion & DSL
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'tiers' | 'dsl'>('tiers');
+  const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [copiedDsl, setCopiedDsl] = useState(false);
   const [activeProfile, setActiveProfile] = useState<string>('custom');
@@ -107,6 +108,14 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
 
   const sentinelPda = deriveSentinelPda(policy.policyId);
 
+  const hasUnsavedChanges =
+    Math.round(maxSingleAssetPct * 100) !== policy.maxSingleAssetBps ||
+    Math.round(minStablecoinPct * 100) !== policy.minStablecoinBps ||
+    maxTradeValue !== policy.maxTradeValueUsd ||
+    Math.round(maxSlippagePct * 100) !== policy.maxSlippageBps ||
+    Math.round(maxPreIpoExposurePct * 100) !== (policy.maxPreIpoExposureBps ?? 2000) ||
+    (policy.isEmergencyPaused ?? false) !== isEmergencyPaused;
+
   const loadProfile = (profile: FinancialPolicy, name: string) => {
     setActiveProfile(name);
     setMaxSingleAssetPct(profile.maxSingleAssetBps / 100);
@@ -130,32 +139,37 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
     setMaxOracleConfidenceBps(profile.maxOracleConfidenceBps ?? 150);
   };
 
-  const handleSave = () => {
-    onUpdatePolicy({
-      maxSingleAssetBps: Math.round(maxSingleAssetPct * 100),
-      minStablecoinBps: Math.round(minStablecoinPct * 100),
-      maxPublicEquitiesExposureBps: Math.round(maxPublicEquitiesExposurePct * 100),
-      maxPreIpoExposureBps: Math.round(maxPreIpoExposurePct * 100),
-      maxTradeValueUsd: maxTradeValue,
-      maxSlippageBps: Math.round(maxSlippagePct * 100),
-      maxSectorExposureBps: Math.round(maxSectorExposurePct * 100),
-      maxIssuerExposureBps: Math.round(maxIssuerExposurePct * 100),
-      maxPositions,
-      minDiversificationAssets,
-      maxTurnoverBps: Math.round(maxTurnoverPct * 100),
-      maxQuoteAgeSeconds,
-      maxPriceImpactBps: Math.round(maxPriceImpactPct * 100),
-      minLiquidityUsd,
-      dailyTradeBudgetUsd,
-      maxConsecutiveFailures,
-      isEmergencyPaused,
-      maxTrackingErrorBps,
-      maxOracleConfidenceBps,
-      policyVersion: policy.policyVersion + 1,
-      updatedAt: Date.now(),
-    });
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 2500);
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await onUpdatePolicy({
+        maxSingleAssetBps: Math.round(maxSingleAssetPct * 100),
+        minStablecoinBps: Math.round(minStablecoinPct * 100),
+        maxPublicEquitiesExposureBps: Math.round(maxPublicEquitiesExposurePct * 100),
+        maxPreIpoExposureBps: Math.round(maxPreIpoExposurePct * 100),
+        maxTradeValueUsd: maxTradeValue,
+        maxSlippageBps: Math.round(maxSlippagePct * 100),
+        maxSectorExposureBps: Math.round(maxSectorExposurePct * 100),
+        maxIssuerExposureBps: Math.round(maxIssuerExposurePct * 100),
+        maxPositions,
+        minDiversificationAssets,
+        maxTurnoverBps: Math.round(maxTurnoverPct * 100),
+        maxQuoteAgeSeconds,
+        maxPriceImpactBps: Math.round(maxPriceImpactPct * 100),
+        minLiquidityUsd,
+        dailyTradeBudgetUsd,
+        maxConsecutiveFailures,
+        isEmergencyPaused,
+        maxTrackingErrorBps,
+        maxOracleConfidenceBps,
+        policyVersion: policy.policyVersion + 1,
+        updatedAt: Date.now(),
+      });
+      setIsSaved(true);
+      setTimeout(() => setIsSaved(false), 2500);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const toggleEmergencyPause = () => {
@@ -471,11 +485,18 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-3 self-start sm:self-auto">
+        <div className="flex flex-wrap items-center gap-3 self-start sm:self-auto">
+          {hasUnsavedChanges && !isSaved && (
+            <span className="text-[11px] font-mono font-semibold px-2 py-1 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1.5 animate-pulse">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+              Unsaved Changes
+            </span>
+          )}
+
           <button
             type="button"
             onClick={toggleEmergencyPause}
-            className={`px-3.5 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
+            className={`px-3.5 py-2 rounded-lg text-xs font-bold sentinel-interactive sentinel-focus cursor-pointer ${
               isEmergencyPaused
                 ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
                 : 'bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-600/40'
@@ -487,10 +508,19 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
           <button
             type="button"
             onClick={handleSave}
-            className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-md cursor-pointer"
+            disabled={(!hasUnsavedChanges && !isSaved) || isSaving}
+            className={`px-5 py-2 rounded-lg text-white text-xs font-bold sentinel-interactive sentinel-focus flex items-center gap-1.5 shadow-md cursor-pointer ${
+              isSaved
+                ? 'bg-emerald-600 border border-emerald-500/50'
+                : hasUnsavedChanges
+                ? 'bg-blue-600 hover:bg-blue-500 border border-blue-500/50'
+                : 'bg-slate-800 text-slate-400 border border-slate-700/60 opacity-60 cursor-not-allowed'
+            }`}
           >
-            <Save className="w-3.5 h-3.5" />
-            <span>{isSaved ? 'Saved!' : 'Save Boundaries'}</span>
+            <Save className={`w-3.5 h-3.5 ${isSaving ? 'animate-spin' : ''}`} />
+            <span>
+              {isSaving ? 'Saving...' : isSaved ? 'Saved to PDA!' : hasUnsavedChanges ? 'Save Boundaries' : 'Policy Active'}
+            </span>
           </button>
         </div>
       </div>

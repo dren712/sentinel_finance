@@ -379,7 +379,7 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
         <div className="flex items-center gap-2 self-start sm:self-auto">
           <button
             onClick={() => setIsBuilderOpen(!isBuilderOpen)}
-            className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-sentinel-surface hover:bg-sentinel-surfaceElevated border border-sentinel-border text-white transition cursor-pointer"
+            className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-sentinel-surface hover:bg-sentinel-surfaceElevated border border-sentinel-border text-white sentinel-interactive sentinel-focus transition cursor-pointer"
           >
             <Sliders className="w-3.5 h-3.5 text-purple-400" />
             <span>{isBuilderOpen ? 'Close Builder' : 'Asset Allocator'}</span>
@@ -395,7 +395,15 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
         {/* Card 1: SENTINEL */}
         <div
           onClick={onNavigateToAgent}
-          className="bg-sentinel-surface border border-sentinel-border hover:border-blue-500/40 rounded-xl p-5 transition cursor-pointer group"
+          tabIndex={0}
+          role="button"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onNavigateToAgent?.();
+            }
+          }}
+          className="bg-sentinel-surface border border-sentinel-border hover:border-sentinel-accent/40 rounded-xl p-5 sentinel-interactive sentinel-focus transition cursor-pointer group"
         >
           <div className="flex items-center justify-between pb-3 border-b border-sentinel-border/50">
             <div className="flex items-center gap-2">
@@ -431,7 +439,15 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
         {/* Card 2: PROTECTION */}
         <div
           onClick={onNavigateToProtection}
-          className="bg-sentinel-surface border border-sentinel-border hover:border-emerald-500/40 rounded-xl p-5 transition cursor-pointer group"
+          tabIndex={0}
+          role="button"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onNavigateToProtection?.();
+            }
+          }}
+          className="bg-sentinel-surface border border-sentinel-border hover:border-emerald-500/40 rounded-xl p-5 sentinel-interactive sentinel-focus transition cursor-pointer group"
         >
           <div className="flex items-center justify-between pb-3 border-b border-sentinel-border/50">
             <div className="flex items-center gap-2">

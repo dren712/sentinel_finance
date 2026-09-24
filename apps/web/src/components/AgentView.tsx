@@ -206,8 +206,9 @@ export const AgentView: React.FC<AgentViewProps> = ({
             </span>
             <button
               onClick={copyAuthority}
-              className="p-1 hover:text-white text-sentinel-textSubtle transition"
+              className="p-1 hover:text-white text-sentinel-textSubtle transition cursor-pointer sentinel-interactive sentinel-focus rounded"
               title="Copy Ed25519 Authority"
+              aria-label="Copy Ed25519 Authority"
             >
               {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
             </button>
@@ -215,7 +216,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
               href={getExplorerAddressUrl(agent.wallet.getPublicKeyString())}
               target="_blank"
               rel="noreferrer"
-              className="text-blue-400 hover:underline flex items-center gap-0.5"
+              className="text-blue-400 hover:underline flex items-center gap-0.5 sentinel-interactive sentinel-focus rounded p-0.5"
             >
               <ExternalLink className="w-3 h-3" />
             </a>
@@ -702,7 +703,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setDirection('BUY')}
-                  className={`py-2 text-xs font-bold rounded-lg border transition cursor-pointer ${
+                  className={`py-2 text-xs font-bold rounded-lg border transition cursor-pointer sentinel-interactive sentinel-focus ${
                     direction === 'BUY'
                       ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
                       : 'bg-sentinel-surfaceMuted text-sentinel-textMuted border-sentinel-border hover:text-white'
@@ -713,7 +714,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setDirection('SELL')}
-                  className={`py-2 text-xs font-bold rounded-lg border transition cursor-pointer ${
+                  className={`py-2 text-xs font-bold rounded-lg border transition cursor-pointer sentinel-interactive sentinel-focus ${
                     direction === 'SELL'
                       ? 'bg-rose-500/20 text-rose-400 border-rose-500/40'
                       : 'bg-sentinel-surfaceMuted text-sentinel-textMuted border-sentinel-border hover:text-white'
@@ -737,7 +738,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
                   step="500"
                   value={tradeAmount}
                   onChange={(e) => setTradeAmount(e.target.value)}
-                  className="w-full bg-sentinel-surfaceMuted border border-sentinel-border rounded-lg pl-7 pr-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                  className="w-full bg-sentinel-surfaceMuted border border-sentinel-border rounded-lg pl-7 pr-3 py-1.5 text-xs text-white font-mono tabular-nums focus:outline-none focus:border-blue-500 sentinel-focus"
                 />
               </div>
             </div>
@@ -765,7 +766,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
                   </>
                 )}
               </span>
-              <span className="text-[10px] font-bold">
+              <span className="text-[10px] font-bold tabular-nums">
                 {swarmPassingCount} / 6 Verifiers Passing
               </span>
             </div>
@@ -798,7 +799,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
                   setDirection('BUY');
                   setTradeAmount('15000');
                 }}
-                className="px-2.5 py-1 rounded bg-rose-950/40 text-rose-300 border border-rose-800/40 text-xs font-mono hover:bg-rose-900/40 cursor-pointer"
+                className="px-2.5 py-1 rounded bg-rose-950/40 text-rose-300 border border-rose-800/40 text-xs font-mono hover:bg-rose-900/40 cursor-pointer sentinel-interactive sentinel-focus"
               >
                 $15,000 NVDA (Breach)
               </button>
@@ -809,7 +810,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
                   setDirection('BUY');
                   setTradeAmount('5000');
                 }}
-                className="px-2.5 py-1 rounded bg-emerald-950/40 text-emerald-300 border border-emerald-800/40 text-xs font-mono hover:bg-emerald-900/40 cursor-pointer"
+                className="px-2.5 py-1 rounded bg-emerald-950/40 text-emerald-300 border border-emerald-800/40 text-xs font-mono hover:bg-emerald-900/40 cursor-pointer sentinel-interactive sentinel-focus"
               >
                 $5,000 NVDA (Safe)
               </button>
@@ -818,7 +819,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
             <button
               type="submit"
               disabled={isRunningTrade}
-              className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-2 shadow-md disabled:opacity-50 transition cursor-pointer"
+              className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-2 shadow-md disabled:opacity-50 transition cursor-pointer sentinel-interactive sentinel-focus"
             >
               <Play className={`w-3.5 h-3.5 ${isRunningTrade ? 'animate-spin' : ''}`} />
               <span>{isRunningTrade ? 'Evaluating Invariants...' : 'Submit Intent'}</span>

@@ -372,7 +372,7 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`px-3 py-1 rounded-md transition font-semibold cursor-pointer ${
+              className={`px-3 py-1 rounded-md transition font-semibold cursor-pointer sentinel-interactive sentinel-focus ${
                 filter === f
                   ? 'bg-sentinel-surfaceElevated text-white border border-sentinel-border shadow-xs'
                   : 'text-sentinel-textMuted hover:text-white'
@@ -390,7 +390,7 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
           <span className="text-xs font-bold text-sentinel-textSubtle uppercase tracking-widest font-mono">
             TODAY
           </span>
-          <span className="text-xs font-mono text-sentinel-textSubtle">
+          <span className="text-xs font-mono text-sentinel-textSubtle tabular-nums">
             {filteredItems.length} Events Logged
           </span>
         </div>
@@ -404,8 +404,16 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
             return (
               <div
                 key={item.id}
+                role="button"
+                tabIndex={0}
                 onClick={() => handleSelectItem(item)}
-                className="py-3.5 px-2 -mx-2 rounded-lg hover:bg-sentinel-surfaceElevated/50 transition cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleSelectItem(item);
+                  }
+                }}
+                className="py-3.5 px-2 -mx-2 rounded-lg hover:bg-sentinel-surfaceElevated/50 transition cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 group sentinel-interactive sentinel-focus"
               >
                 <div className="flex items-center gap-4">
                   {/* Status Indicator Icon */}
@@ -418,7 +426,7 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
                   </div>
 
                   {/* Time */}
-                  <span className="font-mono text-xs text-sentinel-textSubtle w-12 shrink-0">
+                  <span className="font-mono text-xs text-sentinel-textSubtle w-12 shrink-0 tabular-nums">
                     {item.time}
                   </span>
 
@@ -428,7 +436,7 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
                   </span>
 
                   {/* Amount / Subtext */}
-                  <span className="font-mono text-xs text-sentinel-textMuted sm:w-28 shrink-0">
+                  <span className="font-mono text-xs text-sentinel-textMuted sm:w-28 shrink-0 tabular-nums">
                     {item.amount}
                   </span>
                 </div>
@@ -436,7 +444,7 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
                 {/* Status Tag */}
                 <div className="flex items-center gap-2 self-end sm:self-auto">
                   <span
-                    className={`px-2.5 py-0.5 rounded text-xs font-mono font-semibold ${
+                    className={`px-2.5 py-0.5 rounded text-xs font-mono font-semibold tabular-nums ${
                       isRejected
                         ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
                         : isPolicy
@@ -494,7 +502,8 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
 
               <button
                 onClick={() => setIsInspectorOpen(false)}
-                className="p-1.5 rounded-lg hover:bg-sentinel-surfaceMuted text-sentinel-textSubtle hover:text-white transition cursor-pointer"
+                className="p-1.5 rounded-lg hover:bg-sentinel-surfaceMuted text-sentinel-textSubtle hover:text-white transition cursor-pointer sentinel-interactive sentinel-focus"
+                aria-label="Close Inspector"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -611,7 +620,7 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
               <button
                 type="button"
                 onClick={() => setIsTechnicalDrawerOpen(!isTechnicalDrawerOpen)}
-                className="w-full p-3.5 flex items-center justify-between text-left hover:bg-sentinel-surfaceMuted transition cursor-pointer"
+                className="w-full p-3.5 flex items-center justify-between text-left hover:bg-sentinel-surfaceMuted transition cursor-pointer sentinel-interactive sentinel-focus"
               >
                 <div className="flex items-center gap-2">
                   <Lock className="w-4 h-4 text-purple-400" />
@@ -619,7 +628,7 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
                     Technical Evidence Drawer (PROVN Audit Record)
                   </span>
                 </div>
-                <div className="flex items-center gap-1.5 text-xs text-sentinel-textSubtle font-mono">
+                <div className="flex items-center gap-1.5 text-xs text-sentinel-textSubtle font-mono tabular-nums">
                   <span>{isTechnicalDrawerOpen ? 'Hide' : 'Expand'}</span>
                   {isTechnicalDrawerOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 </div>
@@ -651,7 +660,7 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
 
                     <div className="bg-sentinel-surface p-2 rounded border border-sentinel-border">
                       <span className="text-sentinel-textSubtle block text-[10px]">SLOT / SIGNATURE</span>
-                      <span className="text-emerald-400 font-semibold truncate block font-mono text-[11px]">
+                      <span className="text-emerald-400 font-semibold truncate block font-mono text-[11px] tabular-nums">
                         {selectedTimelineItem.evidenceRecord?.transactionSignature ?? 'SIMULATION [DEMO DATA]'}
                       </span>
                     </div>
@@ -677,7 +686,7 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
                             href={getExplorerTxUrl(sig)}
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 hover:underline font-mono"
+                            className="inline-flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 hover:underline font-mono sentinel-interactive sentinel-focus rounded p-1"
                           >
                             <span>View Transaction on Solana Explorer</span>
                             <ExternalLink className="w-3.5 h-3.5" />
@@ -700,7 +709,7 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
             <div className="pt-2 flex justify-end">
               <button
                 onClick={() => setIsInspectorOpen(false)}
-                className="px-5 py-2 rounded-lg bg-sentinel-surfaceMuted hover:bg-sentinel-surfaceElevated border border-sentinel-border text-white text-xs font-semibold transition cursor-pointer"
+                className="px-5 py-2 rounded-lg bg-sentinel-surfaceMuted hover:bg-sentinel-surfaceElevated border border-sentinel-border text-white text-xs font-semibold transition cursor-pointer sentinel-interactive sentinel-focus"
               >
                 Close Inspector
               </button>

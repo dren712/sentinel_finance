@@ -42,7 +42,7 @@ export const Navigation: React.FC<NavigationProps> = ({
   return (
     <>
       {/* Desktop Navigation (Top Tab Bar) */}
-      <div className="border-b border-sentinel-border bg-sentinel-bg/80 backdrop-blur sticky top-16 z-30 hidden md:block">
+      <div className="border-b border-sentinel-border bg-sentinel-bg/90 backdrop-blur sticky top-16 z-30 hidden md:block">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <nav className="flex space-x-2 py-2.5">
             {tabs.map((tab) => {
@@ -52,16 +52,16 @@ export const Navigation: React.FC<NavigationProps> = ({
                 <button
                   key={tab.id}
                   onClick={() => onSelectTab(tab.id)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold tracking-wide transition-all cursor-pointer ${
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold tracking-wide sentinel-interactive sentinel-focus cursor-pointer ${
                     isActive
-                      ? 'bg-sentinel-surfaceElevated text-blue-400 border border-blue-500/30 shadow-xs'
-                      : 'text-sentinel-textMuted hover:text-white hover:bg-sentinel-surface'
+                      ? 'bg-sentinel-surfaceElevated text-sentinel-text border border-sentinel-accent/40 shadow-xs'
+                      : 'text-sentinel-textMuted hover:text-sentinel-text hover:bg-sentinel-surface'
                   }`}
                 >
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-blue-400' : 'text-sentinel-textSubtle'}`} />
+                  <Icon className={`w-4 h-4 ${isActive ? 'text-sentinel-accent' : 'text-sentinel-textSubtle'}`} />
                   <span>{tab.label}</span>
                   {tab.count !== undefined && tab.count > 0 && (
-                    <span className="px-1.5 py-0.2 rounded-full bg-sentinel-surfaceMuted text-sentinel-textMuted text-[10px] font-mono border border-sentinel-border">
+                    <span className="px-1.5 py-0.2 rounded-full bg-sentinel-surfaceMuted text-sentinel-textMuted text-[10px] font-mono tabular-nums border border-sentinel-border">
                       {tab.count}
                     </span>
                   )}
@@ -73,7 +73,7 @@ export const Navigation: React.FC<NavigationProps> = ({
       </div>
 
       {/* Mobile Bottom Navigation Bar (Non-negotiable) */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-sentinel-surface/95 backdrop-blur border-t border-sentinel-border px-3 py-1.5 shadow-2xl">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-sentinel-surface/95 backdrop-blur border-t border-sentinel-border px-3 py-1.5 shadow-2xl safe-area-bottom">
         <nav className="grid grid-cols-4 gap-1">
           {tabs.map((tab) => {
             const Icon = tab.icon;
@@ -82,16 +82,16 @@ export const Navigation: React.FC<NavigationProps> = ({
               <button
                 key={tab.id}
                 onClick={() => onSelectTab(tab.id)}
-                className={`flex flex-col items-center justify-center py-1.5 px-1 rounded-lg transition-all cursor-pointer ${
+                className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg sentinel-interactive sentinel-focus min-h-[44px] cursor-pointer ${
                   isActive
-                    ? 'text-blue-400 bg-blue-500/10 font-bold'
-                    : 'text-sentinel-textMuted hover:text-white'
+                    ? 'text-sentinel-text bg-sentinel-accent/15 border border-sentinel-accent/30 font-bold'
+                    : 'text-sentinel-textMuted hover:text-sentinel-text'
                 }`}
               >
                 <div className="relative">
-                  <Icon className={`w-5 h-5 ${isActive ? 'text-blue-400' : 'text-sentinel-textSubtle'}`} />
+                  <Icon className={`w-5 h-5 ${isActive ? 'text-sentinel-accent' : 'text-sentinel-textSubtle'}`} />
                   {tab.count !== undefined && tab.count > 0 && (
-                    <span className="absolute -top-1 -right-2 px-1 py-0.2 rounded-full bg-blue-600 text-white text-[9px] font-mono font-bold leading-none">
+                    <span className="absolute -top-1 -right-2 px-1 py-0.2 rounded-full bg-sentinel-accent text-white text-[9px] font-mono tabular-nums font-bold leading-none">
                       {tab.count}
                     </span>
                   )}

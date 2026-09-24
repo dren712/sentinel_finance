@@ -5,6 +5,28 @@
 :root {
   --foreground-rgb: 241, 245, 249;
   --background-rgb: 9, 11, 16;
+
+  /* Locked Sentinel Named Design Tokens */
+  --sentinel-bg: #090B10;
+  --sentinel-surface: #111622;
+  --sentinel-surface-elevated: #161D2C;
+  --sentinel-surface-muted: #0D111A;
+  --sentinel-border: #1E2638;
+  --sentinel-border-strong: #2D3952;
+  --sentinel-text: #F1F5F9;
+  --sentinel-text-muted: #94A3B8;
+  --sentinel-text-subtle: #64748B;
+  --sentinel-accent: #2563EB;
+  --sentinel-accent-hover: #1D4ED8;
+  --sentinel-accent-subtle: rgba(37, 99, 235, 0.12);
+  --sentinel-success: #10B981;
+  --sentinel-success-subtle: rgba(16, 185, 129, 0.12);
+  --sentinel-danger: #F43F5E;
+  --sentinel-danger-subtle: rgba(244, 63, 94, 0.12);
+  --sentinel-warning: #F59E0B;
+  --sentinel-warning-subtle: rgba(245, 158, 11, 0.12);
+  --sentinel-devnet: #A855F7;
+  --sentinel-devnet-subtle: rgba(168, 85, 247, 0.12);
 }
 
 body {
@@ -19,6 +41,24 @@ body {
 .tabular-nums, .mono-num {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
+}
+
+/* Hallmark 8-State Interactive Utilities */
+.sentinel-focus:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px #090b10, 0 0 0 4px #2563eb;
+}
+
+.sentinel-interactive {
+  transition: all 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.sentinel-interactive:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.sentinel-interactive:disabled {
+  opacity: 0.4;
+  cursor: not-allowed !important;
+  pointer-events: none;
 }
 
 /* Restrained institutional scrollbars */

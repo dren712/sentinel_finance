@@ -167,14 +167,14 @@ export const SentinelReceiptCard: React.FC<SentinelReceiptCardProps> = ({
               Transaction
             </span>
             <div className="flex items-center justify-between gap-2">
-              <span className="font-bold text-white text-sm" title={rawSig}>
+              <span className="font-bold text-white text-sm tabular-nums" title={rawSig}>
                 {shortSig}
               </span>
               <a
                 href={getExplorerTxUrl(rawSig)}
                 target="_blank"
                 rel="noreferrer"
-                className="text-blue-400 hover:text-blue-300 font-bold text-xs inline-flex items-center gap-1 hover:underline"
+                className="text-blue-400 hover:text-blue-300 font-bold text-xs inline-flex items-center gap-1 hover:underline sentinel-interactive sentinel-focus rounded p-0.5"
               >
                 <span>Explorer ↗</span>
               </a>
@@ -199,12 +199,12 @@ export const SentinelReceiptCard: React.FC<SentinelReceiptCardProps> = ({
           <button
             type="button"
             onClick={() => setDrawerOpen(!drawerOpen)}
-            className="w-full py-2.5 px-4 rounded-lg bg-slate-900/90 hover:bg-slate-800/90 border border-slate-700/60 flex items-center justify-between text-xs transition cursor-pointer"
+            className="w-full py-2.5 px-4 rounded-lg bg-slate-900/90 hover:bg-slate-800/90 border border-slate-700/60 flex items-center justify-between text-xs transition cursor-pointer sentinel-interactive sentinel-focus"
           >
             <div className="flex items-center gap-2 text-slate-300 font-sans font-semibold">
               <Lock className="w-3.5 h-3.5 text-amber-400" />
               <span>Developer / Judge Technical Drawer</span>
-              <span className="text-[10px] px-2 py-0.2 rounded bg-amber-500/10 text-amber-300 font-mono border border-amber-500/30">
+              <span className="text-[10px] px-2 py-0.2 rounded bg-amber-500/10 text-amber-300 font-mono border border-amber-500/30 tabular-nums">
                 AUDIT TELEMETRY
               </span>
             </div>
@@ -257,14 +257,15 @@ export const SentinelReceiptCard: React.FC<SentinelReceiptCardProps> = ({
                 <span>Deterministic SHA-256 Commitments (PROVN Audit Trail)</span>
               </div>
 
-              <div className="divide-y divide-slate-800/80 rounded-lg border border-slate-800 bg-slate-900/60 font-mono text-[11px]">
+              <div className="divide-y divide-slate-800/80 rounded-lg border border-slate-800 bg-slate-900/60 font-mono text-[11px] tabular-nums">
                 <div className="p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <span className="text-slate-400 font-sans text-xs w-36">Policy Hash:</span>
                   <div className="flex items-center gap-2 truncate text-slate-200">
                     <span className="truncate">{record.policyHash}</span>
                     <button
                       onClick={() => copyToClipboard(record.policyHash, 'policyHash')}
-                      className="text-slate-400 hover:text-white"
+                      className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition sentinel-interactive sentinel-focus cursor-pointer"
+                      aria-label="Copy Policy Hash"
                     >
                       {copiedField === 'policyHash' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
@@ -277,7 +278,8 @@ export const SentinelReceiptCard: React.FC<SentinelReceiptCardProps> = ({
                     <span className="truncate">{record.intentHash}</span>
                     <button
                       onClick={() => copyToClipboard(record.intentHash, 'intentHash')}
-                      className="text-slate-400 hover:text-white"
+                      className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition sentinel-interactive sentinel-focus cursor-pointer"
+                      aria-label="Copy Intent Hash"
                     >
                       {copiedField === 'intentHash' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
@@ -290,7 +292,8 @@ export const SentinelReceiptCard: React.FC<SentinelReceiptCardProps> = ({
                     <span className="truncate">{record.preStateHash}</span>
                     <button
                       onClick={() => copyToClipboard(record.preStateHash, 'preState')}
-                      className="text-slate-400 hover:text-white"
+                      className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition sentinel-interactive sentinel-focus cursor-pointer"
+                      aria-label="Copy Pre-State Hash"
                     >
                       {copiedField === 'preState' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
@@ -303,7 +306,8 @@ export const SentinelReceiptCard: React.FC<SentinelReceiptCardProps> = ({
                     <span className="truncate">{record.postStateHash}</span>
                     <button
                       onClick={() => copyToClipboard(record.postStateHash, 'postState')}
-                      className="text-slate-400 hover:text-white"
+                      className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition sentinel-interactive sentinel-focus cursor-pointer"
+                      aria-label="Copy Post-State Hash"
                     >
                       {copiedField === 'postState' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
@@ -317,7 +321,8 @@ export const SentinelReceiptCard: React.FC<SentinelReceiptCardProps> = ({
                       <span className="truncate">{record.promise.why.rationaleHash}</span>
                       <button
                         onClick={() => copyToClipboard(record.promise!.why.rationaleHash, 'rationale')}
-                        className="text-slate-400 hover:text-white"
+                        className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition sentinel-interactive sentinel-focus cursor-pointer"
+                        aria-label="Copy Rationale Hash"
                       >
                         {copiedField === 'rationale' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                       </button>

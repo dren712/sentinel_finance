@@ -57,10 +57,7 @@ export const HeroStoryCenterpiece: React.FC<HeroStoryCenterpieceProps> = ({
   };
 
   return (
-    <div className="bg-gradient-to-b from-slate-900/95 via-slate-950 to-slate-900/90 border border-blue-500/30 rounded-2xl p-5 sm:p-7 shadow-2xl shadow-blue-950/40 relative overflow-hidden">
-      {/* Decorative background glow elements */}
-      <div className="absolute -top-24 -left-24 w-72 h-72 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-24 -right-24 w-72 h-72 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none" />
+    <div className="bg-sentinel-surface border border-sentinel-borderStrong rounded-2xl p-5 sm:p-7 shadow-2xl relative overflow-hidden">
 
       {/* TOP HEADER BAR */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-slate-800 relative z-10">
@@ -83,11 +80,11 @@ export const HeroStoryCenterpiece: React.FC<HeroStoryCenterpieceProps> = ({
         {/* Action Button & Scenario Selector */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
           {/* Scenario Tabs */}
-          <div className="flex items-center p-1 rounded-lg bg-slate-950/90 border border-slate-800 text-[11px] font-mono">
+          <div className="flex flex-wrap items-center p-1 rounded-lg bg-slate-950/90 border border-slate-800 text-[11px] font-mono">
             <button
               type="button"
               onClick={() => handleScenarioChange('FLAGSHIP')}
-              className={`px-2.5 py-1 rounded font-semibold transition cursor-pointer ${
+              className={`px-2.5 py-1 rounded font-semibold sentinel-interactive sentinel-focus cursor-pointer ${
                 activeScenario === 'FLAGSHIP'
                   ? 'bg-blue-600 text-white shadow-xs'
                   : 'text-slate-400 hover:text-white'
@@ -98,7 +95,7 @@ export const HeroStoryCenterpiece: React.FC<HeroStoryCenterpieceProps> = ({
             <button
               type="button"
               onClick={() => handleScenarioChange('METEORA')}
-              className={`px-2.5 py-1 rounded font-semibold transition cursor-pointer ${
+              className={`px-2.5 py-1 rounded font-semibold sentinel-interactive sentinel-focus cursor-pointer ${
                 activeScenario === 'METEORA'
                   ? 'bg-amber-600 text-white shadow-xs'
                   : 'text-slate-400 hover:text-white'
@@ -109,7 +106,7 @@ export const HeroStoryCenterpiece: React.FC<HeroStoryCenterpieceProps> = ({
             <button
               type="button"
               onClick={() => handleScenarioChange('PYTH')}
-              className={`px-2.5 py-1 rounded font-semibold transition cursor-pointer ${
+              className={`px-2.5 py-1 rounded font-semibold sentinel-interactive sentinel-focus cursor-pointer ${
                 activeScenario === 'PYTH'
                   ? 'bg-emerald-600 text-white shadow-xs'
                   : 'text-slate-400 hover:text-white'
@@ -120,7 +117,7 @@ export const HeroStoryCenterpiece: React.FC<HeroStoryCenterpieceProps> = ({
             <button
               type="button"
               onClick={() => handleScenarioChange('PRESTOCKS')}
-              className={`px-2.5 py-1 rounded font-semibold transition cursor-pointer ${
+              className={`px-2.5 py-1 rounded font-semibold sentinel-interactive sentinel-focus cursor-pointer ${
                 activeScenario === 'PRESTOCKS'
                   ? 'bg-purple-600 text-white shadow-xs'
                   : 'text-slate-400 hover:text-white'
@@ -136,12 +133,46 @@ export const HeroStoryCenterpiece: React.FC<HeroStoryCenterpieceProps> = ({
               type="button"
               onClick={onRunAdaptation}
               disabled={isRunningAdaptation}
-              className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold font-mono flex items-center gap-2 shadow-lg shadow-blue-600/20 disabled:opacity-50 transition cursor-pointer"
+              className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold font-mono flex items-center gap-2 shadow-lg shadow-blue-600/20 disabled:opacity-50 sentinel-interactive sentinel-focus cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isRunningAdaptation ? 'animate-spin' : ''}`} />
               <span>{isRunningAdaptation ? 'Evaluating...' : 'Replay Enforcement'}</span>
             </button>
           )}
+        </div>
+      </div>
+
+      {/* KILLER ARCHITECTURAL PIPELINE (Scroll-Craft Visual Flow) */}
+      <div className="mt-4 p-3.5 rounded-xl bg-sentinel-surfaceMuted/90 border border-sentinel-border relative z-10 font-mono">
+        <div className="flex items-center justify-between text-[10px] text-sentinel-textSubtle uppercase tracking-wider mb-2.5">
+          <span className="font-bold text-sentinel-text">Sentinel State Pipeline</span>
+          <span className="text-sentinel-accent font-semibold">Solana Invariant Gate</span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 text-center text-xs">
+          <div className="p-2 rounded-lg bg-sentinel-surface border border-sentinel-border">
+            <span className="text-[10px] text-sentinel-textSubtle block uppercase">1. Agent</span>
+            <span className="font-bold text-sentinel-text">robo-01</span>
+          </div>
+          <div className="p-2 rounded-lg bg-sentinel-surface border border-sentinel-border">
+            <span className="text-[10px] text-sentinel-textSubtle block uppercase">2. Intent</span>
+            <span className="font-bold text-rose-400">BUY $15K</span>
+          </div>
+          <div className="p-2 rounded-lg bg-sentinel-surface border border-sentinel-border">
+            <span className="text-[10px] text-sentinel-textSubtle block uppercase">3. Sentinel</span>
+            <span className="font-bold text-amber-400">Post-State</span>
+          </div>
+          <div className="p-2 rounded-lg bg-rose-950/30 border border-rose-500/30">
+            <span className="text-[10px] text-rose-300 block uppercase">4. Blocked</span>
+            <span className="font-bold text-rose-400">3 Breaches</span>
+          </div>
+          <div className="p-2 rounded-lg bg-sentinel-surface border border-sentinel-border">
+            <span className="text-[10px] text-sentinel-textSubtle block uppercase">5. Adapted</span>
+            <span className="font-bold text-emerald-400">BUY $5K</span>
+          </div>
+          <div className="p-2 rounded-lg bg-emerald-950/30 border border-emerald-500/30">
+            <span className="text-[10px] text-emerald-300 block uppercase">6. Proof</span>
+            <span className="font-bold text-emerald-400">PROVN v2</span>
+          </div>
         </div>
       </div>
 

@@ -98,7 +98,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             type="button"
             onClick={onToggleMode}
-            className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs font-mono font-medium transition cursor-pointer ${
+            className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs font-mono font-medium sentinel-interactive sentinel-focus transition cursor-pointer ${
               isOnChainState || mode === 'LIVE'
                 ? 'bg-emerald-950/50 border-emerald-500/50 text-emerald-300 hover:bg-emerald-900/60 shadow-sm shadow-emerald-950'
                 : 'bg-amber-950/50 border-amber-500/40 text-amber-300 hover:bg-amber-900/50'
@@ -128,7 +128,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 onClick={onRunDemo}
                 disabled={isRunningDemo}
-                className="px-3 py-2 rounded-l-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs flex items-center gap-1.5 shadow-sm disabled:opacity-50 transition-all cursor-pointer border-r border-blue-700"
+                className="px-3 py-2 rounded-l-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs flex items-center gap-1.5 shadow-sm disabled:opacity-50 sentinel-interactive sentinel-focus cursor-pointer border-r border-blue-700"
                 title="Run Flagship 5-Step Autonomous Demo"
               >
                 <Play className={`w-3.5 h-3.5 ${isRunningDemo ? 'animate-spin' : ''}`} />
@@ -137,7 +137,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 onClick={() => setIsDemoMenuOpen(!isDemoMenuOpen)}
                 disabled={isRunningDemo}
-                className="px-2 py-2 rounded-r-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs flex items-center shadow-sm disabled:opacity-50 transition-all cursor-pointer"
+                className="px-2 py-2 rounded-r-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs flex items-center shadow-sm disabled:opacity-50 sentinel-interactive sentinel-focus cursor-pointer"
                 title="Select Demo Scenario (Flagship, PreStocks $10K, Meteora $5K)"
               >
                 <ChevronDown className="w-3.5 h-3.5" />
