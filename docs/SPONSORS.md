@@ -43,3 +43,42 @@
 - **Market Quality Invariants & Honest Attribution (`Item 16`)**:
   - Enforces minimum pool depth (`≥ $25,000`) and price divergence ceiling (`≤ 200 bps`) before Sentinel authorizes execution.
   - **Honest Settlement Attribution**: Because Devnet settlement occurs on the Sentinel Anchor `VaultAccount` PDA after pre-trade Meteora DBC verification (rather than an on-chain Meteora swap CPI), receipts explicitly state `"Settled via Sentinel Vault PDA (Meteora DBC Pre-Trade Guard Verified)"`.
+
+---
+
+## 4. In-App Discoverability & Sentinel Stack Proof Layer
+
+Rather than cosmetic logos, Sentinel demonstrates sponsor infrastructure as active, non-bypassable proof within the product:
+
+1. **Main Dashboard Infrastructure Strip (`SponsorInfrastructureStrip`)**:
+   - Polished 4-pillar bar above the dashboard:
+     - **Market Data**: Pyth Network (Hermès Live Feed · 12s freshness · $\pm\$0.04$ confidence)
+     - **Pre-IPO Assets**: PreStocks (Private Equity Universe · 20% cap invariant)
+     - **Execution Venue**: Meteora DBC (Dynamic Bonding Curve · Pool `Eo7W...` · 0.15% fee)
+     - **Settlement & Enforcement**: Solana Devnet (Anchor Program `3gh1...` · Vault PDA `7Tff...`)
+   - Every pillar is interactive and opens the **Sentinel Stack Detail Drawer** (`SponsorDetailDrawer`) displaying live endpoints, invariant rules, and one-click test cases.
+
+2. **In-Workflow Discoverability**:
+   - **Viewing a Stock**: Holdings table explicitly flags `NVDAx $186.42 · Pyth price feed · 12s freshness (±$0.04 conf)` and dual-feed tracking error.
+   - **Choosing an Eligible Asset**: Private equities are badged `PreStocks · Eligible` pointing to secondary vaults.
+   - **Execution & Liquidity**: Trading controls explicitly indicate `Meteora DBC Dynamic Bonding Curve` with virtual reserve depth checks.
+
+3. **7-Stage Demonstrated Pipeline**:
+   ```text
+   1. AI Proposes (Robo-01)
+          ↓
+   2. Pyth Oracle (Price Truth & Freshness)
+          ↓
+   3. Sentinel Post-State (Projected)
+          ↓
+   4. PreStocks Asset (Private Equity 20% Cap)
+          ↓
+   5. Meteora DBC (Liquidity & Dynamic Curve)
+          ↓
+   6. Solana Devnet (Anchor Zero-Bypass Gate)
+          ↓
+   7. PROVN Proof (Sealed SHA-256 Receipt)
+   ```
+
+4. **Dedicated Explainer Section**:
+   The flagship explainer features **"Built for the tokenized-stock stack"**, ensuring judges immediately understand how partner infrastructure directly enforces financial safety.
