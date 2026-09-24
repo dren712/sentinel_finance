@@ -146,12 +146,12 @@ export class SentinelClient {
       this.adapter.setWalletSigner(signer);
     } else {
       this.adapter = new LiveExecutionAdapter(undefined, signer);
-      this.selectedVenue = 'SOLANA_MAINNET';
+      this.selectedVenue = 'SOLANA';
     }
   }
 
   resolveAdapterForIntent(intent: TradeIntent): ExecutionAdapter {
-    if (this.selectedVenue === 'SOLANA_MAINNET' || this.adapter instanceof LiveExecutionAdapter) {
+    if (this.selectedVenue === 'SOLANA' || this.selectedVenue === 'SOLANA_MAINNET' || this.adapter instanceof LiveExecutionAdapter) {
       return this.adapter;
     }
     if (this.selectedVenue === 'DEMO_SIMULATION') {

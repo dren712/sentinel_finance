@@ -1,4 +1,5 @@
 import { createHash } from 'crypto';
+import { PublicKey } from '@solana/web3.js';
 import {
   Portfolio,
   Position,
@@ -10,10 +11,28 @@ import {
 import { ASSET_REGISTRY, getAssetMetadata } from './asset-registry';
 import { canonicalJsonStringify } from './provn';
 
+export const SPL_TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+export const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
+export const SENTINEL_PROGRAM_ID = new PublicKey('3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK');
+
+/**
+ * Ensures a string is converted to a valid 32-byte Solana PublicKey.
+ * If the input is already a valid Base58 public key, returns it directly.
+ * If not (e.g. mock test identifier), deterministically hashes it to a valid 32-byte Ed25519 key.
+ */
+export function toValidPublicKey(keyOrSeed: string): PublicKey {
+  try {
+    return new PublicKey(keyOrSeed);
+  } catch {
+    const hash = createHash('sha256').update(Buffer.from(keyOrSeed, 'utf8')).digest();
+    return new PublicKey(hash);
+  }
+}
+
 const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 
 /**
- * Encodes a buffer or Uint8Array to a Base58 string without external dependencies
+ * Encodes a buffer or Uint8Array to a Base58 string
  */
 export function encodeBase58(buffer: Uint8Array): string {
   const digits: number[] = [0];
@@ -40,27 +59,45 @@ export function encodeBase58(buffer: Uint8Array): string {
 }
 
 /**
- * Derives a deterministic Associated Token Account (ATA) address for an owner and token mint
+ * Derives the canonical Associated Token Account (ATA) address for an owner and token mint
+ * using genuine Solana SPL Associated Token Program primitives:
+ * findProgramAddressSync([wallet.toBuffer(), tokenProgram.toBuffer(), mint.toBuffer()], ASSOCIATED_TOKEN_PROGRAM_ID)
  */
-export function deriveDeterministicAta(walletAddress: string, mintAddress: string): string {
-  const hash = createHash('sha256')
-    .update(Buffer.from('solana-spl-ata:'))
-    .update(Buffer.from(walletAddress))
-    .update(Buffer.from(mintAddress))
-    .digest();
-  return encodeBase58(hash).slice(0, 44);
+export function deriveDeterministicAta(
+  walletAddress: string,
+  mintAddress: string,
+  tokenProgramId: string = SPL_TOKEN_PROGRAM_ID.toBase58()
+): string {
+  const walletPubkey = toValidPublicKey(walletAddress);
+  const mintPubkey = toValidPublicKey(mintAddress);
+  const tokenProgPubkey = toValidPublicKey(tokenProgramId);
+
+  const [ata] = PublicKey.findProgramAddressSync(
+    [
+      walletPubkey.toBuffer(),
+      tokenProgPubkey.toBuffer(),
+      mintPubkey.toBuffer(),
+    ],
+    ASSOCIATED_TOKEN_PROGRAM_ID
+  );
+  return ata.toBase58();
 }
 
 /**
- * Derives the deterministic Sentinel PDA for an owner
+ * Derives the genuine Sentinel Vault PDA for an owner using Solana's findProgramAddressSync.
  * Seeds: [b"vault", owner_pubkey]
  */
-export function deriveSentinelPda(ownerAddress: string): string {
-  const hash = createHash('sha256')
-    .update(Buffer.from('sentinel-vault-pda:'))
-    .update(Buffer.from(ownerAddress))
-    .digest();
-  return encodeBase58(hash).slice(0, 44);
+export function deriveSentinelPda(
+  ownerAddress: string,
+  programId: string = SENTINEL_PROGRAM_ID.toBase58()
+): string {
+  const ownerPubkey = toValidPublicKey(ownerAddress);
+  const progPubkey = toValidPublicKey(programId);
+  const [pda] = PublicKey.findProgramAddressSync(
+    [Buffer.from('vault'), ownerPubkey.toBuffer()],
+    progPubkey
+  );
+  return pda.toBase58();
 }
 
 /**
@@ -349,13 +386,30 @@ export function verifyPortfolioProjection(
 /**
  * Returns the institutional Sentinel PDA configuration for a given owner
  */
-export function getSentinelPdaConfig(ownerAddress: string): SentinelPdaConfig {
-  const pdaAddress = deriveSentinelPda(ownerAddress);
-  const hash = createHash('sha256').update(Buffer.from(ownerAddress)).digest();
-  const bump = 255 - (hash[0] % 5); // Deterministic valid bump
+export function getSentinelPdaConfig(
+  ownerAddress: string,
+  programId: string = SENTINEL_PROGRAM_ID.toBase58()
+): SentinelPdaConfig {
+  const ownerPubkey = toValidPublicKey(ownerAddress);
+  const progPubkey = toValidPublicKey(programId);
 
-  const policyPda = deriveDeterministicAta(ownerAddress, 'PolicyProgramSeed1111111111111111111111111111');
-  const agentPda = deriveDeterministicAta(ownerAddress, 'AgentProgramSeed1111111111111111111111111111');
+  // Vault PDA & bump
+  const [vaultPda, bump] = PublicKey.findProgramAddressSync(
+    [Buffer.from('vault'), ownerPubkey.toBuffer()],
+    progPubkey
+  );
+
+  // Policy PDA: seeds = [b"policy", owner]
+  const [policyPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from('policy'), ownerPubkey.toBuffer()],
+    progPubkey
+  );
+
+  // Agent PDA: seeds = [b"agent", owner, b"sentinel-robo-01"]
+  const [agentPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from('agent'), ownerPubkey.toBuffer(), Buffer.from('sentinel-robo-01')],
+    progPubkey
+  );
 
   const trackedMints = [
     ASSET_REGISTRY.USDC.mint,
@@ -368,11 +422,11 @@ export function getSentinelPdaConfig(ownerAddress: string): SentinelPdaConfig {
   ];
 
   return {
-    pdaAddress,
+    pdaAddress: vaultPda.toBase58(),
     bump,
     owner: ownerAddress,
-    policyPda,
-    agentPda,
+    policyPda: policyPda.toBase58(),
+    agentPda: agentPda.toBase58(),
     trackedMints,
     roles: {
       isPolicyAuthority: true,

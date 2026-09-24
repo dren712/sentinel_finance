@@ -4,8 +4,10 @@ import { SentinelClient } from '../src/client';
 import { AgentSignerWallet } from '../src/agent-wallet';
 import { MeteoraDBCMarketQualityVerifier } from '../src/sponsors/meteora';
 import { LiveExecutionAdapter } from '../src/adapters/execution-adapter';
-import { PublicKey, Keypair, SystemProgram } from '@solana/web3.js';
+import { WalletSigner } from '../src/types';
+import { PublicKey, Keypair, SystemProgram, Transaction } from '@solana/web3.js';
 import { BN } from '@coral-xyz/anchor';
+import { SentinelAuthorizationTicket, hashTradeIntent } from '@sentinel/domain';
 
 describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
   const client = new SentinelClient();
@@ -185,6 +187,85 @@ describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
       assert.strictEqual(executeIx.keys.length, 5);
       // Anchor discriminator for execute_guarded_trade: [173, 223, 79, 146, 151, 58, 98, 99]
       assert.deepStrictEqual(Array.from(executeIx.data.subarray(0, 8)), [173, 223, 79, 146, 151, 58, 98, 99]);
+    });
+
+    it('executes real browser wallet flow with signTransaction and returns cluster Explorer link', async () => {
+      const mockKeypair = Keypair.generate();
+      let signedCount = 0;
+      let sentRawCount = 0;
+      let confirmedCount = 0;
+
+      const mockWalletSigner: WalletSigner = {
+        publicKey: mockKeypair.publicKey,
+        signTransaction: async (tx: Transaction) => {
+          signedCount++;
+          tx.partialSign(mockKeypair);
+          return tx;
+        },
+      };
+
+      const adapter = new LiveExecutionAdapter(
+        'https://api.devnet.solana.com',
+        mockWalletSigner,
+        '3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK',
+        'devnet'
+      );
+
+      assert.strictEqual(adapter.venueType, 'SOLANA');
+      assert.strictEqual(adapter.venueName, 'Solana Devnet');
+      assert.strictEqual(adapter.cluster, 'devnet');
+
+      // Mock connection methods to verify browser wallet execution without real network call
+      const conn = adapter.getConnection();
+      conn.getLatestBlockhash = async () => ({
+        blockhash: Keypair.generate().publicKey.toBase58(),
+        lastValidBlockHeight: 1234567,
+      });
+      conn.getAccountInfo = async () => null;
+      conn.sendRawTransaction = async (_rawTx: Buffer | Uint8Array) => {
+        sentRawCount++;
+        return '5abc111111111111111111111111111111111111111111111111111111111111111111111111111111111111';
+      };
+      conn.confirmTransaction = async () => {
+        confirmedCount++;
+        return { context: { slot: 100 }, value: { err: null } } as any;
+      };
+
+      const intent = client.getAgent().proposeIntent({
+        assetSymbol: 'NVDAx',
+        assetMint: 'NVDA111111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 5000,
+        referencePriceUsd: 120,
+        strategyRationale: 'Browser wallet live execution test',
+      });
+
+      const authorization: SentinelAuthorizationTicket = {
+        ticketId: 'ticket-browser-wallet',
+        promiseId: 'promise_test',
+        agentId: 'sentinel-robo-01',
+        intentHash: hashTradeIntent(intent),
+        policyHash: 'hash_policy',
+        preStateHash: 'hash_prestate',
+        authorizedAt: Date.now() - 100,
+        expiresAt: Date.now() + 60_000,
+        authorizedAmountUsd: 5000,
+        authorizedDirection: 'BUY',
+        targetAssetSymbol: 'NVDAx',
+        maxSlippageBps: 100,
+      };
+
+      const preState = client.createDefaultPortfolio();
+      const result = await adapter.executeTrade(intent, preState, authorization);
+
+      assert.strictEqual(result.success, true);
+      assert.strictEqual(signedCount, 1, 'wallet.signTransaction must be called');
+      assert.strictEqual(sentRawCount, 1, 'connection.sendRawTransaction must be called');
+      assert.strictEqual(confirmedCount, 1, 'connection.confirmTransaction must be called');
+      assert.strictEqual(result.venueType, 'SOLANA');
+      assert.strictEqual(result.cluster, 'devnet');
+      assert.ok(result.explorerUrl?.includes('cluster=devnet'));
+      assert.ok(result.explorerUrl?.includes('explorer.solana.com/tx/'));
     });
   });
 

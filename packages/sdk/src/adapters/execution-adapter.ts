@@ -10,6 +10,7 @@ import {
   ExecutionVenueType,
   SecurityViolationError,
   WalletSigner,
+  SolanaCluster,
 } from '../types';
 import {
   Connection,
@@ -33,18 +34,23 @@ export { PreStocksExecutionAdapter, PRESTOCKS_SECONDARY_POOLS } from './prestock
  * and strictly verifies Sentinel authorization tickets before on-chain execution.
  */
 export class LiveExecutionAdapter implements ExecutionAdapter {
-  public readonly venueType: ExecutionVenueType = 'SOLANA_MAINNET';
-  public readonly venueName: string = 'Solana On-Chain Anchor Program';
+  public readonly venueType: ExecutionVenueType = 'SOLANA';
+  public readonly venueName: string;
+  public readonly cluster: SolanaCluster;
   private connection: Connection;
   public readonly programId: PublicKey;
   private signer?: Keypair | WalletSigner;
 
   constructor(
-    rpcEndpoint: string = 'http://127.0.0.1:8899',
-    signer?: Keypair | WalletSigner
+    rpcEndpoint: string = 'https://api.devnet.solana.com',
+    signer?: Keypair | WalletSigner,
+    programId: string = '3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK',
+    cluster: SolanaCluster = 'devnet'
   ) {
+    this.cluster = cluster;
+    this.venueName = cluster === 'mainnet' ? 'Solana Mainnet' : 'Solana Devnet';
     this.connection = new Connection(rpcEndpoint, 'confirmed');
-    this.programId = new PublicKey('3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK');
+    this.programId = new PublicKey(programId);
     this.signer = signer;
   }
 
@@ -229,15 +235,39 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
           tx,
           [this.signer]
         );
+      } else if (this.signer.signTransaction) {
+        // Preferred browser wallet pipeline: signTransaction -> sendRawTransaction -> confirmTransaction -> Explorer
+        const signedTx = await this.signer.signTransaction(tx);
+        txSignature = await this.connection.sendRawTransaction(signedTx.serialize(), {
+          skipPreflight: false,
+          preflightCommitment: 'confirmed',
+        });
+        const latestBlockhash = await this.connection.getLatestBlockhash('confirmed');
+        await this.connection.confirmTransaction(
+          {
+            signature: txSignature,
+            blockhash: latestBlockhash.blockhash,
+            lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+          },
+          'confirmed'
+        );
       } else if (this.signer.sendTransaction) {
         txSignature = await this.signer.sendTransaction(tx, this.connection);
-      } else if (this.signer.signTransaction) {
-        const signedTx = await this.signer.signTransaction(tx);
-        txSignature = await this.connection.sendRawTransaction(signedTx.serialize());
-        await this.connection.confirmTransaction(txSignature, 'confirmed');
+        const latestBlockhash = await this.connection.getLatestBlockhash('confirmed');
+        await this.connection.confirmTransaction(
+          {
+            signature: txSignature,
+            blockhash: latestBlockhash.blockhash,
+            lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+          },
+          'confirmed'
+        );
       } else {
         throw new Error('Signer cannot sign or send transaction');
       }
+
+      const clusterParam = this.cluster === 'mainnet' ? '' : `?cluster=${this.cluster}`;
+      const explorerUrl = `https://explorer.solana.com/tx/${txSignature}${clusterParam}`;
 
       const route = isBuy
         ? `USDC ATA ➔ Sentinel Program ➔ ${intent.assetSymbol} ATA`
@@ -255,6 +285,8 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
         timestamp: Date.now(),
         venueType: this.venueType,
         venueName: this.venueName,
+        cluster: this.cluster,
+        explorerUrl,
         poolAddress: vaultPda.toBase58(),
         route,
         executionDurationMs: Math.max(1, Date.now() - startTime),

@@ -12,10 +12,13 @@ import {
   SentinelRejectionMode,
 } from '@sentinel/domain';
 
+export type SolanaCluster = 'devnet' | 'mainnet' | 'localnet';
+
 export type ExecutionVenueType =
   | 'METEORA_DBC'
   | 'PRESTOCKS_SECONDARY'
   | 'DEMO_SIMULATION'
+  | 'SOLANA'
   | 'SOLANA_MAINNET';
 
 export class SecurityViolationError extends Error {
@@ -43,6 +46,8 @@ export interface ExecutionResult {
   timestamp: number;
   venueType: ExecutionVenueType;
   venueName: string;
+  cluster?: SolanaCluster;
+  explorerUrl?: string;
   poolAddress: string;
   route: string;
   executionDurationMs: number;
@@ -53,6 +58,7 @@ export interface ExecutionResult {
 export interface ExecutionAdapter {
   readonly venueType: ExecutionVenueType;
   readonly venueName: string;
+  readonly cluster?: SolanaCluster;
   getMode(): 'LIVE' | 'SIMULATION';
   executeTrade(
     intent: TradeIntent,
