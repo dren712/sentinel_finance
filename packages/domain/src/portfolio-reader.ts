@@ -253,8 +253,9 @@ export function projectPortfolioFromHoldings(params: {
   holdings: TokenHolding[];
   marketPrices: Record<string, NormalizedMarketPrice>;
   portfolioId?: string;
+  source?: 'ON_CHAIN_PROJECTION' | 'SIMULATED_PROJECTION';
 }): PortfolioProjectionResult {
-  const { walletAddress, holdings, marketPrices, portfolioId = 'portfolio_main_sentinel' } = params;
+  const { walletAddress, holdings, marketPrices, portfolioId = 'portfolio_main_sentinel', source = 'SIMULATED_PROJECTION' } = params;
   const sentinelPda = params.sentinelPda ?? deriveSentinelPda(walletAddress);
 
   // 1. Calculate USD position values from holdings and Pyth prices
@@ -321,7 +322,7 @@ export function projectPortfolioFromHoldings(params: {
     assets: positions,
     timestamp: Date.now(),
     projectionTimestamp: Date.now(),
-    source: 'ON_CHAIN_PROJECTION',
+    source,
   };
 
   // 4. Compute deterministic projection state hash

@@ -344,6 +344,24 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               Sentinel Robo active
             </span>
+            <span>·</span>
+            {portfolio.source === 'ON_CHAIN_PROJECTION' ? (
+              <span
+                title="Authoritatively projected from live on-chain SPL Token accounts via Solana RPC"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono"
+              >
+                <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                ON-CHAIN PROJECTION
+              </span>
+            ) : (
+              <span
+                title="Simulated projection: balances generated for mathematical demonstration"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-500/10 border border-amber-500/30 text-amber-400 font-mono"
+              >
+                <Sliders className="w-3 h-3 text-amber-400" />
+                SIMULATED PROJECTION
+              </span>
+            )}
           </div>
         </div>
 

@@ -53,6 +53,7 @@ import {
 import { AutonomousRoboAgent } from './agent-simulator';
 import { MeteoraDBCMarketQualityVerifier } from './sponsors/meteora';
 import { PortfolioIndexer, deriveSplAta } from './portfolio-indexer';
+import { Connection } from '@solana/web3.js';
 
 export interface SentinelClientConfig {
   adapter?: ExecutionAdapter;
@@ -112,6 +113,18 @@ export class SentinelClient {
 
   getAdapter(): ExecutionAdapter {
     return this.adapter;
+  }
+
+  setConnection(connection: Connection): void {
+    this.indexer.setConnection(connection);
+  }
+
+  setPythMode(mode: 'LIVE' | 'BENCHMARK'): void {
+    this.pythAdapter.setMode(mode);
+  }
+
+  getPythMode(): 'LIVE' | 'BENCHMARK' {
+    return this.pythAdapter.getMode();
   }
 
   setExecutionVenue(venueType: ExecutionVenueType): void {
@@ -196,7 +209,7 @@ export class SentinelClient {
       stablecoinExposureBps: 2500,
       timestamp: Date.now(),
       projectionTimestamp: Date.now(),
-      source: 'ON_CHAIN_PROJECTION',
+      source: 'SIMULATED_PROJECTION',
       assets: [
         {
           symbol: 'AAPLx',
@@ -364,7 +377,7 @@ export class SentinelClient {
       stablecoinExposureBps: normalized.stablecoinExposureBps,
       timestamp: Date.now(),
       projectionTimestamp: Date.now(),
-      source: 'ON_CHAIN_PROJECTION',
+      source: 'SIMULATED_PROJECTION',
       assets: normalized.assets.map(a => ({
         ...a,
         ata: deriveSplAta(owner, a.mint),
@@ -399,6 +412,17 @@ export class SentinelClient {
   ): Promise<PortfolioProjectionResult> {
     const prices = await this.getMarketPrices();
     return this.indexer.indexPortfolio(walletAddress, prices);
+  }
+
+  /**
+   * Production path: Connected wallet -> Token accounts -> actual mint balances -> verified asset registry -> Pyth prices -> portfolio snapshot.
+   * If token accounts were read live from Solana, the portfolio is authoritatively labeled ON_CHAIN_PROJECTION.
+   */
+  async fetchLiveOnChainPortfolio(
+    walletAddress: string = 'GR9CtiUswZtay68U2fGqcDeB1dg8sHtpVi9kk2nCEwzw'
+  ): Promise<PortfolioSnapshot> {
+    const projection = await this.indexWalletPortfolio(walletAddress);
+    return projection.normalizedPortfolio;
   }
 
   getSentinelPdaConfig(

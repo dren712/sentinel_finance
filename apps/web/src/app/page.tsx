@@ -56,17 +56,38 @@ export default function Home() {
   const [walletBalanceSol, setWalletBalanceSol] = useState<number | null>(null);
   const [selectedHeroScenario, setSelectedHeroScenario] = useState<DemoScenarioKey>('FLAGSHIP');
 
-  // Sync connected wallet with portfolio owner, bind signer, and fetch Devnet balance
+  // Sync connected wallet with portfolio owner, bind signer, index live on-chain token accounts, and fetch Devnet balance
   useEffect(() => {
     if (connected && publicKey) {
       connection.getBalance(publicKey).then((lamports) => {
         setWalletBalanceSol(lamports / 1e9);
       }).catch(console.error);
 
-      setPortfolio(prev => ({
-        ...prev,
-        owner: publicKey.toBase58(),
-      }));
+      // Bind connection to client indexer
+      client.setConnection(connection);
+
+      // Attempt to read live on-chain token accounts from Solana RPC
+      client.fetchLiveOnChainPortfolio(publicKey.toBase58()).then((livePort) => {
+        if (livePort.assets.length > 0 && livePort.source === 'ON_CHAIN_PROJECTION') {
+          setPortfolio(livePort);
+        } else {
+          // If no token accounts yet on Devnet, maintain demo assets but update owner
+          setPortfolio(prev => ({
+            ...prev,
+            owner: publicKey.toBase58(),
+            walletAddress: publicKey.toBase58(),
+            source: 'SIMULATED_PROJECTION',
+          }));
+        }
+      }).catch((err) => {
+        console.warn('Could not read on-chain token accounts, falling back to simulated:', err);
+        setPortfolio(prev => ({
+          ...prev,
+          owner: publicKey.toBase58(),
+          walletAddress: publicKey.toBase58(),
+          source: 'SIMULATED_PROJECTION',
+        }));
+      });
 
       if (mode === 'LIVE') {
         client.setWalletSigner({
@@ -74,6 +95,9 @@ export default function Home() {
           signTransaction,
           sendTransaction,
         });
+        client.setPythMode('LIVE');
+      } else {
+        client.setPythMode('BENCHMARK');
       }
     } else {
       setWalletBalanceSol(null);
@@ -116,6 +140,7 @@ export default function Home() {
   const handleToggleMode = () => {
     const nextMode = mode === 'SIMULATION' ? 'LIVE' : 'SIMULATION';
     setMode(nextMode);
+    client.setPythMode(nextMode === 'LIVE' ? 'LIVE' : 'BENCHMARK');
     if (nextMode === 'LIVE') {
       if (connected && publicKey) {
         client.setWalletSigner({

@@ -614,7 +614,17 @@ describe('Sentinel Domain & Policy Engine Unit Tests', () => {
 
       assert.strictEqual(projection.walletAddress, owner);
       assert.ok(projection.sentinelPda.length >= 32);
-      assert.strictEqual(projection.normalizedPortfolio.source, 'ON_CHAIN_PROJECTION');
+      assert.strictEqual(projection.normalizedPortfolio.source, 'SIMULATED_PROJECTION');
+
+      // Live on-chain read explicitly marks ON_CHAIN_PROJECTION
+      const liveProjection = projectPortfolioFromHoldings({
+        walletAddress: owner,
+        holdings,
+        marketPrices: prices,
+        source: 'ON_CHAIN_PROJECTION',
+      });
+      assert.strictEqual(liveProjection.normalizedPortfolio.source, 'ON_CHAIN_PROJECTION');
+
       assert.strictEqual(projection.normalizedPortfolio.assets.length, 4);
       assert.strictEqual(projection.normalizedPortfolio.totalValueUsd, 100000);
       assert.strictEqual(projection.normalizedPortfolio.stablecoinValueUsd, 25000);

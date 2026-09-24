@@ -6,7 +6,13 @@
 
 import { ASSET_REGISTRY } from './asset-registry';
 import { NormalizedMarketPrice, PriceStatus, MarketStatus } from './types';
-import { calculateTrackingErrorBps, PYTH_FEED_IDS } from './price-provider';
+import {
+  calculateTrackingErrorBps,
+  PYTH_FEED_IDS,
+  PythLivePriceProvider,
+  PythBenchmarkPriceProvider,
+  PriceProvider,
+} from './price-provider';
 
 export interface FeedMetadata {
   tokenizedFeedId: string;
@@ -123,11 +129,36 @@ export class PythPriceAdapter {
   private customUnderlyingPrices: Record<string, number> = {};
   private customConfidences: Record<string, number> = {};
   private simulatedPublishTimes: Record<string, number> = {};
+  private mode: 'LIVE' | 'BENCHMARK' = 'BENCHMARK';
+  private liveProvider?: PythLivePriceProvider;
+  private benchmarkProvider: PythBenchmarkPriceProvider;
 
-  constructor(initialPrices?: Record<string, number>) {
+  constructor(initialPrices?: Record<string, number>, liveProvider?: PythLivePriceProvider) {
     if (initialPrices) {
       this.customPrices = { ...initialPrices };
     }
+    this.benchmarkProvider = new PythBenchmarkPriceProvider(this.customPrices);
+    this.liveProvider = liveProvider ?? new PythLivePriceProvider({ fallbackProvider: this.benchmarkProvider });
+  }
+
+  setMode(mode: 'LIVE' | 'BENCHMARK'): void {
+    this.mode = mode;
+  }
+
+  getMode(): 'LIVE' | 'BENCHMARK' {
+    return this.mode;
+  }
+
+  setLiveProvider(provider: PythLivePriceProvider): void {
+    this.liveProvider = provider;
+  }
+
+  getLiveProvider(): PythLivePriceProvider | undefined {
+    return this.liveProvider;
+  }
+
+  getBenchmarkProvider(): PythBenchmarkPriceProvider {
+    return this.benchmarkProvider;
   }
 
   /**
@@ -147,6 +178,7 @@ export class PythPriceAdapter {
       this.customConfidences[symbol] = confidenceUsd;
     }
     this.simulatedPublishTimes[symbol] = Date.now();
+    this.benchmarkProvider.setPrice(symbol, priceUsd, underlyingPriceUsd, confidenceUsd);
   }
 
   /**
@@ -157,10 +189,11 @@ export class PythPriceAdapter {
     this.customUnderlyingPrices = {};
     this.customConfidences = {};
     this.simulatedPublishTimes = {};
+    this.benchmarkProvider = new PythBenchmarkPriceProvider();
   }
 
   /**
-   * Retrieves NormalizedMarketPrice with Pyth provenance synchronously
+   * Retrieves NormalizedMarketPrice with Pyth provenance synchronously (Benchmark simulation)
    */
   getNormalizedMarketPriceSync(symbol: string): NormalizedMarketPrice {
     const meta = PYTH_METADATA_REGISTRY[symbol];
@@ -176,6 +209,7 @@ export class PythPriceAdapter {
 
     const publishTime = this.simulatedPublishTimes[symbol] ?? Date.now();
     const publishTimeFormatted = formatPublishTimeUtc(publishTime);
+    const ageSeconds = Math.max(0, Math.floor((Date.now() - publishTime) / 1000));
 
     const confidenceMinUsd = Math.round((priceUsd - confidenceUsd) * 100) / 100;
     const confidenceMaxUsd = Math.round((priceUsd + confidenceUsd) * 100) / 100;
@@ -195,6 +229,8 @@ export class PythPriceAdapter {
       feedDisplayId: meta?.tokenizedDisplayId ?? `Crypto.${symbol.toUpperCase()}/USD`,
       source: 'Pyth Network',
       status: 'LIVE',
+      isSimulation: true,
+      ageSeconds,
       underlyingSymbol: meta?.underlyingSymbol ?? assetMeta?.underlyingAsset,
       underlyingFeedId: meta?.underlyingDisplayId ?? meta?.underlyingFeedId,
       underlyingPriceUsd,
@@ -219,9 +255,49 @@ export class PythPriceAdapter {
   }
 
   /**
-   * Retrieves NormalizedMarketPrice with Pyth provenance
+   * Retrieves NormalizedMarketPrice with Pyth provenance (Live Hermes if mode is LIVE, otherwise Benchmark)
    */
   async getNormalizedMarketPrice(symbol: string): Promise<NormalizedMarketPrice> {
+    if (this.mode === 'LIVE' && this.liveProvider) {
+      try {
+        const livePrice = await this.liveProvider.getPrice(symbol);
+        const meta = PYTH_METADATA_REGISTRY[symbol];
+        const assetMeta = ASSET_REGISTRY[symbol];
+        const deviationPct = Math.round(((livePrice.trackingErrorBps ?? 0) / 100) * 100) / 100;
+        const confidenceRatioBps = livePrice.priceUsd > 0
+          ? Math.round(((livePrice.confidence ?? 0.05) * 10_000) / livePrice.priceUsd)
+          : 0;
+        const now = Date.now();
+        const ageSeconds = Math.max(0, Math.floor((now - livePrice.timestamp) / 1000));
+
+        return {
+          symbol,
+          assetId: assetMeta?.id ?? symbol.toLowerCase(),
+          priceUsd: livePrice.priceUsd,
+          confidenceUsd: livePrice.confidence ?? 0.05,
+          confidenceMinUsd: Math.round((livePrice.priceUsd - (livePrice.confidence ?? 0.05)) * 100) / 100,
+          confidenceMaxUsd: Math.round((livePrice.priceUsd + (livePrice.confidence ?? 0.05)) * 100) / 100,
+          confidenceRatioBps,
+          publishTime: livePrice.timestamp,
+          publishTimeFormatted: formatPublishTimeUtc(livePrice.timestamp),
+          exponent: livePrice.exponent ?? -8,
+          feedId: meta?.tokenizedFeedId ?? PYTH_FEED_IDS[symbol]?.tokenizedFeedId ?? '0x0000000000000000000000000000000000000000000000000000000000000000',
+          feedDisplayId: meta?.tokenizedDisplayId ?? `Crypto.${symbol.toUpperCase()}/USD`,
+          source: 'Pyth Hermes Live',
+          status: livePrice.status,
+          isSimulation: false,
+          ageSeconds,
+          underlyingSymbol: meta?.underlyingSymbol ?? assetMeta?.underlyingAsset,
+          underlyingFeedId: meta?.underlyingDisplayId ?? meta?.underlyingFeedId,
+          underlyingPriceUsd: livePrice.underlyingPrice ?? livePrice.priceUsd,
+          trackingErrorBps: livePrice.trackingErrorBps ?? 0,
+          deviationPct,
+          marketStatus: livePrice.marketStatus ?? 'MARKET_OPEN',
+        };
+      } catch {
+        return this.getNormalizedMarketPriceSync(symbol);
+      }
+    }
     return this.getNormalizedMarketPriceSync(symbol);
   }
 
@@ -229,7 +305,14 @@ export class PythPriceAdapter {
    * Retrieves all normalized market prices across the entire asset universe
    */
   async getAllNormalizedMarketPrices(): Promise<Record<string, NormalizedMarketPrice>> {
-    return this.getAllNormalizedMarketPricesSync();
+    const results: Record<string, NormalizedMarketPrice> = {};
+    const symbols = Object.keys(PYTH_METADATA_REGISTRY);
+
+    for (const sym of symbols) {
+      results[sym] = await this.getNormalizedMarketPrice(sym);
+    }
+
+    return results;
   }
 
   /**
@@ -244,6 +327,8 @@ export class PythPriceAdapter {
       publishTime: stalePublishTime,
       publishTimeFormatted: formatPublishTimeUtc(stalePublishTime),
       status: 'STALE',
+      ageSeconds,
+      isSimulation: true,
     };
   }
 

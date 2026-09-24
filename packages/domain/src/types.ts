@@ -63,11 +63,11 @@ export interface AssetVenue {
 // 2. PriceSource (Pyth Network & Oracle Valuation)
 // -----------------------------------------------------------------------------
 
-export type PriceStatus = 'LIVE' | 'STALE' | 'SIMULATED' | 'UNAVAILABLE' | 'TRADING_HALTED';
+export type PriceStatus = 'LIVE' | 'STALE' | 'SIMULATED' | 'WIDE_SPREAD' | 'UNAVAILABLE' | 'TRADING_HALTED';
 export type MarketStatus = 'MARKET_OPEN' | 'MARKET_CLOSED' | 'EXTENDED_HOURS';
 
 export interface PriceSource {
-  source: 'PYTH_PRICE_FEED' | 'PYTH_BENCHMARK' | 'METEORA_DBC' | 'SIMULATED_ORACLE';
+  source: 'PYTH_PRICE_FEED' | 'PYTH_HERMES_LIVE' | 'PYTH_BENCHMARK' | 'METEORA_DBC' | 'SIMULATED_ORACLE';
   feedId: string;
   symbol: string;
   price: number;
@@ -75,6 +75,8 @@ export interface PriceSource {
   publishTime: number;
   exponent: number;
   status: PriceStatus;
+  isSimulation?: boolean;
+  ageSeconds?: number;
   underlyingAsset?: string;
   underlyingPrice?: number;
   trackingErrorBps?: number;
@@ -94,8 +96,10 @@ export interface NormalizedMarketPrice {
   exponent: number;
   feedId: string;
   feedDisplayId: string;
-  source: 'Pyth Network' | 'Pyth Hermes Live' | 'Pyth Benchmark';
+  source: 'Pyth Network' | 'Pyth Hermes Live' | 'Pyth Benchmark' | string;
   status: PriceStatus;
+  isSimulation?: boolean;
+  ageSeconds?: number;
 
   // Underlying equity basis comparison (Pyth dual-feed)
   underlyingSymbol?: string;

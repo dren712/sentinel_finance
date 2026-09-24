@@ -75,8 +75,9 @@ export class PortfolioIndexer {
   /**
    * Reads token holdings for a wallet: attempts live Solana RPC read,
    * falling back to the deterministic local holding store if RPC is unavailable or in sandbox.
+   * Returns whether the holdings were actually fetched live from Solana on-chain.
    */
-  async fetchWalletTokenHoldings(walletAddress: string): Promise<TokenHolding[]> {
+  async fetchWalletTokenHoldingsWithStatus(walletAddress: string): Promise<{ holdings: TokenHolding[]; isLiveOnChain: boolean }> {
     const localStore = this.getOrCreateWalletStore(walletAddress);
 
     if (this.connection) {
@@ -115,25 +116,31 @@ export class PortfolioIndexer {
             liveHoldings.push(holding);
             localStore.set(symbol, holding);
           }
-          return liveHoldings;
+          return { holdings: liveHoldings, isLiveOnChain: true };
         }
       } catch (err) {
         // Fallback to local deterministic store
       }
     }
 
-    return Array.from(localStore.values());
+    return { holdings: Array.from(localStore.values()), isLiveOnChain: false };
+  }
+
+  async fetchWalletTokenHoldings(walletAddress: string): Promise<TokenHolding[]> {
+    const { holdings } = await this.fetchWalletTokenHoldingsWithStatus(walletAddress);
+    return holdings;
   }
 
   /**
-   * Projects a verified normalized portfolio from wallet token holdings + Pyth prices
+   * Projects a verified normalized portfolio from wallet token holdings + Pyth prices.
+   * Authoritatively labels as ON_CHAIN_PROJECTION if read from Solana RPC, otherwise SIMULATED_PROJECTION.
    */
   async indexPortfolio(
     walletAddress: string,
     marketPrices: Record<string, NormalizedMarketPrice> = {},
     sentinelPda?: string
   ): Promise<PortfolioProjectionResult> {
-    const holdings = await this.fetchWalletTokenHoldings(walletAddress);
+    const { holdings, isLiveOnChain } = await this.fetchWalletTokenHoldingsWithStatus(walletAddress);
     const pda = sentinelPda ?? deriveSentinelPda(walletAddress);
 
     return projectPortfolioFromHoldings({
@@ -141,6 +148,7 @@ export class PortfolioIndexer {
       sentinelPda: pda,
       holdings,
       marketPrices,
+      source: isLiveOnChain ? 'ON_CHAIN_PROJECTION' : 'SIMULATED_PROJECTION',
     });
   }
 

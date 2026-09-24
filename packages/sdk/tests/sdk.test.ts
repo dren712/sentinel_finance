@@ -5,7 +5,7 @@ import { AgentSignerWallet } from '../src/agent-wallet';
 import { MeteoraDBCMarketQualityVerifier } from '../src/sponsors/meteora';
 import { LiveExecutionAdapter } from '../src/adapters/execution-adapter';
 import { WalletSigner } from '../src/types';
-import { PublicKey, Keypair, SystemProgram, Transaction } from '@solana/web3.js';
+import { PublicKey, Keypair, SystemProgram, Transaction, Connection } from '@solana/web3.js';
 import { BN } from '@coral-xyz/anchor';
 import { SentinelAuthorizationTicket, hashTradeIntent } from '@sentinel/domain';
 
@@ -375,7 +375,7 @@ describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
 
     it('createDefaultPortfolio populates real Associated Token Accounts (ATAs) and projection hash', () => {
       const defaultPort = p3Client.createDefaultPortfolio(p3Owner);
-      assert.strictEqual(defaultPort.source, 'ON_CHAIN_PROJECTION');
+      assert.strictEqual(defaultPort.source, 'SIMULATED_PROJECTION');
       assert.strictEqual(defaultPort.walletAddress, p3Owner);
       assert.ok(defaultPort.sentinelPda);
       assert.ok(defaultPort.projectionHash);
@@ -716,7 +716,7 @@ describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
       assert.ok(explanation);
       assert.strictEqual(explanation.decision, 'ALLOWED');
       assert.ok(explanation.headline.includes('Sentinel Authorized'));
-      assert.strictEqual(explanation.invariantsEvaluated.length, 6);
+      assert.strictEqual(explanation.invariantsEvaluated.length, 7);
 
       // Invariant 1: Single asset ceiling
       const singleAssetInv = explanation.invariantsEvaluated.find(i => i.name === 'MAX_SINGLE_ASSET');
@@ -916,6 +916,154 @@ describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
       const growth = p6Client.applyRiskProfile(HIGH_ALPHA_GROWTH_POLICY);
       assert.strictEqual(growth.policyId, 'policy_high_alpha_growth');
       assert.strictEqual(growth.maxSingleAssetBps, 3500);
+    });
+  });
+
+  describe('P5 & P6: Real Portfolio State Projection & Pyth Market Truth Separation', () => {
+    const testOwner = 'GR9CtiUswZtay68U2fGqcDeB1dg8sHtpVi9kk2nCEwzw';
+
+    it('P5: createDefaultPortfolio and buildPortfolio strictly set source to SIMULATED_PROJECTION', () => {
+      const pClient = new SentinelClient();
+      const defaultPort = pClient.createDefaultPortfolio(testOwner);
+      assert.strictEqual(defaultPort.source, 'SIMULATED_PROJECTION');
+
+      const customPort = pClient.buildPortfolio({
+        NVDAx: 30000,
+        AAPLx: 30000,
+        USDC: 40000,
+      }, 100000, testOwner);
+      assert.strictEqual(customPort.source, 'SIMULATED_PROJECTION');
+    });
+
+    it('P5: fetchLiveOnChainPortfolio authoritatively returns ON_CHAIN_PROJECTION when reading SPL token accounts from Solana RPC', async () => {
+      const pClient = new SentinelClient();
+
+      // Mock Solana Connection returning genuine parsed token accounts
+      const mockRpcConnection = {
+        getParsedTokenAccountsByOwner: async (_owner: any, _filter: any) => ({
+          value: [
+            {
+              pubkey: new PublicKey('3wQ9cR6v78y6mQvA4G9n7Z1V4x7K2tL9P6pB1v2m3a4b'),
+              account: {
+                data: {
+                  parsed: {
+                    info: {
+                      mint: 'NVDA111111111111111111111111111111111111111',
+                      tokenAmount: {
+                        amount: '150000000',
+                        uiAmount: 150,
+                        decimals: 6,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            {
+              pubkey: new PublicKey('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU'),
+              account: {
+                data: {
+                  parsed: {
+                    info: {
+                      mint: '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
+                      tokenAmount: {
+                        amount: '35000000000',
+                        uiAmount: 35000,
+                        decimals: 6,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        }),
+      } as any as Connection;
+
+      pClient.setConnection(mockRpcConnection);
+      const livePort = await pClient.fetchLiveOnChainPortfolio(testOwner);
+
+      assert.strictEqual(livePort.source, 'ON_CHAIN_PROJECTION');
+      assert.strictEqual(livePort.walletAddress, testOwner);
+      assert.strictEqual(livePort.assets.length, 2);
+
+      const nvda = livePort.assets.find(a => a.symbol === 'NVDAx');
+      assert.ok(nvda);
+      assert.strictEqual(nvda.amount, 150);
+      assert.strictEqual(nvda.rawAmount, '150000000');
+      assert.strictEqual(nvda.decimals, 6);
+
+      const usdc = livePort.assets.find(a => a.symbol === 'USDC');
+      assert.ok(usdc);
+      assert.strictEqual(usdc.amount, 35000);
+      assert.strictEqual(usdc.rawAmount, '35000000000');
+    });
+
+    it('P5: fetchLiveOnChainPortfolio defaults to SIMULATED_PROJECTION when RPC has no token accounts', async () => {
+      const pClient = new SentinelClient();
+      const emptyMockRpc = {
+        getParsedTokenAccountsByOwner: async () => ({ value: [] }),
+      } as any as Connection;
+      pClient.setConnection(emptyMockRpc);
+
+      const port = await pClient.fetchLiveOnChainPortfolio(testOwner);
+      assert.strictEqual(port.source, 'SIMULATED_PROJECTION');
+    });
+
+    it('P6: PythPriceAdapter cleanly separates LIVE vs BENCHMARK modes', async () => {
+      const pClient = new SentinelClient();
+      assert.strictEqual(pClient.getPythMode(), 'BENCHMARK');
+
+      const benchmarkPrice = await pClient.getMarketPrice('NVDAx');
+      assert.strictEqual(benchmarkPrice.isSimulation, true);
+      assert.ok(benchmarkPrice.source.includes('Pyth'));
+
+      pClient.setPythMode('LIVE');
+      assert.strictEqual(pClient.getPythMode(), 'LIVE');
+
+      pClient.setPythMode('BENCHMARK');
+      assert.strictEqual(pClient.getPythMode(), 'BENCHMARK');
+    });
+
+    it('P6: Stale Pyth oracle quote immediately halts execution with ERR_QUOTE_STALE (fail-closed guarantee)', async () => {
+      const pClient = new SentinelClient();
+      const port = pClient.createDefaultPortfolio();
+      const pol = pClient.createDefaultPolicy();
+
+      const stalePrice: any = {
+        symbol: 'NVDAx',
+        feedId: '0x0000000000000000000000000000000000000000000000000000000000000001',
+        sourceName: 'Pyth Network Hermes Live Feed',
+        priceUsd: 120,
+        price: 120,
+        confidenceUsd: 0.1,
+        confidence: 0.1,
+        confidenceBps: 8,
+        publishTime: Math.floor(Date.now() / 1000) - 180, // 3 minutes stale
+        publishTimeUtc: new Date(Date.now() - 180_000).toISOString(),
+        ageSeconds: 180,
+        status: 'STALE',
+        underlyingSymbol: 'NVDA',
+        underlyingPriceUsd: 120,
+        trackingErrorBps: 0,
+        isSimulation: false,
+      };
+
+      const intent = pClient.getAgent().proposeIntent({
+        assetSymbol: 'NVDAx',
+        assetMint: 'NVDA111111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 5000,
+        referencePriceUsd: 120,
+        strategyRationale: 'Compliant sized trade against stale oracle quote',
+      });
+
+      // Trade must be rejected because Pyth quote is stale (> 60s maxQuoteAgeSeconds)
+      const report = await pClient.executeDecisionCycle(port, pol, intent, stalePrice);
+      assert.strictEqual(report.status, 'REJECTED');
+      assert.strictEqual(report.evidenceRecord.verificationResult, 'REJECTED');
+      assert.strictEqual(report.evidenceRecord.failureCode, 'ERR_QUOTE_STALE');
+      assert.ok(report.evidenceRecord.failureReason?.includes('stale'));
     });
   });
 });
