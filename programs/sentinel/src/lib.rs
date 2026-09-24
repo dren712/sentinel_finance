@@ -143,6 +143,42 @@ pub mod sentinel {
         Ok(())
     }
 
+    /// Synchronizes an existing PortfolioVault account with owner-verified positions
+    pub fn sync_vault(
+        ctx: Context<SyncVault>,
+        usdc_balance_cents: u64,
+        positions: Vec<AssetPosition>,
+    ) -> Result<()> {
+        require!(positions.len() <= PortfolioVault::MAX_POSITIONS, SentinelError::InvalidPolicyBounds);
+
+        let vault = &mut ctx.accounts.vault;
+        vault.usdc_balance_cents = usdc_balance_cents;
+        vault.positions = positions;
+
+        let mut total_equity_cents: u64 = 0;
+        for pos in &vault.positions {
+            let pos_val = pos.amount_units
+                .checked_mul(pos.price_cents)
+                .ok_or(SentinelError::MathOverflow)?;
+            total_equity_cents = total_equity_cents
+                .checked_add(pos_val)
+                .ok_or(SentinelError::MathOverflow)?;
+        }
+
+        vault.total_value_cents = usdc_balance_cents
+            .checked_add(total_equity_cents)
+            .ok_or(SentinelError::MathOverflow)?;
+
+        emit!(VaultInitializedEvent {
+            vault: vault.key(),
+            owner: vault.owner,
+            total_value_cents: vault.total_value_cents,
+            usdc_balance_cents,
+        });
+
+        Ok(())
+    }
+
     /// Updates the operational status of an agent (kill-switch for emergency pause)
     pub fn set_agent_active(
         ctx: Context<SetAgentActive>,
@@ -558,6 +594,18 @@ pub struct InitializeVault<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
     pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct SyncVault<'info> {
+    #[account(
+        mut,
+        seeds = [b"vault", owner.key().as_ref()],
+        bump = vault.bump,
+        has_one = owner
+    )]
+    pub vault: Account<'info, PortfolioVault>,
+    pub owner: Signer<'info>,
 }
 
 #[derive(Accounts)]

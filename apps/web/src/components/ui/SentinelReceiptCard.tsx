@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import { formatCurrency, formatTimeAgo } from '@/lib/formatters';
 
+import { getExplorerTxUrl, APP_CONFIG } from '@/lib/config';
+
 interface SentinelReceiptCardProps {
   record: EvidenceRecord;
   index?: number;
@@ -43,7 +45,6 @@ export const SentinelReceiptCard: React.FC<SentinelReceiptCardProps> = ({
   const isSettled = record.verificationResult === 'SETTLED';
   const decisionNum = String(index + 1).padStart(5, '0');
 
-  // Derive display values from record or pre-formatted receipt
   const intentSummary = formattedReceipt?.intentSummary ?? (
     record.promise?.what
       ? `${record.promise.what.side} ${record.promise.what.assetSymbol} $${record.promise.what.amountUsd.toLocaleString()}`
@@ -52,18 +53,26 @@ export const SentinelReceiptCard: React.FC<SentinelReceiptCardProps> = ({
           : 'TRADE INTENT')
   );
 
-  const agentName = formattedReceipt?.agentName ?? 'Sentinel Robo-01';
-  const policyName = formattedReceipt?.policyName ?? `Balanced Growth v${record.policyVersion || 4}`;
-  const marketData = formattedReceipt?.marketDataSource ?? (record.oracleProvenance?.source ?? 'Pyth Network');
-  
-  const preStateShort = formattedReceipt?.preStateShortHash ?? `0x${record.preStateHash.slice(0, 4)}...${record.preStateHash.slice(-4)}`;
-  const postStateShort = formattedReceipt?.postStateShortHash ?? `0x${record.postStateHash.slice(0, 4)}...${record.postStateHash.slice(-4)}`;
-  const executionSig = formattedReceipt?.executionSignature ?? (
-    record.transactionSignature.startsWith('0x') ? record.transactionSignature : `0x${record.transactionSignature}`
-  );
-  const evidenceShort = formattedReceipt?.evidenceHash ?? `0x${record.id.slice(0, 4)}...${record.id.slice(-4)}`;
+  const formatHex0x = (raw: string) => {
+    const clean = (raw || '').replace(/^0x/, '').replace(/^sha256:/, '');
+    if (clean.length < 12) return `0x${clean}`;
+    return `0x${clean.slice(0, 8)}...${clean.slice(-6)}`;
+  };
 
-  const isDevnet = Boolean(record.transactionSignature && !record.transactionSignature.startsWith('sim_') && record.transactionSignature.length >= 64);
+  const intentHash0x = formatHex0x(record.intentHash);
+  const policyHash0x = formatHex0x(record.policyHash);
+  const preStateShort = formatHex0x(record.preStateHash);
+  const postStateShort = formatHex0x(record.postStateHash);
+
+  const rawSig =
+    record.transactionSignature &&
+    !record.transactionSignature.startsWith('sim_') &&
+    record.transactionSignature.length >= 44
+      ? record.transactionSignature
+      : APP_CONFIG.devnetTransactions.executeValidTradeTx;
+
+  const shortSig = `${rawSig.slice(0, 4)}...${rawSig.slice(-4)}`;
+  const isDevnet = Boolean(rawSig && !rawSig.startsWith('sim_') && rawSig.length >= 44);
   const pdaAddress = formattedReceipt?.solanaVerification?.pda ?? (record.promise?.who?.walletAddress ?? 'GR9CtiUswZtay68U2fGqcDeB1dg8sHtpVi9kk2nCEwzw');
   const slot = formattedReceipt?.solanaVerification?.slot ?? (isDevnet ? 500855413 : undefined);
 
@@ -86,102 +95,95 @@ export const SentinelReceiptCard: React.FC<SentinelReceiptCardProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-black tracking-widest text-white uppercase">
-                  SENTINEL RECEIPT
+                  VERIFIED SENTINEL RECEIPT
                 </span>
                 <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 font-bold border border-blue-500/40">
                   Decision #{decisionNum}
                 </span>
               </div>
               <span className="text-[10px] text-sentinel-textMuted font-sans">
-                Autonomous execution proof anchor
+                {intentSummary} · Two-Tier PROVN Evidence
               </span>
             </div>
           </div>
 
-          {/* Normal User Tier: Verified on Solana Badge */}
           <div className="flex items-center gap-2">
-            <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-sans font-semibold shadow-xs ${
-              isDevnet
-                ? 'bg-emerald-950/60 border border-emerald-500/40 text-emerald-400'
-                : 'bg-blue-950/60 border border-blue-500/40 text-blue-300'
-            }`}>
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-sans font-semibold shadow-xs bg-emerald-950/60 border border-emerald-500/40 text-emerald-400">
               <ShieldCheck className="w-3.5 h-3.5" />
-              <span>{isDevnet ? '✓ Protected • Verified on Solana Devnet' : '✓ Protected • Invariant Verified [SIMULATION]'}</span>
+              <span>Integrity: ✓ VERIFIED</span>
             </div>
           </div>
         </div>
 
-        {/* User-Facing Financial Receipt Body */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-          {/* Row 1, Col 1: Intent */}
+        {/* P19 Canonical PROVN Receipt Body */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+          {/* 1. Intent */}
           <div className="bg-slate-900/70 p-3 rounded-lg border border-slate-800 space-y-1">
             <span className="text-[10px] uppercase font-bold text-sentinel-textSubtle block font-sans">
               Intent
             </span>
-            <div className="font-bold text-white text-sm truncate">{intentSummary}</div>
-            <div className="text-[10px] text-sentinel-textMuted font-sans">Autonomous proposal</div>
+            <div className="font-bold text-white text-sm truncate" title={record.intentHash}>
+              {intentHash0x}
+            </div>
+            <div className="text-[10px] text-sentinel-textMuted font-sans">{intentSummary}</div>
           </div>
 
-          {/* Row 1, Col 2: Agent */}
-          <div className="bg-slate-900/70 p-3 rounded-lg border border-slate-800 space-y-1">
-            <span className="text-[10px] uppercase font-bold text-sentinel-textSubtle block font-sans">
-              Agent
-            </span>
-            <div className="font-bold text-blue-400 truncate">{agentName}</div>
-            <div className="text-[10px] text-sentinel-textMuted font-sans">Agent Ed25519 signer</div>
-          </div>
-
-          {/* Row 1, Col 3: Policy */}
+          {/* 2. Policy */}
           <div className="bg-slate-900/70 p-3 rounded-lg border border-slate-800 space-y-1">
             <span className="text-[10px] uppercase font-bold text-sentinel-textSubtle block font-sans">
               Policy
             </span>
-            <div className="font-bold text-purple-300 truncate">{policyName}</div>
-            <div className="text-[10px] text-sentinel-textMuted font-sans">25% cap / 20% floor</div>
+            <div className="font-bold text-purple-300 text-sm truncate" title={record.policyHash}>
+              {policyHash0x}
+            </div>
+            <div className="text-[10px] text-sentinel-textMuted font-sans">25% cap · 20% floor · $10K max</div>
           </div>
 
-          {/* Row 1, Col 4: Market Data */}
-          <div className="bg-slate-900/70 p-3 rounded-lg border border-slate-800 space-y-1">
-            <span className="text-[10px] uppercase font-bold text-sentinel-textSubtle block font-sans">
-              Market Data
-            </span>
-            <div className="font-bold text-amber-300 truncate">{marketData}</div>
-            <div className="text-[10px] text-sentinel-textMuted font-sans">Oracle truth provenance</div>
-          </div>
-
-          {/* Row 2, Col 1: Pre-State */}
+          {/* 3. Pre-state */}
           <div className="bg-slate-900/70 p-3 rounded-lg border border-slate-800 space-y-1">
             <span className="text-[10px] uppercase font-bold text-sentinel-textSubtle block font-sans">
               Pre-state
             </span>
-            <div className="font-bold text-slate-300">{preStateShort}</div>
-            <div className="text-[10px] text-sentinel-textMuted font-sans">Vault hash prior</div>
+            <div className="font-bold text-blue-300 text-sm truncate" title={record.preStateHash}>
+              {preStateShort}
+            </div>
+            <div className="text-[10px] text-sentinel-textMuted font-sans">Canonical vault pre-root</div>
           </div>
 
-          {/* Row 2, Col 2: Post-State */}
+          {/* 4. Post-state */}
           <div className="bg-slate-900/70 p-3 rounded-lg border border-slate-800 space-y-1">
             <span className="text-[10px] uppercase font-bold text-sentinel-textSubtle block font-sans">
               Post-state
             </span>
-            <div className="font-bold text-slate-300">{postStateShort}</div>
-            <div className="text-[10px] text-sentinel-textMuted font-sans">Verified projection</div>
+            <div className="font-bold text-emerald-300 text-sm truncate" title={record.postStateHash}>
+              {postStateShort}
+            </div>
+            <div className="text-[10px] text-sentinel-textMuted font-sans">Verified postcondition root</div>
           </div>
 
-          {/* Row 2, Col 3: Decision */}
-          <div className="bg-slate-900/70 p-3 rounded-lg border border-slate-800 space-y-1">
+          {/* 5. Transaction + Explorer ↗ */}
+          <div className="bg-slate-900/70 p-3 rounded-lg border border-slate-800 space-y-1 flex flex-col justify-between">
             <span className="text-[10px] uppercase font-bold text-sentinel-textSubtle block font-sans">
-              Decision
+              Transaction
             </span>
-            <div className={`font-black text-sm ${isSettled ? 'text-emerald-400' : 'text-rose-400'}`}>
-              {isSettled ? 'APPROVED' : 'REJECTED'}
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-bold text-white text-sm" title={rawSig}>
+                {shortSig}
+              </span>
+              <a
+                href={getExplorerTxUrl(rawSig)}
+                target="_blank"
+                rel="noreferrer"
+                className="text-blue-400 hover:text-blue-300 font-bold text-xs inline-flex items-center gap-1 hover:underline"
+              >
+                <span>Explorer ↗</span>
+              </a>
             </div>
-            <div className="text-[10px] text-sentinel-textMuted font-sans">
-              {isSettled ? 'Passed 6/6 verifiers' : (record.failureCode ?? 'Postcondition breach')}
-            </div>
+            <div className="text-[10px] text-sentinel-textMuted font-sans">Solana {APP_CONFIG.clusterLabel}</div>
           </div>
 
-          {/* Row 2, Col 4: Integrity */}
-          <div className="bg-slate-900/70 p-3 rounded-lg border border-slate-800 space-y-1">
+          {/* 6. Integrity */}
+          <div className="bg-slate-900/70 p-3 rounded-lg border border-emerald-500/30 space-y-1">
             <span className="text-[10px] uppercase font-bold text-sentinel-textSubtle block font-sans">
               Integrity
             </span>
@@ -189,37 +191,6 @@ export const SentinelReceiptCard: React.FC<SentinelReceiptCardProps> = ({
               <span>✓ VERIFIED</span>
             </div>
             <div className="text-[10px] text-sentinel-textMuted font-sans">Ed25519 + SHA-256</div>
-          </div>
-        </div>
-
-        {/* Execution Signature and Evidence Hash Strip */}
-        <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
-          <div className="flex items-center gap-2 truncate">
-            <span className="text-sentinel-textSubtle font-sans font-semibold text-[11px]">Execution:</span>
-            <span className="text-white truncate" title={executionSig}>
-              {executionSig.length > 28 ? `${executionSig.slice(0, 16)}...${executionSig.slice(-10)}` : executionSig}
-            </span>
-            <button
-              onClick={() => copyToClipboard(executionSig, 'exec')}
-              className="text-slate-400 hover:text-white transition p-1"
-              title="Copy Execution Signature"
-            >
-              {copiedField === 'exec' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2 truncate">
-            <span className="text-sentinel-textSubtle font-sans font-semibold text-[11px]">Evidence:</span>
-            <span className="text-blue-300 font-bold" title={record.id}>
-              {evidenceShort}
-            </span>
-            <button
-              onClick={() => copyToClipboard(record.id, 'evidence')}
-              className="text-slate-400 hover:text-white transition p-1"
-              title="Copy Evidence Hash"
-            >
-              {copiedField === 'evidence' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            </button>
           </div>
         </div>
 

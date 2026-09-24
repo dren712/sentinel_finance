@@ -16,14 +16,16 @@ import {
   TrendingDown,
   TrendingUp,
 } from 'lucide-react';
-import { PortfolioSnapshot, FinancialPolicy } from '@sentinel/domain';
+import { PortfolioSnapshot, FinancialPolicy, EvidenceRecord } from '@sentinel/domain';
 import { formatCurrency, formatPercent } from '@/lib/formatters';
+import { FlagshipEnforcementCard } from './ui/FlagshipEnforcementCard';
 
 export type DemoScenarioKey = 'FLAGSHIP' | 'PRESTOCKS' | 'METEORA' | 'PYTH';
 
 interface HeroStoryCenterpieceProps {
   portfolio: PortfolioSnapshot;
   policy: FinancialPolicy;
+  latestEvidence?: EvidenceRecord | null;
   onRunAdaptation?: () => void;
   isRunningAdaptation?: boolean;
   onNavigateToDecisions?: () => void;
@@ -37,6 +39,7 @@ interface HeroStoryCenterpieceProps {
 export const HeroStoryCenterpiece: React.FC<HeroStoryCenterpieceProps> = ({
   portfolio,
   policy,
+  latestEvidence,
   onRunAdaptation,
   isRunningAdaptation = false,
   onNavigateToDecisions,
@@ -199,7 +202,15 @@ export const HeroStoryCenterpiece: React.FC<HeroStoryCenterpieceProps> = ({
 
       {/* SCENARIO 1: FLAGSHIP (NVDAx $15K -> 3 FAILURES -> $5K -> APPROVED) */}
       {activeScenario === 'FLAGSHIP' && (
-        <div className="mt-5 space-y-4 relative z-10">
+        <div className="mt-5 space-y-5 relative z-10">
+          {/* P18 + P19: THE IMMACULATE SINGLE SCREEN + VERIFIED SENTINEL RECEIPT */}
+          <FlagshipEnforcementCard
+            latestEvidence={latestEvidence}
+            onRunAdaptation={onRunAdaptation}
+            isRunningAdaptation={isRunningAdaptation}
+            onViewFullReceipt={onNavigateToDecisions}
+          />
+
           {/* STEP A: PROPOSED VS SENTINEL BLOCKED */}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4 items-stretch">
             {/* 1. PROPOSED CARD */}

@@ -34,6 +34,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { Badge } from './ui/Badge';
+import { FlagshipEnforcementCard } from './ui/FlagshipEnforcementCard';
 import { formatCurrency, formatPercent, formatAddress } from '@/lib/formatters';
 import { getExplorerAddressUrl } from '@/lib/config';
 
@@ -520,57 +521,13 @@ export const AgentView: React.FC<AgentViewProps> = ({
           )}
         </div>
 
-        {/* Current Decision & WHY Display */}
-        <div className="p-5 sm:p-6 space-y-4">
-          <div>
-            <span className="text-[10px] uppercase font-bold text-sentinel-textSubtle tracking-widest block font-mono">
-              CURRENT DECISION
-            </span>
-            <div className="text-2xl sm:text-3xl font-black text-white mt-1 tracking-tight font-mono">
-              BUY {loopState?.targetAssetSymbol ?? 'NVDAx'}{' '}
-              <span className="text-blue-400">
-                ${(loopState?.adaptedProposedAmountUsd ?? 5000).toLocaleString()}
-              </span>
-            </div>
-          </div>
-
-          {/* WHY NARRATIVE BLOCK */}
-          <div className="bg-slate-900/70 rounded-xl border border-slate-800 p-4 sm:p-5 space-y-3 font-sans text-xs">
-            <span className="text-[10px] uppercase font-bold text-sentinel-textSubtle tracking-widest block font-mono">
-              WHY
-            </span>
-
-            <p className="text-white">
-              Agent initially proposed <span className="font-bold text-rose-300">$15,000</span>.
-            </p>
-
-            <div className="space-y-1 text-rose-300">
-              <p className="font-semibold">Sentinel rejected it because:</p>
-              <div className="space-y-1 pl-2 font-mono text-[11px]">
-                <div className="flex items-center gap-2">
-                  <XCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                  <span>NVDA exposure: 35.0% → limit 25.0%</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <XCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                  <span>Reserve: 10.0% → minimum 20.0%</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <XCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                  <span>Trade size: $15,000 → limit $10,000</span>
-                </div>
-              </div>
-            </div>
-
-            <p className="text-blue-200">
-              The agent recalculated the maximum compliant allocation and proposed <span className="font-bold text-white">$5,000</span>.
-            </p>
-
-            <div className="flex items-center gap-2 pt-1 text-emerald-400 font-mono font-bold text-xs">
-              <ShieldCheck className="w-4 h-4" />
-              <span>SENTINEL: ✓ APPROVED</span>
-            </div>
-          </div>
+        {/* Current Decision & Immaculate P18/P19 Enforcement Screen */}
+        <div className="p-5 sm:p-6 space-y-5">
+          <FlagshipEnforcementCard
+            latestEvidence={adaptationResult?.step2SettledDecision?.evidenceRecord || null}
+            onRunAdaptation={onRunAdaptation}
+            isRunningAdaptation={isRunningAdaptation}
+          />
         </div>
       </div>
 

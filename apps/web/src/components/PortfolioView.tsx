@@ -317,6 +317,7 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
       <HeroStoryCenterpiece
         portfolio={portfolio}
         policy={policy}
+        latestEvidence={recentEvidence[0] || null}
         onRunAdaptation={onRunAdaptation}
         isRunningAdaptation={isRunningAdaptation}
         onNavigateToDecisions={onNavigateToDecisions}

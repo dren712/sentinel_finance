@@ -12,6 +12,21 @@
 - **GitHub Repository**: [https://github.com/dren712/sentinel_finance](https://github.com/dren712/sentinel_finance)
 - **Live Solana Devnet Program ID**: [`3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK`](https://explorer.solana.com/address/3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK?cluster=devnet)
 - **On-Chain IDL Account**: [`H28SmQxnyeTQFUQFFyKjwbLBi77w78vtHmbQzQWrGHx6`](https://explorer.solana.com/address/H28SmQxnyeTQFUQFFyKjwbLBi77w78vtHmbQzQWrGHx6?cluster=devnet)
+- **On-Chain Policy PDA**: [`3wTp1YDSG3xmf9TtuwZ64b11uLuLNUgQRwdesMbFJUUh`](https://explorer.solana.com/address/3wTp1YDSG3xmf9TtuwZ64b11uLuLNUgQRwdesMbFJUUh?cluster=devnet)
+- **On-Chain Agent PDA (`robo-01`)**: [`G9MwRFgstx8Ee4dC6CYLb4CuwhR5YXXpYUhbyHrsxSpv`](https://explorer.solana.com/address/G9MwRFgstx8Ee4dC6CYLb4CuwhR5YXXpYUhbyHrsxSpv?cluster=devnet)
+- **On-Chain Portfolio Vault PDA**: [`7TffMKzUgVme4eod8Wh9ANAQ3YrRMzj4c2JrfKm6AY4Y`](https://explorer.solana.com/address/7TffMKzUgVme4eod8Wh9ANAQ3YrRMzj4c2JrfKm6AY4Y?cluster=devnet)
+
+### Verified On-Chain Solana Devnet Lifecycle Transactions
+
+| Step | Operation | Solana Devnet Signature | Explorer Link |
+| :--- | :--- | :--- | :--- |
+| **0** | **Program Upgrade (`anchor deploy`)** | `4NvEtHck7E2zyt9W6SogYvw5BoDzUJsE7rrUAMyHAdbvwTTt6Z9kWvyu5f5ujpeXugr7HE2SmGyP3ikLCCPBy1ov` | [Explorer ↗](https://explorer.solana.com/tx/4NvEtHck7E2zyt9W6SogYvw5BoDzUJsE7rrUAMyHAdbvwTTt6Z9kWvyu5f5ujpeXugr7HE2SmGyP3ikLCCPBy1ov?cluster=devnet) |
+| **1** | **Initialize / Update Policy** (`25% cap, 20% floor, $10K max`) | `5FStukmor2DmjU49o8s2LRxfHyp67rLzu2Ds3bbZQEg4KKKwpFcoAt14HQEvLgrkrPT1ZDtnnZGVrAbrBuE5HEnV` | [Explorer ↗](https://explorer.solana.com/tx/5FStukmor2DmjU49o8s2LRxfHyp67rLzu2Ds3bbZQEg4KKKwpFcoAt14HQEvLgrkrPT1ZDtnnZGVrAbrBuE5HEnV?cluster=devnet) |
+| **2** | **Initialize / Activate Agent (`robo-01`)** | `3h9Gjcxjqmd6DWr4ST8RMEEvTVWZrejRcCSfoeQn6CoEYyKLMmGN6tdE6JEQZmaXkQEePQoobDfJU3WwNHYHz8hm` | [Explorer ↗](https://explorer.solana.com/tx/3h9Gjcxjqmd6DWr4ST8RMEEvTVWZrejRcCSfoeQn6CoEYyKLMmGN6tdE6JEQZmaXkQEePQoobDfJU3WwNHYHz8hm?cluster=devnet) |
+| **3** | **Create Promise** (`bad-$15K` & `good-$5K`) | `3Hw2L1JWCgngXpWHQA2wxRbLCYH4AKGoT6NYhR8JYRpTy3qCsAHpyYLyvTtHVetVkUYh3BXFmX6Uud2fg3jKBzET` | [Explorer ↗](https://explorer.solana.com/tx/3Hw2L1JWCgngXpWHQA2wxRbLCYH4AKGoT6NYhR8JYRpTy3qCsAHpyYLyvTtHVetVkUYh3BXFmX6Uud2fg3jKBzET?cluster=devnet) |
+| **4** | **Reject Bad Trade** (`BUY NVDAx $15,000` ➔ Revert & Evidence) | `2haBLUKavXYzqa6nTtDMNaNNUu4ax5rqSnYmQKMAxCwJeqzaUw4tPSSMtDdynbWjqSW32EgqmHxaeHj4eGWsTjCD` | [Explorer ↗](https://explorer.solana.com/tx/2haBLUKavXYzqa6nTtDMNaNNUu4ax5rqSnYmQKMAxCwJeqzaUw4tPSSMtDdynbWjqSW32EgqmHxaeHj4eGWsTjCD?cluster=devnet) |
+| **5** | **Execute Valid Trade** (`BUY NVDAx $5,000` ➔ `NVDAx 25%`, `USDC 20%`) | `59KCBrondaKxhKmTqeib4cMGFZRh1mRQW815GUeazmAK5PYwD3Vomy957XreERfXmsLQKDc3XibcjURPnWJVmqUd` | [Explorer ↗](https://explorer.solana.com/tx/59KCBrondaKxhKmTqeib4cMGFZRh1mRQW815GUeazmAK5PYwD3Vomy957XreERfXmsLQKDc3XibcjURPnWJVmqUd?cluster=devnet) |
+| **6** | **Record Evidence** (`PROVN SHA-256 Receipt` PDA `AQhr...bpiE`) | `3pvsnpVZ7A2f2ESd8jeHjbMbTYFsPv7g7RstKnNzBRpiR4mdUtCkQY5RQEPSb1fL8934sArLRp9KRDNXzFfT19Lw` | [Explorer ↗](https://explorer.solana.com/tx/3pvsnpVZ7A2f2ESd8jeHjbMbTYFsPv7g7RstKnNzBRpiR4mdUtCkQY5RQEPSb1fL8934sArLRp9KRDNXzFfT19Lw?cluster=devnet) |
 
 ---
 

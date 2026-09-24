@@ -93,7 +93,7 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  // Canonical Timeline Items for "TODAY"
+  // Canonical Timeline Items anchored on Solana Devnet
   const defaultTimelineItems: TimelineItem[] = [
     {
       id: 'canon-01',
@@ -103,7 +103,7 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
       status: 'SETTLED',
       statusLabel: 'Settled',
       headline: 'TRADE SETTLED',
-      subheadline: 'Executed via Meteora Dynamic Bonding Curve',
+      subheadline: `Executed via Meteora DBC · TX ${formatAddress(APP_CONFIG.devnetTransactions.recordEvidenceTx, 6)}`,
       beforeVsProposed: [
         { asset: 'AAPLx', before: '20.0%', proposed: '24.1%', limit: 'Limit 25.0%', passed: true },
         { asset: 'USDC', before: '25.0%', proposed: '22.3%', limit: 'Floor 20.0%', passed: true },
@@ -120,7 +120,7 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
       ],
       adaptationNarrative: {
         adaptedAction: 'Direct execution of compliant proposed intent',
-        settlementTx: 'Meteora DBC Swap [SIMULATED EXECUTION]',
+        settlementTx: `Signature: ${APP_CONFIG.devnetTransactions.recordEvidenceTx}`,
       },
     },
     {
@@ -131,7 +131,7 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
       status: 'REJECTED',
       statusLabel: 'Rejected by Sentinel',
       headline: 'TRADE REJECTED',
-      subheadline: 'Sentinel prevented execution · 3 violations detected',
+      subheadline: `Sentinel prevented execution · On-Chain Proof TX ${formatAddress(APP_CONFIG.devnetTransactions.rejectBadTradeTx, 6)}`,
       beforeVsProposed: [
         { asset: 'NVDAx', before: '20.0%', proposed: '35.0%', limit: 'Limit 25.0%', passed: false },
         { asset: 'USDC', before: '25.0%', proposed: '10.0%', limit: 'Floor 20.0%', passed: false },
@@ -148,7 +148,7 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
       ],
       adaptationNarrative: {
         adaptedAction: 'BUY NVDAx $5,000',
-        settlementTx: 'ATOMIC REVERT — 0 tokens transferred [DEMO FIXTURE]',
+        settlementTx: `On-Chain Rejection Evidence TX: ${APP_CONFIG.devnetTransactions.rejectBadTradeTx}`,
       },
     },
     {
@@ -159,7 +159,7 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
       status: 'ADAPTED',
       statusLabel: 'Adapted & Settled',
       headline: 'REACTIVE ADAPTATION SETTLED',
-      subheadline: 'Agent recalculated maximum compliant headroom and settled',
+      subheadline: `Agent recalculated maximum compliant headroom · TX ${formatAddress(APP_CONFIG.devnetTransactions.executeValidTradeTx, 6)}`,
       beforeVsProposed: [
         { asset: 'NVDAx', before: '20.0%', proposed: '25.0%', limit: 'Limit 25.0%', passed: true },
         { asset: 'USDC', before: '25.0%', proposed: '20.0%', limit: 'Floor 20.0%', passed: true },
@@ -176,7 +176,7 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
       ],
       adaptationNarrative: {
         adaptedAction: 'BUY NVDAx $5,000',
-        settlementTx: 'Compliant Headroom Settled [DEMO FIXTURE]',
+        settlementTx: `Solana Devnet Settlement TX: ${APP_CONFIG.devnetTransactions.executeValidTradeTx}`,
       },
     },
     {
@@ -187,12 +187,16 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
       status: 'POLICY_UPDATE',
       statusLabel: 'Risk limits tightened',
       headline: 'POLICY ENFORCEMENT UPDATE',
-      subheadline: 'On-chain Anchor constraints transitioned to Policy v4',
+      subheadline: `On-chain Anchor Policy PDA updated · TX ${formatAddress(APP_CONFIG.devnetTransactions.initializePolicyTx, 6)}`,
       checks: [
         { name: 'Owner signature confirmed', passed: true },
         { name: 'Invariants re-indexed on-chain', passed: true },
         { name: 'Vault PDA updated', passed: true },
       ],
+      adaptationNarrative: {
+        adaptedAction: 'Policy PDA (3wTp...JUUh) updated on Solana Devnet',
+        settlementTx: `Solana Devnet Policy TX: ${APP_CONFIG.devnetTransactions.initializePolicyTx}`,
+      },
     },
   ];
 

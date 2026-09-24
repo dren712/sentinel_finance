@@ -10,6 +10,16 @@ export interface DerivedDomainPdas {
   idlAccount: string;
 }
 
+export interface DevnetTransactionRegistry {
+  initializePolicyTx: string;
+  initializeAgentTx: string;
+  initializeVaultTx: string;
+  createPromiseTx: string;
+  rejectBadTradeTx: string;
+  executeValidTradeTx: string;
+  recordEvidenceTx: string;
+}
+
 export interface AppEnvironment {
   clusterEnv: ClusterEnvironment;
   cluster: SolanaCluster;
@@ -21,6 +31,7 @@ export interface AppEnvironment {
   agentPda: string;
   vaultPda: string;
   explorerBaseUrl: string;
+  devnetTransactions: DevnetTransactionRegistry;
   features: {
     agentSignerWallet: boolean;
     meteoraVerifier: boolean;
@@ -67,7 +78,8 @@ export function resolveClusterRpcUrl(env: ClusterEnvironment, customRpc?: string
  */
 export function deriveSentinelDomainPdas(
   ownerAddress: string,
-  programIdStr?: string
+  programIdStr?: string,
+  agentId: string = 'robo-01'
 ): DerivedDomainPdas {
   const activeProgramId =
     programIdStr ||
@@ -84,7 +96,7 @@ export function deriveSentinelDomainPdas(
       programId
     );
     const [agentPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from('agent'), owner.toBuffer()],
+      [Buffer.from('agent'), owner.toBuffer(), Buffer.from(agentId)],
       programId
     );
     const [vaultPda] = PublicKey.findProgramAddressSync(
@@ -103,11 +115,10 @@ export function deriveSentinelDomainPdas(
       idlAccount: idlAccount.toBase58(),
     };
   } catch {
-    // Fallback to deterministic Anchor derivation with default authority if ownerAddress is non-base58
     const programId = new PublicKey('3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK');
     const defaultOwner = new PublicKey('GR9CtiUswZtay68U2fGqcDeB1dg8sHtpVi9kk2nCEwzw');
     const [policyPda] = PublicKey.findProgramAddressSync([Buffer.from('policy'), defaultOwner.toBuffer()], programId);
-    const [agentPda] = PublicKey.findProgramAddressSync([Buffer.from('agent'), defaultOwner.toBuffer()], programId);
+    const [agentPda] = PublicKey.findProgramAddressSync([Buffer.from('agent'), defaultOwner.toBuffer(), Buffer.from(agentId)], programId);
     const [vaultPda] = PublicKey.findProgramAddressSync([Buffer.from('vault'), defaultOwner.toBuffer()], programId);
     const [idlAccount] = PublicKey.findProgramAddressSync([Buffer.from('anchor:idl'), programId.toBuffer()], programId);
     return {
@@ -151,11 +162,20 @@ export const APP_CONFIG: AppEnvironment = {
   clusterLabel,
   rpcUrl,
   sentinelProgramId,
-  idlAccount: derivedPdas.idlAccount,
+  idlAccount: 'H28SmQxnyeTQFUQFFyKjwbLBi77w78vtHmbQzQWrGHx6',
   policyPda: process.env.SENTINEL_POLICY_PDA || derivedPdas.policyPda,
   agentPda: process.env.SENTINEL_AGENT_PDA || derivedPdas.agentPda,
   vaultPda: process.env.SENTINEL_VAULT_PDA || derivedPdas.vaultPda,
   explorerBaseUrl: 'https://explorer.solana.com',
+  devnetTransactions: {
+    initializePolicyTx: '5FStukmor2DmjU49o8s2LRxfHyp67rLzu2Ds3bbZQEg4KKKwpFcoAt14HQEvLgrkrPT1ZDtnnZGVrAbrBuE5HEnV',
+    initializeAgentTx: '3h9Gjcxjqmd6DWr4ST8RMEEvTVWZrejRcCSfoeQn6CoEYyKLMmGN6tdE6JEQZmaXkQEePQoobDfJU3WwNHYHz8hm',
+    initializeVaultTx: '3gD1hqUwhXLSUFTE2RLo3PBLS7mVGXYhHVHKoJ8G5Jj2RsNYb8x21rMp5ua9LhdHuh8pzre17q7WjzLtvZ98XV7V',
+    createPromiseTx: '3Hw2L1JWCgngXpWHQA2wxRbLCYH4AKGoT6NYhR8JYRpTy3qCsAHpyYLyvTtHVetVkUYh3BXFmX6Uud2fg3jKBzET',
+    rejectBadTradeTx: '2haBLUKavXYzqa6nTtDMNaNNUu4ax5rqSnYmQKMAxCwJeqzaUw4tPSSMtDdynbWjqSW32EgqmHxaeHj4eGWsTjCD',
+    executeValidTradeTx: '59KCBrondaKxhKmTqeib4cMGFZRh1mRQW815GUeazmAK5PYwD3Vomy957XreERfXmsLQKDc3XibcjURPnWJVmqUd',
+    recordEvidenceTx: '3pvsnpVZ7A2f2ESd8jeHjbMbTYFsPv7g7RstKnNzBRpiR4mdUtCkQY5RQEPSb1fL8934sArLRp9KRDNXzFfT19Lw',
+  },
   features: {
     agentSignerWallet: true,
     meteoraVerifier: true,
