@@ -1,10 +1,10 @@
-import { getServerStore } from '../../../../lib/server-state';
+import { getServerStore, queryAuthoritativeActivity } from '../../../../lib/server-state';
 
 /**
  * GET /api/activity/[wallet]
  *
- * Returns recent decision activity, approved trades, Sentinel rejections,
- * and autonomous adaptations.
+ * Queries the authoritative Postgres read model (agent_runs, decisions, executions,
+ * portfolio_snapshots, evidence_index) for a wallet's history.
  */
 export async function GET(
   _req: Request,
@@ -13,19 +13,18 @@ export async function GET(
   try {
     const store = getServerStore();
     const wallet = params.wallet;
-    const history = store.activityHistory;
-    const decisions = store.db.getDecisions(wallet);
-    const executions = store.db.getExecutions(wallet);
-    const agentRuns = store.db.getAgentRuns(wallet);
-    const evidenceList = store.db.getEvidenceList(wallet);
+    const [activityData, portfolioSnapshots] = await Promise.all([
+      queryAuthoritativeActivity(wallet),
+      store.db.queryPortfolioSnapshots(wallet),
+    ]);
 
     return Response.json({
       success: true,
       wallet,
       authority: store.db.authority,
-      historyStore: store.db.getStats(),
-      totalActivities: history.length,
-      activities: history.map((item) => ({
+      historyStore: activityData.stats,
+      totalActivities: activityData.activities.length,
+      activities: activityData.activities.map((item) => ({
         id: item.id,
         timestamp: item.timestamp,
         formattedTime: new Date(item.timestamp).toLocaleTimeString([], {
@@ -45,10 +44,11 @@ export async function GET(
         evidenceRecord: item.evidenceRecord,
       })),
       tables: {
-        agent_runs: agentRuns,
-        decisions,
-        executions,
-        evidence_index: evidenceList.map((e) => e.record),
+        agent_runs: activityData.agentRuns,
+        decisions: activityData.decisions,
+        executions: activityData.executions,
+        portfolio_snapshots: portfolioSnapshots,
+        evidence_index: activityData.evidenceList.map((e) => e.record),
       },
     });
   } catch (error: any) {

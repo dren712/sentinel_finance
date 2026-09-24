@@ -3,13 +3,16 @@ import { getServerStore } from '../../../../lib/server-state';
 /**
  * GET /api/agent/status
  *
- * Exposes current autonomous agent state, risk counters, active loop stage, and operational status.
+ * Exposes current autonomous agent state, risk counters, active loop stage,
+ * and latest run summary queried from the Postgres `agent_runs` read model.
  */
 export async function GET() {
   try {
     const store = getServerStore();
     const agent = store.client.getAgent();
     const riskState = store.client.getAgentRiskState();
+    const recentRuns = await store.db.queryAgentRuns('default', 1);
+    const latestDbRun = recentRuns[0];
 
     return Response.json({
       success: true,
@@ -17,13 +20,13 @@ export async function GET() {
       agentId: agent.agentId,
       name: agent.name,
       objective: agent.objective,
-      llmProvider: agent.llmProvider.providerName,
+      llmProvider: latestDbRun?.llm_provider || agent.llmProvider.providerName,
       agentStatus: agent.status,
-      currentLoopStage: store.lastLoopState?.stage || 'IDLE',
+      currentLoopStage: store.lastLoopState?.stage || latestDbRun?.stage || 'IDLE',
       currentLoopState: store.lastLoopState || null,
       riskState,
-      lastDecisionSummary: store.lastLoopResult?.summary || null,
-      updatedAt: Date.now(),
+      lastDecisionSummary: store.lastLoopResult?.summary || latestDbRun?.summary || null,
+      updatedAt: latestDbRun?.created_at || Date.now(),
     });
   } catch (error: any) {
     return Response.json(

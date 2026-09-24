@@ -1,10 +1,14 @@
-import { getServerStore } from '../../../../lib/server-state';
+import {
+  getServerStore,
+  reconcilePortfolioFromSolana,
+  reconcilePolicyFromSolana,
+} from '../../../../lib/server-state';
 
 /**
  * GET /api/portfolio/[wallet]
  *
- * Retrieves the current portfolio snapshot, token holdings, ATAs, valuations,
- * and policy compliance state for a specified wallet address.
+ * Reconciles the current portfolio snapshot against Solana (authoritative financial state)
+ * and attaches historical snapshots from the Postgres read model (`portfolio_snapshots`).
  */
 export async function GET(
   _req: Request,
@@ -14,17 +18,19 @@ export async function GET(
     const store = getServerStore();
     const wallet = params.wallet;
 
-    // Use current active portfolio from server store
-    const portfolio = store.portfolio;
-    const policy = store.policy;
+    const [portfolio, policy, historicalSnapshots] = await Promise.all([
+      reconcilePortfolioFromSolana(wallet),
+      reconcilePolicyFromSolana(wallet),
+      store.db.queryPortfolioSnapshots(wallet, 20),
+    ]);
 
-    // Calculate exposure percentages and compliance
-    const cashReservePct = (portfolio.stablecoinExposureBps / 100);
-    const minReserveFloorPct = (policy.minStablecoinBps / 100);
+    const cashReservePct = portfolio.stablecoinExposureBps / 100;
+    const minReserveFloorPct = policy.minStablecoinBps / 100;
     const isReserveCompliant = portfolio.stablecoinExposureBps >= policy.minStablecoinBps;
 
     return Response.json({
       success: true,
+      authority: 'SOLANA_ON_CHAIN',
       wallet: wallet === 'default' ? portfolio.owner : wallet,
       source: portfolio.source,
       totalValueUsd: portfolio.totalValueUsd,
@@ -33,7 +39,7 @@ export async function GET(
       cashReservePct,
       minReserveFloorPct,
       isReserveCompliant,
-      assets: portfolio.assets.map(a => ({
+      assets: portfolio.assets.map((a) => ({
         symbol: a.symbol,
         name: a.name,
         mint: a.mint,
@@ -46,6 +52,7 @@ export async function GET(
         assetClass: a.assetClass,
         ata: a.ata,
       })),
+      historicalSnapshots,
       timestamp: portfolio.timestamp,
     });
   } catch (error: any) {

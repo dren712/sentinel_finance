@@ -6,12 +6,12 @@ import { APP_CONFIG } from '../../../lib/config';
  *
  * P14 Docker & Production Liveness Probe
  * Exposes service health, active Solana cluster environment (LOCAL | DEVNET | MAINNET),
- * dynamically derived Anchor PDAs, and P13 persistent read history telemetry.
+ * dynamically derived Anchor PDAs, and live Postgres read-model row counts.
  */
 export async function GET() {
   try {
     const store = getServerStore();
-    const dbStats = store.db.getStats();
+    const dbStats = await store.db.queryStats();
 
     return Response.json({
       status: 'ok',

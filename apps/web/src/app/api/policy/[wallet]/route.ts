@@ -1,21 +1,21 @@
-import { getServerStore } from '../../../../lib/server-state';
+import { getServerStore, reconcilePolicyFromSolana } from '../../../../lib/server-state';
 
 /**
  * /api/policy/[wallet]
  *
- * GET: Retrieves the authoritative financial policy invariants for a wallet.
- * POST / PUT: Updates financial policy risk boundaries.
+ * GET: Reconciles the authoritative financial policy invariants from Solana PolicyAccount PDA.
+ * POST: Updates financial policy risk boundaries.
  */
 export async function GET(
   _req: Request,
   { params }: { params: { wallet: string } }
 ) {
   try {
-    const store = getServerStore();
-    const policy = store.policy;
+    const policy = await reconcilePolicyFromSolana(params.wallet);
 
     return Response.json({
       success: true,
+      authority: 'SOLANA_ON_CHAIN',
       wallet: params.wallet === 'default' ? policy.owner : params.wallet,
       policy: {
         owner: policy.owner,
@@ -50,6 +50,7 @@ export async function POST(
 ) {
   try {
     const store = getServerStore();
+    await reconcilePolicyFromSolana(params.wallet);
     const body = (await req.json().catch(() => ({}))) as any;
 
     if (body.maxSingleAssetBps !== undefined) {

@@ -127,11 +127,13 @@ export class PostgresDatabaseProvider implements DatabaseProvider {
   constructor(private connectionString: string) {}
 
   private async getPool() {
+    if (typeof (globalThis as any).window !== 'undefined') {
+      throw new Error('PostgresDatabaseProvider is server-only and cannot be used in the browser.');
+    }
     if (!this.pool) {
       try {
-        const pgModuleName = 'pg';
-        // @ts-ignore
-        const pgMod = await import(/* webpackIgnore: true */ pgModuleName);
+        const loadPg = new Function('return import("pg")') as () => Promise<any>;
+        const pgMod = await loadPg();
         const Pool = pgMod.Pool || pgMod.default?.Pool;
         this.pool = new Pool({ connectionString: this.connectionString });
       } catch (e) {
