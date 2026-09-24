@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm --filter @sentinel/domain build && pnpm --filter @sentinel/sdk build && pnpm --filter @sentinel/web build",
+  "outputDirectory": "apps/web/.next",
+  "env": {
+    "NEXT_PUBLIC_SOLANA_CLUSTER": "devnet",
+    "NEXT_PUBLIC_SENTINEL_PROGRAM_ID": "3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK"
+  }
+}

@@ -174,18 +174,46 @@ PROVN is not a detached crypto dashboard tab; it is the cryptographic receipt of
 
 ---
 
-## 6. Verification & Test Credentials
+## 6. Verification, P22 Gate & P23 Adversarial Security Matrix
 
-Sentinel Finance boasts a **100% test pass rate** across its entire codebase:
+Sentinel Finance boasts a **100% test pass rate (131 / 131 automated tests + Live Devnet RPC Gate)** across its entire codebase:
 
 | Suite | Command | Test Count | Result |
 | :--- | :--- | :--- | :--- |
-| **Rust Anchor Invariant Tests** | `cargo test --manifest-path programs/sentinel/Cargo.toml --lib` | 9 tests | **PASS (0 failures)** |
+| **Rust Anchor Invariant Tests** | `cargo test --manifest-path programs/sentinel/Cargo.toml --lib` | 16 tests | **PASS (0 failures)** |
 | **Domain Policy Engine** | `pnpm --filter @sentinel/domain test` | 39 tests | **PASS (0 failures)** |
-| **SDK & Agent Simulator** | `pnpm --filter @sentinel/sdk test` | 55 tests | **PASS (0 failures)** |
-| **End-to-End Demo Scenarios** | `node --test tests/integration/demo-scenario.test.ts` | 4 tests | **PASS (0 failures)** |
-| **Production Web Build** | `pnpm --filter @sentinel/web run build` | 4/4 static pages | **Exit code 0** |
-| **Total Automated Tests** | — | **107 tests** | **107 / 107 passed (100%)** |
+| **SDK, Agent & P23 Adversarial Suite** | `pnpm --filter @sentinel/sdk test` | 76 tests | **PASS (0 failures)** |
+| **Live Devnet & Pyth Verification Gate** | `node packages/sdk/scripts/verify-p22-p23-devnet.mjs` | 8 checks | **PASS (Confirmed on Devnet)** |
+| **Production Web Build** | `pnpm --filter @sentinel/web run build` | 7/7 routes | **Exit code 0** |
+| **Total Automated Tests** | — | **131 tests** | **131 / 131 passed (100%)** |
+
+### 6.1 P22 Final Verification Gate (6 Core + 2 Sponsor Proofs)
+- `[x]` **Wallet connects to Devnet**: Verified via `@solana/wallet-adapter-react` (`SOLANA` venue + `cluster = devnet`, Program `3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK`).
+- `[x]` **Policy change creates a real on-chain state change**: Verified via `initialize_policy` / `update_policy` on Policy PDA `3wTp1YDSG3xmf9TtuwZ64b11uLuLNUgQRwdesMbFJUUh` (TX `5FStukmor2DmjU49o8s2LRxfHyp67rLzu2Ds3bbZQEg4KKKwpFcoAt14HQEvLgrkrPT1ZDtnnZGVrAbrBuE5HEnV`).
+- `[x]` **Invalid Promise/trade produces a real Sentinel failure**: Verified via $15,000 `BUY NVDAx` rejection (`SentinelError::TradeSizeExceeded` / `ExposureExceeded` / `StablecoinReserveBreached`, TX `2haBLUKavXYzqa6nTtDMNaNNUu4ax5rqSnYmQKMAxCwJeqzaUw4tPSSMtDdynbWjqSW32EgqmHxaeHj4eGWsTjCD`).
+- `[x]` **Valid trade produces a real confirmed transaction**: Verified via adapted $5,000 `BUY NVDAx` settlement (`execute_guarded_trade`, TX `59KCBrondaKxhKmTqeib4cMGFZRh1mRQW815GUeazmAK5PYwD3Vomy957XreERfXmsLQKDc3XibcjURPnWJVmqUd`).
+- `[x]` **Pyth data shown by UI is actually sourced from Pyth**: Verified via `PythLivePriceProvider` (`PYTH_HERMES_LIVE` vs `PYTH_BENCHMARK` explicitly distinguished in UI and API).
+- `[x]` **PROVN receipt points to real transaction/state**: Verified via on-chain Evidence PDA `record_evidence` (TX `3pvsnpVZ7A2f2ESd8jeHjbMbTYFsPv7g7RstKnNzBRpiR4mdUtCkQY5RQEPSb1fL8934sArLRp9KRDNXzFfT19Lw`).
+- `[x]` **Sponsor 1 — PreStocks**: Uses actual current Pre-IPO asset registry metadata (`SPACEXx`, `OPENAIx`, `ANTHROPICx`, `STRIPEx`) with explicit `PRE_IPO` exposure ceiling (`<= 20%`).
+- `[x]` **Sponsor 2 — Meteora**: Uses deterministic Meteora DBC PDA derivation + `MeteoraDBCMarketQualityVerifier` (`liquidityDepthUsd >= $25,000`, `priceDeviationBps <= 200`), explicitly labeled where curve swaps are simulated vs. verified on-chain.
+
+### 6.2 P23 Adversarial Security Test Matrix (11 Attack Vectors + 1 Valid Control)
+Tested in [`packages/sdk/tests/adversarial-security.test.ts`](file:///Users/darshangaikwad/Desktop/stocklana/packages/sdk/tests/adversarial-security.test.ts) and [`programs/sentinel/src/lib.rs`](file:///Users/darshangaikwad/Desktop/stocklana/programs/sentinel/src/lib.rs):
+
+| # | Vector | Attack Scenario | Expected Outcome | Sentinel Enforcement Mechanism |
+| :- | :--- | :--- | :--- | :--- |
+| **01** | Direct Bypass | Agent calls program directly without authorized PDA/Ticket | **`REJECT`** | Anchor `seeds = [b"agent", owner, agent_id]` + `has_one = agent_authority` |
+| **02** | Wrong Owner | Cross-tenant Alice Agent + Bob Policy/Vault | **`REJECT`** | `require_keys_eq!(agent.owner, policy.owner, SecurityDomainMismatch)` (`6008`) |
+| **03** | Wrong Policy | Substitution of inactive or revoked Policy account | **`REJECT`** | `require!(policy.is_active, PolicyInactive)` (`6005`) |
+| **04** | Wrong Promise | Replay or substitution of mismatched `PromiseAccount` | **`REJECT`** | `seeds = [b"promise", agent.key(), promise_id]` + `has_one = agent` (`6006`) |
+| **05** | Wrong Amount | Executing $15K against a $5K `PromiseAccount` | **`REJECT`** | `require!(trade_amount_cents == promised_cents, TradeAmountMismatch)` (`6009`) |
+| **06** | Expired Promise | Executing after `expires_at` TTL window | **`REJECT`** | `require!(clock.unix_timestamp <= promise.expires_at, PromiseExpired)` (`6007`) |
+| **07** | Inactive Agent | Agent executes while Emergency Kill-Switch is active | **`REJECT`** | `require!(agent.is_active, AgentInactive)` (`6000`) / `ERR_EMERGENCY_PAUSE` |
+| **08** | Stale Pyth Price | Oracle quote older than `maxQuoteAgeSeconds` (60s) | **`REJECT`** | `checkQuoteFreshness` -> `ERR_QUOTE_STALE` |
+| **09** | Bad Slippage | Execution price deviates 150 bps (> 75 bps max) | **`REJECT`** | `SentinelError::SlippageExceeded` (`6004`) / `ERR_SLIPPAGE_EXCEEDED` |
+| **10** | Exposure Breach | `BUY NVDAx $15,000` pushes weight `20% -> 35%` (> 25%) | **`REJECT`** | `SentinelError::ExposureExceeded` (`6001`) / `ERR_EXPOSURE_EXCEEDED` |
+| **11** | Reserve Breach | `BUY NVDAx $15,000` drops USDC `25% -> 10%` (< 20%) | **`REJECT`** | `SentinelError::StablecoinReserveBreached` (`6002`) / `ERR_STABLECOIN_RESERVE_BREACHED` |
+| **12** | **Valid Control** | Adapted `BUY NVDAx $5,000` (`25% NVDAx`, `20% USDC`) | **`APPROVE`** | `verify_vault_postconditions` passes -> Settled on Solana Devnet (`59KC...mqUd`) |
 
 ---
 
