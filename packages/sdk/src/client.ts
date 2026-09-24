@@ -27,6 +27,7 @@ import {
   projectPortfolioFromHoldings,
   AssetUniverseCategory,
   AssetUniverseGroup,
+  PreStocksApiClient,
 } from '@sentinel/domain';
 import {
   ExecutionAdapter,
@@ -81,12 +82,14 @@ export class SentinelClient {
   private valuationEngine: SentinelValuationEngine;
   private indexer: PortfolioIndexer;
   private meteoraVerifier: MeteoraDBCMarketQualityVerifier;
+  private preStocksApiClient: PreStocksApiClient;
   private evidenceHistory: EvidenceRecord[] = [];
 
   constructor(config: SentinelClientConfig = {}) {
     this.demoAdapter = new DemoExecutionAdapter(200);
     this.meteoraAdapter = new MeteoraExecutionAdapter();
     this.preStocksAdapter = new PreStocksExecutionAdapter();
+    this.preStocksApiClient = new PreStocksApiClient();
 
     this.selectedVenue = config.defaultVenue ?? (config.adapter?.venueType ?? 'METEORA_DBC');
     this.adapter = config.adapter ?? (this.selectedVenue === 'PRESTOCKS_SECONDARY'
@@ -148,6 +151,10 @@ export class SentinelClient {
 
   getPreStocksAdapter(): PreStocksExecutionAdapter {
     return this.preStocksAdapter;
+  }
+
+  getPreStocksApiClient(): PreStocksApiClient {
+    return this.preStocksApiClient;
   }
 
   getDemoAdapter(): DemoExecutionAdapter {

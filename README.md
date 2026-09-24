@@ -68,6 +68,9 @@ Sentinel does not blindly trust the **AGENT**, the **MARKET**, or the **DATA**:
 | **Agent PDA** | [`62vpHzSG92GUbAXtNh4czG6U6HyTpndrY4NvZM9euUnQ`](https://explorer.solana.com/address/62vpHzSG92GUbAXtNh4czG6U6HyTpndrY4NvZM9euUnQ?cluster=devnet) | Seeds `[b"agent", owner, agent_id]` — Unprivileged agent authority |
 | **Vault PDA** | [`7TffMKzUgVme4eod8Wh9ANAQ3YrRMzj4c2JrfKm6AY4Y`](https://explorer.solana.com/address/7TffMKzUgVme4eod8Wh9ANAQ3YrRMzj4c2JrfKm6AY4Y?cluster=devnet) | Seeds `[b"vault", owner]` — Authoritative on-chain execution authority |
 | **IDL Account** | [`H28SmQxnyeTQFUQFFyKjwbLBi77w78vtHmbQzQWrGHx6`](https://explorer.solana.com/address/H28SmQxnyeTQFUQFFyKjwbLBi77w78vtHmbQzQWrGHx6?cluster=devnet) | Verified Anchor IDL definition deployed on Devnet |
+| **Meteora DBC Program** | [`dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN`](https://explorer.solana.com/address/dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN) | Official Meteora Dynamic Bonding Curve Program |
+| **Meteora DBC Authority** | [`FhVo3mqL8PW5pH5U2CN4XE33DokiyZnUwuGpH2hmHLuM`](https://explorer.solana.com/address/FhVo3mqL8PW5pH5U2CN4XE33DokiyZnUwuGpH2hmHLuM) | Canonical Meteora Virtual Pool Authority PDA |
+| **NVDAx DBC Pool PDA** | [`4bHAChVfYLtyVuZLXmfa6oysGbJnJix93LJsz61WLckk`](https://explorer.solana.com/address/4bHAChVfYLtyVuZLXmfa6oysGbJnJix93LJsz61WLckk) | Canonical Pool PDA `[b"pool", auth, baseMint, quoteMint]` |
 
 > 📹 **Submission Video Materials**:
 > - **Pitch Video (3 min)**: [`docs/PITCH_VIDEO_SCRIPT.md`](docs/PITCH_VIDEO_SCRIPT.md) — Product, market opportunity, live demo, and vision.
@@ -83,7 +86,7 @@ Sentinel does not blindly trust the **AGENT**, the **MARKET**, or the **DATA**:
      - *Demo Moment (Mode 1: PORTFOLIO_FAILURE)*: Portfolio holds $18k (18%) in Pre-IPO equity. Agent proposes `BUY OPENAIx $5,000` (individual trade sizing passes: $5k ≤ $10k cap). Pre-IPO allocation surges to 23.0% (> 20.0% ceiling) ➔ Reverted atomically on asset class invariant! ➔ Agent auto-solves remaining headroom: `($100,000 × 20%) - $18,000 = $2,000` ➔ Reproposes `BUY OPENAIx $2,000` (hits exact 20.0% cap) ➔ Settles cleanly via PreStocks Secondary Vault PDA.
   2. **Meteora — $5,000 Target**: Sentinel Equity Market Guard (**Market Protection + Account Protection**). Meteora DBC curve mechanics, reserve depth verification ($25,000 floor), dynamic fee tracking, and bidirectional market protection.
      - *Demo Moment (Mode 2: MARKET_FAILURE)*: Agent proposes `BUY NVDAx $8,000`. User policy passes ($8k ≤ $10k ✓), Portfolio exposure passes (28% ≤ 30% ✓) ➔ BLOCKED by Sentinel Equity Market Guard because Meteora DBC curve estimates 1.70% price impact (> 1.00% max slippage cap) and pool depth is shallow ($12,000 < $25,000 floor) ➔ Agent reads DBC bonding curve equation and auto-adapts trade down to $2,500 along the curve (0.45% ≤ 1.00% impact) ➔ Approved & Settled on Meteora DBC!
-  3. **Pyth Network (Pyth Pro)**: Pyth as an authoritative **Security Input** (`STALE / LOW CONFIDENCE ➔ NO EXECUTION`). Dual-feed mark-to-market pricing, confidence bounds ($\pm \sigma$), tracking error detection, and staleness rejection via Pyth pull updates.
+  3. **Pyth Network (Pyth Pro)**: Pyth as an authoritative **Security Input** (`STALE / LOW CONFIDENCE ➔ NO EXECUTION`). Dual-feed mark-to-market pricing (verified distinct tokenized vs underlying feeds), basis tracking error detection, confidence bounds ($\pm \sigma$), and staleness rejection via Pyth pull updates.
      - *Demo Moment (Mode 3: DATA_INTEGRITY_FAILURE)*: Agent proposes `BUY AAPLx $4,000`. Sizing and exposure pass, but Pyth oracle quote is 140s old (> 60s freshness limit) ➔ Execution refused (`ERR_QUOTE_STALE`) ➔ Pyth Hermès on-demand pull update delivers fresh price (age 0s, ±$0.03) ➔ Approved & Settled!
 - *Strict Sponsor Compliance*: 100% of pre-IPO assets belong exclusively to PreStocks Protocol ($10K Bounty). Meteora DBC provides dynamic liquidity curves with liquidity floor guards ($5K Bounty). Pyth Network provides pull oracle market truth and security bounds. Unprivileged agent execution uses standard Solana Ed25519 keypair signatures.
 
@@ -339,7 +342,7 @@ Rather than seventeen shallow mock assets with fake integrations, Sentinel deliv
 | :--- | :--- | :--- |
 | `programs/sentinel` | Authoritative Solana Anchor program enforcing postconditions on-chain. | **9/9 Rust Tests Passing** |
 | `packages/domain` | Pure TypeScript financial policy engine, fixed-point math, SWARM verifiers, and PROVN receipts. | **39/39 Tests Passing** |
-| `packages/sdk` | High-level orchestration client, 10-stage autonomous agent loop, and execution adapters. | **55/55 Tests Passing** |
+| `packages/sdk` | High-level orchestration client, 10-stage autonomous agent loop, and execution adapters. | **57/57 Tests Passing** |
 | `tests/integration` | End-to-end multi-step autonomous adaptation integration test suite (Flagship, PreStocks, Meteora, Pyth). | **4/4 Tests Passing** |
 | `apps/web` | Institutional 4-Pillar Next.js 14 frontend (Portfolio, Agent, Protection, Activity). | **Build Passing (Exit 0)** |
 
@@ -347,7 +350,7 @@ Rather than seventeen shallow mock assets with fake integrations, Sentinel deliv
 
 ## 🚀 Verification & Quickstart
 
-### 1. Run All Automated Test Suites (107 / 107 Passing)
+### 1. Run All Automated Test Suites (109 / 109 Passing)
 ```bash
 # 1. Rust Anchor Invariant Tests (9 tests)
 cargo test --manifest-path programs/sentinel/Cargo.toml --lib
@@ -355,7 +358,7 @@ cargo test --manifest-path programs/sentinel/Cargo.toml --lib
 # 2. Domain Policy Engine & Financial Math Tests (39 tests)
 pnpm --filter @sentinel/domain test
 
-# 3. SDK, Autonomous Agent Loop & Execution Adapter Tests (55 tests)
+# 3. SDK, Autonomous Agent Loop & Execution Adapter Tests (57 tests)
 pnpm --filter @sentinel/sdk test
 
 # 4. End-to-End Demo Scenario Integration Tests (4 tests)

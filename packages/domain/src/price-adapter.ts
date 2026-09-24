@@ -27,9 +27,9 @@ export interface FeedMetadata {
 
 export const PYTH_METADATA_REGISTRY: Record<string, FeedMetadata> = {
   AAPLx: {
-    tokenizedFeedId: '0x49f6b657ede6b7e024e883494747e7eb16752765377f0a67272b1660d2b27076',
+    tokenizedFeedId: '0x978e6cc68a119ce066aa830017318563a9ed04ec3a0a6439010fc11296a58675',
     tokenizedDisplayId: 'Crypto.AAPLX/USD',
-    underlyingFeedId: '0x49f6b657ede6b7e024e883494747e7eb16752765377f0a67272b1660d2b27076',
+    underlyingFeedId: '0x49f6b65cb1de6b10eaf75e7c03ca029c306d0357e91b5311b175084a5ad55688',
     underlyingDisplayId: 'Equity.US.AAPL/USD',
     underlyingSymbol: 'AAPL',
     defaultPriceUsd: 200.00,
@@ -37,9 +37,9 @@ export const PYTH_METADATA_REGISTRY: Record<string, FeedMetadata> = {
     confidenceUsd: 0.20,
   },
   NVDAx: {
-    tokenizedFeedId: '0x321f66ff6d45e54865cf0e6097561f528646b1f280145c8502f6ae64d1f2a40b',
+    tokenizedFeedId: '0x4244d07890e4610f46bbde67de8f43a4bf8b569eebe904f136b469f148503b7f',
     tokenizedDisplayId: 'Crypto.NVDAX/USD',
-    underlyingFeedId: '0xb1a967f6738084a44549f3e49666f81e330fb1ef0ff87c67fa187127e909a365',
+    underlyingFeedId: '0xb1073854ed24cbc755dc527418f52b7d271f6cc967bbf8d8129112b18860a593',
     underlyingDisplayId: 'Equity.US.NVDA/USD',
     underlyingSymbol: 'NVDA',
     defaultPriceUsd: 120.00,
@@ -47,9 +47,9 @@ export const PYTH_METADATA_REGISTRY: Record<string, FeedMetadata> = {
     confidenceUsd: 0.12,
   },
   SPYx: {
-    tokenizedFeedId: '0x266ed36a8c5a085b6b063462b48fa0ef28e5a7b67039a8ab6f483c6b66e85741',
-    tokenizedDisplayId: 'Index.US.SPYX/USD',
-    underlyingFeedId: '0x266ed36a8c5a085b6b063462b48fa0ef28e5a7b67039a8ab6f483c6b66e85741',
+    tokenizedFeedId: '0x2817b78438c769357182c04346fddaad1178c82f4048828fe0997c3c64624e14',
+    tokenizedDisplayId: 'Crypto.SPYX/USD',
+    underlyingFeedId: '0x19e09bb805456ada3979a7d1cbb4b6d63babc3a0f8e8a9509f68afa5c4c11cd5',
     underlyingDisplayId: 'Equity.US.SPY/USD',
     underlyingSymbol: 'SPY',
     defaultPriceUsd: 500.00,

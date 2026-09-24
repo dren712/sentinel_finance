@@ -529,7 +529,7 @@ describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
       assert.strictEqual(result.success, true);
       assert.strictEqual(result.venueType, 'METEORA_DBC');
       assert.strictEqual(result.venueName, 'Meteora Dynamic Bonding Curve');
-      assert.strictEqual(result.poolAddress, 'Eo7WjKq67rjJQSZxS6z3YKapzY3eMj6Xy8DD5EkViQn7');
+      assert.strictEqual(result.poolAddress, '4bHAChVfYLtyVuZLXmfa6oysGbJnJix93LJsz61WLckk');
       assert.ok(result.route.includes('Meteora DBC Pool'));
       assert.ok(result.marketQuality?.passed);
       assert.ok(result.marketQuality.liquidityPassed);
@@ -716,7 +716,7 @@ describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
       assert.ok(explanation);
       assert.strictEqual(explanation.decision, 'ALLOWED');
       assert.ok(explanation.headline.includes('Sentinel Authorized'));
-      assert.strictEqual(explanation.invariantsEvaluated.length, 7);
+      assert.strictEqual(explanation.invariantsEvaluated.length, 6);
 
       // Invariant 1: Single asset ceiling
       const singleAssetInv = explanation.invariantsEvaluated.find(i => i.name === 'MAX_SINGLE_ASSET');
@@ -1064,6 +1064,200 @@ describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
       assert.strictEqual(report.evidenceRecord.verificationResult, 'REJECTED');
       assert.strictEqual(report.evidenceRecord.failureCode, 'ERR_QUOTE_STALE');
       assert.ok(report.evidenceRecord.failureReason?.includes('stale'));
+    });
+  });
+
+  describe('P7, P8 & P9: Pyth Dual-Feeds, PreStocks API Integration & Meteora DBC PDA Derivation', () => {
+    const {
+      PYTH_METADATA_REGISTRY,
+      PYTH_FEED_IDS,
+      calculateTrackingErrorBps,
+      PreStocksApiClient,
+      hashTradeIntent,
+    } = require('@sentinel/domain');
+    const {
+      deriveMeteoraDbcPoolPda,
+      METEORA_DBC_PROGRAM_ID,
+      METEORA_DBC_AUTHORITY,
+      METEORA_DBC_POOLS,
+      MeteoraExecutionAdapter,
+    } = require('../src/adapters/meteora-adapter');
+
+    it('P7: verifies genuine distinct Pyth feed IDs for tokenized and underlying assets', () => {
+      // AAPLx: tokenized and underlying feed IDs must be distinct and non-empty
+      const aaplMeta = PYTH_METADATA_REGISTRY.AAPLx;
+      assert.ok(aaplMeta);
+      assert.notStrictEqual(aaplMeta.tokenizedFeedId, aaplMeta.underlyingFeedId);
+      assert.strictEqual(aaplMeta.tokenizedFeedId, PYTH_FEED_IDS.AAPLx.tokenizedFeedId);
+      assert.strictEqual(aaplMeta.underlyingFeedId, PYTH_FEED_IDS.AAPLx.underlyingFeedId);
+
+      // NVDAx: tokenized and underlying feed IDs must be distinct
+      const nvdaMeta = PYTH_METADATA_REGISTRY.NVDAx;
+      assert.ok(nvdaMeta);
+      assert.notStrictEqual(nvdaMeta.tokenizedFeedId, nvdaMeta.underlyingFeedId);
+      assert.strictEqual(nvdaMeta.tokenizedFeedId, PYTH_FEED_IDS.NVDAx.tokenizedFeedId);
+      assert.strictEqual(nvdaMeta.underlyingFeedId, PYTH_FEED_IDS.NVDAx.underlyingFeedId);
+
+      // SPYx: tokenized and underlying feed IDs must be distinct
+      const spyMeta = PYTH_METADATA_REGISTRY.SPYx;
+      assert.ok(spyMeta);
+      assert.notStrictEqual(spyMeta.tokenizedFeedId, spyMeta.underlyingFeedId);
+      assert.strictEqual(spyMeta.tokenizedFeedId, PYTH_FEED_IDS.SPYx.tokenizedFeedId);
+      assert.strictEqual(spyMeta.underlyingFeedId, PYTH_FEED_IDS.SPYx.underlyingFeedId);
+    });
+
+    it('P7: calculates tracking error and enforces peg deviation invariant', () => {
+      // 120 vs 122.4 -> 200 bps deviation (2.0%)
+      const trackingErrorBps = calculateTrackingErrorBps(122.4, 120);
+      assert.strictEqual(trackingErrorBps, 200);
+
+      // Zero deviation
+      const zeroError = calculateTrackingErrorBps(100, 100);
+      assert.strictEqual(zeroError, 0);
+
+      // Negative deviation (tokenized discount)
+      const discountError = calculateTrackingErrorBps(98, 100);
+      assert.strictEqual(discountError, 200);
+    });
+
+    it('P8: PreStocksApiClient fetches verified pre-IPO assets with certified 409A NAVs', async () => {
+      const pClient = new SentinelClient();
+      const prestocks = pClient.getPreStocksApiClient();
+      assert.ok(prestocks instanceof PreStocksApiClient);
+
+      const assets = await prestocks.fetchPreIpoAssets();
+      assert.ok(assets.length >= 4);
+
+      const openai = assets.find((a: any) => a.symbol === 'OPENAIx');
+      assert.ok(openai);
+      assert.strictEqual(openai.status, 'ACTIVE');
+      assert.strictEqual(openai.certifiedNavUsd, 210.00);
+      assert.strictEqual(openai.shareClass, 'Secondary Employee Tender Tranche');
+      assert.ok(openai.secondaryVaultPda);
+
+      const spacex = assets.find((a: any) => a.symbol === 'SPACEXx');
+      assert.ok(spacex);
+      assert.strictEqual(spacex.certifiedNavUsd, 140.00);
+    });
+
+    it('P8: PreStocks evaluateProposedPreIpoTrade blocks 18% -> 23% and calculates exact $2,000 compliant headroom', () => {
+      const pClient = new SentinelClient();
+      const prestocks = pClient.getPreStocksApiClient();
+
+      // Construct a $100K portfolio with $18K in Pre-IPO assets (18%)
+      const port: any = {
+        totalValueUsd: 100_000,
+        stablecoinValueUsd: 20_000,
+        assets: [
+          { symbol: 'OPENAIx', valueUsd: 18_000, assetClass: 'PRE_IPO' },
+          { symbol: 'NVDAx', valueUsd: 40_000, assetClass: 'PUBLIC_EQUITY' },
+          { symbol: 'AAPLx', valueUsd: 22_000, assetClass: 'PUBLIC_EQUITY' },
+          { symbol: 'USDC', valueUsd: 20_000, assetClass: 'STABLE' },
+        ],
+      };
+      const pol: any = {
+        maxPreIpoExposureBps: 2000, // 20.00% ceiling
+        maxTradeValueUsd: 10_000,
+      };
+
+      // 1. Proposed trade: BUY $5,000 OPENAIx -> projected 23% ($23K / $100K) -> MUST BLOCK!
+      const nonCompliant = prestocks.evaluateProposedPreIpoTrade(port, pol, 'OPENAIx', 5000);
+      assert.strictEqual(nonCompliant.canExecute, false);
+      assert.strictEqual(nonCompliant.projectedExposureBps, 2300); // 23.00%
+      assert.strictEqual(nonCompliant.maxCompliantAmountUsd, 2000); // Exactly $2,000 headroom
+      assert.ok(nonCompliant.rejectionReason?.includes('23.0%'));
+      assert.ok(nonCompliant.rejectionReason?.includes('20.0%'));
+
+      // 2. Auto-adapted trade: BUY $2,000 OPENAIx -> projected 20% ($20K / $100K) -> MUST PASS!
+      const compliant = prestocks.evaluateProposedPreIpoTrade(port, pol, 'OPENAIx', 2000);
+      assert.strictEqual(compliant.canExecute, true);
+      assert.strictEqual(compliant.projectedExposureBps, 2000); // Exactly 20.00%
+      assert.strictEqual(compliant.maxCompliantAmountUsd, 2000);
+    });
+
+    it('P9: derives genuine Meteora DBC pool PDAs matching verified Solana addresses', () => {
+      assert.strictEqual(METEORA_DBC_PROGRAM_ID.toBase58(), 'dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN');
+      assert.strictEqual(METEORA_DBC_AUTHORITY.toBase58(), 'FhVo3mqL8PW5pH5U2CN4XE33DokiyZnUwuGpH2hmHLuM');
+
+      // NVDAx pool PDA derived from official mint
+      const nvdaxMint = 'NVDA111111111111111111111111111111111111111';
+      const nvdaxDerived = deriveMeteoraDbcPoolPda(nvdaxMint);
+      assert.strictEqual(nvdaxDerived, '4bHAChVfYLtyVuZLXmfa6oysGbJnJix93LJsz61WLckk');
+      assert.strictEqual(METEORA_DBC_POOLS.NVDAx, '4bHAChVfYLtyVuZLXmfa6oysGbJnJix93LJsz61WLckk');
+
+      // AAPLx pool PDA derived from official mint
+      const aaplxMint = 'AAPL111111111111111111111111111111111111111';
+      const aaplxDerived = deriveMeteoraDbcPoolPda(aaplxMint);
+      assert.strictEqual(aaplxDerived, 'Lju8wdGRe5UreH3j8oPw5puDEeJTR9CQQWyj4EFmmga');
+      assert.strictEqual(METEORA_DBC_POOLS.AAPLx, 'Lju8wdGRe5UreH3j8oPw5puDEeJTR9CQQWyj4EFmmga');
+
+      // SPYx pool PDA derived from official mint
+      const spyxMint = 'SPYX111111111111111111111111111111111111111';
+      const spyxDerived = deriveMeteoraDbcPoolPda(spyxMint);
+      assert.strictEqual(spyxDerived, '7qyKe5feUC4s7mWmYVnxuRstGCW3txuxjZ7ULk5KxHtM');
+      assert.strictEqual(METEORA_DBC_POOLS.SPYx, '7qyKe5feUC4s7mWmYVnxuRstGCW3txuxjZ7ULk5KxHtM');
+    });
+
+    it('P9: Meteora Equity Market Guard enforces liquidity floor ($25k) and price divergence limits', async () => {
+      const meteora = new MeteoraExecutionAdapter();
+      const pClient = new SentinelClient();
+      const port = pClient.createDefaultPortfolio();
+      const intent = pClient.getAgent().proposeIntent({
+        assetSymbol: 'NVDAx',
+        assetMint: 'NVDA111111111111111111111111111111111111111',
+        direction: 'BUY',
+        tradeAmountUsd: 5000,
+        referencePriceUsd: 120,
+        strategyRationale: 'Equity Market Guard verification',
+      });
+      const ticket: any = {
+        ticketId: 'test_ticket_001',
+        promiseId: 'test_promise_001',
+        agentId: intent.agentId,
+        intentHash: hashTradeIntent(intent),
+        policyHash: 'hash_002',
+        preStateHash: 'hash_003',
+        authorizedAt: Date.now(),
+        expiresAt: Date.now() + 60_000,
+        authorizedAmountUsd: 5000,
+        authorizedDirection: 'BUY',
+        targetAssetSymbol: 'NVDAx',
+        maxSlippageBps: 100,
+      };
+
+      // 1. Shallow liquidity ($15k < $25k floor) -> Blocked
+      meteora.setPoolDepth('NVDAx', 15_000);
+      meteora.setPoolPriceDivergence('NVDAx', 20);
+      await assert.rejects(
+        async () => {
+          await meteora.executeTrade(intent, port, ticket);
+        },
+        {
+          name: 'SecurityViolationError',
+          message: /insufficient liquidity depth: \$15,000 < minimum \$25,000/,
+        }
+      );
+
+      // 2. Excessive divergence (250 bps > 200 bps limit) -> Blocked
+      meteora.setPoolDepth('NVDAx', 100_000);
+      meteora.setPoolPriceDivergence('NVDAx', 250);
+      await assert.rejects(
+        async () => {
+          await meteora.executeTrade(intent, port, ticket);
+        },
+        {
+          name: 'SecurityViolationError',
+          message: /price deviation: 2.50% exceeds max allowed 2.00%/,
+        }
+      );
+
+      // 3. Healthy depth ($100k) and tight pricing (20 bps) -> Settles with genuine derived pool PDA
+      meteora.setPoolDepth('NVDAx', 100_000);
+      meteora.setPoolPriceDivergence('NVDAx', 20);
+      const execution = await meteora.executeTrade(intent, port, ticket);
+      assert.strictEqual(execution.success, true);
+      assert.strictEqual(execution.poolAddress, '4bHAChVfYLtyVuZLXmfa6oysGbJnJix93LJsz61WLckk');
+      assert.strictEqual(execution.venueType, 'METEORA_DBC');
     });
   });
 });

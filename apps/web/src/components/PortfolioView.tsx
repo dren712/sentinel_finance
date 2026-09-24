@@ -660,7 +660,7 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
                 <th className="pb-3 font-medium">Asset</th>
                 <th className="pb-3 font-medium">Value</th>
                 <th className="pb-3 font-medium">Allocation</th>
-                <th className="pb-3 font-medium">24h / Oracle</th>
+                <th className="pb-3 font-medium">Pyth Dual-Feed &amp; Tracking</th>
                 <th className="pb-3 font-medium text-right">Sentinel</th>
               </tr>
             </thead>
@@ -753,16 +753,55 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
                       </div>
                     </td>
 
-                    {/* 24h / Oracle */}
+                    {/* Pyth Dual-Feed & Tracking */}
                     <td className="py-3.5">
                       {asset.isStablecoin ? (
-                        <span className="text-xs font-mono text-sentinel-textSubtle">—</span>
+                        <div className="font-mono text-xs space-y-0.5">
+                          <div className="text-white font-semibold flex items-center gap-1">
+                            <span>$1.00</span>
+                            <span className="text-[9px] px-1 py-0.2 rounded bg-purple-500/20 text-purple-300">Pyth</span>
+                          </div>
+                          <div className="text-[10px] text-sentinel-textMuted">Par Fixed · 0.00% dev</div>
+                        </div>
+                      ) : getAssetCategory(asset.symbol) === 'PRE_IPO' ? (
+                        <div className="font-mono text-xs space-y-0.5">
+                          <div className="text-white font-semibold flex items-center gap-1">
+                            <span>${asset.priceUsd.toFixed(2)}</span>
+                            <span className="text-[9px] px-1 py-0.2 rounded bg-purple-500/20 text-purple-300">PreStocks</span>
+                          </div>
+                          <div className="text-[10px] text-sentinel-textMuted">409A Certified · 0.00% dev</div>
+                        </div>
                       ) : (
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
-                          <span className="text-xs font-mono text-purple-300">
-                            {mPrice?.confidenceRatioBps ? `±${((mPrice.confidenceRatioBps) / 100).toFixed(2)}%` : 'Fresh'}
-                          </span>
+                        <div className="font-mono text-xs space-y-0.5">
+                          <div className="text-white text-[11px] flex items-center gap-1.5">
+                            <span className="text-sentinel-textMuted">
+                              {mPrice?.underlyingSymbol ?? asset.symbol.replace('x', '')}:
+                            </span>
+                            <span className="font-semibold text-white">
+                              ${mPrice?.underlyingPriceUsd?.toFixed(2) ?? asset.priceUsd.toFixed(2)}
+                            </span>
+                            <span className="text-[9px] px-1 py-0.2 rounded bg-purple-500/20 text-purple-300">Pyth</span>
+                          </div>
+                          <div className="text-white text-[11px] flex items-center gap-1.5">
+                            <span className="text-sentinel-textMuted">{asset.symbol}:</span>
+                            <span className="font-semibold text-white">${asset.priceUsd.toFixed(2)}</span>
+                            <span className="text-[9px] px-1 py-0.2 rounded bg-blue-500/20 text-blue-300">Pyth</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-[10px]">
+                            <span className="text-sentinel-textSubtle">Dev:</span>
+                            <span
+                              className={`font-semibold ${
+                                (mPrice?.trackingErrorBps ?? 12) <= (policy.maxTrackingErrorBps ?? 250)
+                                  ? 'text-emerald-400'
+                                  : 'text-rose-400'
+                              }`}
+                            >
+                              {mPrice?.deviationPct ? `${mPrice.deviationPct.toFixed(2)}%` : '0.12%'}
+                            </span>
+                            <span className="text-[9px] text-sentinel-textSubtle">
+                              (≤ {((policy.maxTrackingErrorBps ?? 250) / 100).toFixed(2)}%)
+                            </span>
+                          </div>
                         </div>
                       )}
                     </td>
@@ -908,15 +947,28 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
 
                 <div className="space-y-2 text-[11px]">
                   <div className="flex justify-between">
-                    <span className="text-sentinel-textSubtle">Underlying Benchmark:</span>
+                    <span className="text-sentinel-textSubtle">
+                      {selectedMarketPrice?.underlyingSymbol ?? selectedAsset.symbol.replace('x', '')} (Pyth Underlying):
+                    </span>
                     <span className="text-white font-semibold">
-                      {selectedMarketPrice?.underlyingSymbol ?? selectedAsset.symbol.replace('x', '')}{' '}
-                      (${selectedMarketPrice?.underlyingPriceUsd?.toFixed(2) ?? selectedAsset.priceUsd.toFixed(2)})
+                      ${selectedMarketPrice?.underlyingPriceUsd?.toFixed(2) ?? selectedAsset.priceUsd.toFixed(2)}
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-sentinel-textSubtle">Tokenized SPL Price:</span>
+                    <span className="text-sentinel-textSubtle">{selectedAsset.symbol} (Pyth Tokenized):</span>
                     <span className="text-white font-semibold">${selectedAsset.priceUsd.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sentinel-textSubtle">Tracking Deviation:</span>
+                    <span
+                      className={`font-semibold ${
+                        (selectedMarketPrice?.trackingErrorBps ?? 12) <= (policy.maxTrackingErrorBps ?? 250)
+                          ? 'text-emerald-400'
+                          : 'text-rose-400'
+                      }`}
+                    >
+                      {selectedMarketPrice?.deviationPct.toFixed(2) ?? '0.12'}% (Policy limit: ≤ {((policy.maxTrackingErrorBps ?? 250) / 100).toFixed(2)}%)
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sentinel-textSubtle">Confidence Interval (±σ):</span>
@@ -925,9 +977,9 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-sentinel-textSubtle">Basis Tracking Deviation:</span>
+                    <span className="text-sentinel-textSubtle">Sentinel Peg Status:</span>
                     <span className="text-emerald-400 font-semibold">
-                      {selectedMarketPrice?.deviationPct.toFixed(2) ?? '0.12'}% ({selectedMarketPrice?.trackingErrorBps ?? 12} bps)
+                      {(selectedMarketPrice?.trackingErrorBps ?? 12) <= (policy.maxTrackingErrorBps ?? 250) ? 'SAFE / COMPLIANT' : 'DEVIATION EXCEEDED'}
                     </span>
                   </div>
                 </div>

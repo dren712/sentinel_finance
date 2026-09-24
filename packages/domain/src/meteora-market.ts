@@ -84,7 +84,7 @@ export class MeteoraStockMarket {
     this.config = {
       assetSymbol: config?.assetSymbol ?? 'NVDAx',
       assetName: config?.assetName ?? 'NVIDIA Tokenized Equity DBC Market',
-      poolAddress: config?.poolAddress ?? 'Eo7WjKq67rjJQSZxS6z3YKapzY3eMj6Xy8DD5EkViQn7',
+      poolAddress: config?.poolAddress ?? '4bHAChVfYLtyVuZLXmfa6oysGbJnJix93LJsz61WLckk',
       underlyingSymbol: config?.underlyingSymbol ?? 'NVDA',
       initialPriceUsd: initialPrice,
       virtualQuoteReserveUsd: vQuote,

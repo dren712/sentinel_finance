@@ -31,20 +31,20 @@ export interface PriceProvider {
 
 export const PYTH_FEED_IDS: Record<string, { tokenizedFeedId: string; underlyingFeedId: string }> = {
   NVDAx: {
-    tokenizedFeedId: '0x321f66ff6d45e54865cf0e6097561f528646b1f280145c8502f6ae64d1f2a40b',
-    underlyingFeedId: '0xb1a967f6738084a44549f3e49666f81e330fb1ef0ff87c67fa187127e909a365', // NVDA/USD
+    tokenizedFeedId: '0x4244d07890e4610f46bbde67de8f43a4bf8b569eebe904f136b469f148503b7f', // Crypto.NVDAX/USD
+    underlyingFeedId: '0xb1073854ed24cbc755dc527418f52b7d271f6cc967bbf8d8129112b18860a593', // Equity.US.NVDA/USD
   },
   AAPLx: {
-    tokenizedFeedId: '0x49f6b657ede6b7e024e883494747e7eb16752765377f0a67272b1660d2b27076',
-    underlyingFeedId: '0x49f6b657ede6b7e024e883494747e7eb16752765377f0a67272b1660d2b27076', // AAPL/USD
+    tokenizedFeedId: '0x978e6cc68a119ce066aa830017318563a9ed04ec3a0a6439010fc11296a58675', // Crypto.AAPLX/USD
+    underlyingFeedId: '0x49f6b65cb1de6b10eaf75e7c03ca029c306d0357e91b5311b175084a5ad55688', // Equity.US.AAPL/USD
   },
   SPYx: {
-    tokenizedFeedId: '0x266ed36a8c5a085b6b063462b48fa0ef28e5a7b67039a8ab6f483c6b66e85741',
-    underlyingFeedId: '0x266ed36a8c5a085b6b063462b48fa0ef28e5a7b67039a8ab6f483c6b66e85741', // SPY/USD
+    tokenizedFeedId: '0x2817b78438c769357182c04346fddaad1178c82f4048828fe0997c3c64624e14', // Crypto.SPYX/USD
+    underlyingFeedId: '0x19e09bb805456ada3979a7d1cbb4b6d63babc3a0f8e8a9509f68afa5c4c11cd5', // Equity.US.SPY/USD
   },
   USDC: {
-    tokenizedFeedId: '0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a',
-    underlyingFeedId: '0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a', // USD/USD
+    tokenizedFeedId: '0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a', // Crypto.USDC/USD
+    underlyingFeedId: '0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a', // FX.USD/USD
   },
   SPACEXx: {
     tokenizedFeedId: '0x79f6b657ede6b7e024e883494747e7eb16752765377f0a67272b1660d2b27001',
@@ -57,6 +57,10 @@ export const PYTH_FEED_IDS: Record<string, { tokenizedFeedId: string; underlying
   STRIPEx: {
     tokenizedFeedId: '0x99f6b657ede6b7e024e883494747e7eb16752765377f0a67272b1660d2b27003',
     underlyingFeedId: '0x99f6b657ede6b7e024e883494747e7eb16752765377f0a67272b1660d2b27003',
+  },
+  ANTHROPICx: {
+    tokenizedFeedId: '0xa9f6b657ede6b7e024e883494747e7eb16752765377f0a67272b1660d2b27005',
+    underlyingFeedId: '0xa9f6b657ede6b7e024e883494747e7eb16752765377f0a67272b1660d2b27005',
   },
 };
 

@@ -24,7 +24,13 @@ import { Program, AnchorProvider, BN, Idl } from '@coral-xyz/anchor';
 import { SENTINEL_IDL, Sentinel } from '../idl';
 
 export { DemoExecutionAdapter, SimulatedExecutionAdapter } from './demo-adapter';
-export { MeteoraExecutionAdapter, METEORA_DBC_POOLS } from './meteora-adapter';
+export {
+  MeteoraExecutionAdapter,
+  METEORA_DBC_POOLS,
+  METEORA_DBC_PROGRAM_ID,
+  METEORA_DBC_AUTHORITY,
+  deriveMeteoraDbcPoolPda,
+} from './meteora-adapter';
 export { PreStocksExecutionAdapter, PRESTOCKS_SECONDARY_POOLS } from './prestocks-adapter';
 
 /**
