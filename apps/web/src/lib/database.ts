@@ -1,3 +1,4 @@
+import { Pool } from 'pg';
 import { EvidenceRecord, PortfolioSnapshot, hashPortfolioState } from '@sentinel/domain';
 
 /**
@@ -7,9 +8,11 @@ import { EvidenceRecord, PortfolioSnapshot, hashPortfolioState } from '@sentinel
  *   Solana   = Authoritative Financial State (Portfolio balances, Vault PDA, Policy PDA)
  *   Postgres = Queryable Read Model / History (agent_runs, decisions, executions, portfolio_snapshots, evidence_index)
  *
- * Security Boundary:
- *   This module connects ONLY server-side inside Next.js API routes.
- *   The browser must NEVER receive DATABASE_URL or import this module.
+ * Security & Observability Rules:
+ *   1. Connects ONLY server-side inside Next.js API routes using the explicitly installed `pg` driver.
+ *   2. Never swallows DB failures silently — emits structured `[WARN] postgres_write_failed` /
+ *      `[WARN] postgres_read_failed` / `[WARN] postgres_init_failed` diagnostics so production
+ *      operators immediately know if persistence degrades, while continuing gracefully if DB is optional.
  */
 
 if (typeof window !== 'undefined') {
@@ -181,30 +184,58 @@ export class SentinelReadHistoryRepository {
   private executions: ExecutionRow[] = [];
   private portfolioSnapshots: PortfolioSnapshotRow[] = [];
   private evidenceIndex: EvidenceIndexRow[] = [];
-  private pgPool: any = null;
+  private pgPool: Pool | null = null;
   private pgInitialized = false;
   private initPromise: Promise<void> | null = null;
+  private lastError: string | null = null;
+  private lastErrorAt: number | null = null;
 
   constructor(private databaseUrl: string | undefined = process.env.DATABASE_URL) {
     if (this.databaseUrl) {
-      this.initPromise = this.initPostgresAsync().catch(() => {
-        // Core demo works without Postgres if connection fails
-      });
+      this.initPromise = this.initPostgresAsync();
     }
+  }
+
+  private logDbWarning(
+    event: 'postgres_init_failed' | 'postgres_write_failed' | 'postgres_read_failed',
+    meta: {
+      table?: string;
+      run_id?: string;
+      decision_id?: string;
+      execution_id?: string;
+      snapshot_id?: string;
+      evidence_id?: string;
+      error: unknown;
+    }
+  ): void {
+    const errMsg = meta.error instanceof Error ? meta.error.message : String(meta.error);
+    this.lastError = errMsg;
+    this.lastErrorAt = Date.now();
+    const lines = [
+      `[WARN] ${event}`,
+      meta.run_id ? `run_id=${meta.run_id}` : null,
+      meta.decision_id ? `decision_id=${meta.decision_id}` : null,
+      meta.execution_id ? `execution_id=${meta.execution_id}` : null,
+      meta.snapshot_id ? `snapshot_id=${meta.snapshot_id}` : null,
+      meta.evidence_id ? `evidence_id=${meta.evidence_id}` : null,
+      meta.table ? `table=${meta.table}` : null,
+      `error=${JSON.stringify(errMsg)}`,
+    ].filter(Boolean);
+    console.warn(lines.join('\n'));
   }
 
   private async initPostgresAsync(): Promise<void> {
     if (!this.databaseUrl || this.pgInitialized) return;
     try {
-      const loadPg = new Function('return import("pg")') as () => Promise<any>;
-      const pg = await loadPg().catch(() => null);
-      const Pool = pg?.Pool || pg?.default?.Pool;
-      if (Pool) {
-        this.pgPool = new Pool({ connectionString: this.databaseUrl });
-        await this.pgPool.query(POSTGRES_READ_HISTORY_DDL);
-        this.pgInitialized = true;
-      }
-    } catch {
+      this.pgPool = new Pool({
+        connectionString: this.databaseUrl,
+        connectionTimeoutMillis: 5000,
+      });
+      await this.pgPool.query(POSTGRES_READ_HISTORY_DDL);
+      this.pgInitialized = true;
+      this.lastError = null;
+    } catch (error) {
+      this.logDbWarning('postgres_init_failed', { table: 'all_ddl', error });
       this.pgPool = null;
       this.pgInitialized = false;
     }
@@ -214,10 +245,28 @@ export class SentinelReadHistoryRepository {
     if (this.initPromise) {
       await this.initPromise;
     } else if (this.databaseUrl && !this.pgInitialized) {
-      this.initPromise = this.initPostgresAsync().catch(() => {});
+      this.initPromise = this.initPostgresAsync();
       await this.initPromise;
     }
     return this.isPostgresConnected();
+  }
+
+  public async checkConnectionHealth(): Promise<'connected' | 'not_configured' | 'disconnected'> {
+    if (!this.databaseUrl) {
+      return 'not_configured';
+    }
+    const ready = await this.ensureReady();
+    if (!ready || !this.pgPool) {
+      return 'disconnected';
+    }
+    try {
+      await this.pgPool.query('SELECT 1');
+      this.lastError = null;
+      return 'connected';
+    } catch (error) {
+      this.logDbWarning('postgres_read_failed', { table: 'health_ping', error });
+      return 'disconnected';
+    }
   }
 
   public isPostgresConnected(): boolean {
@@ -229,12 +278,12 @@ export class SentinelReadHistoryRepository {
   }
 
   // ---------------------------------------------------------------------------
-  // WRITE METHODS (Persist to Postgres + keep local fallback cache synchronized)
+  // WRITE METHODS (Persist to Postgres + structured warning on failure)
   // ---------------------------------------------------------------------------
 
   public async recordAgentRun(row: AgentRunRow): Promise<void> {
     this.agentRuns.unshift(row);
-    if (await this.ensureReady()) {
+    if ((await this.ensureReady()) && this.pgPool) {
       await this.pgPool
         .query(
           `INSERT INTO agent_runs (run_id, agent_id, wallet_address, scenario, llm_provider, stage, status, summary, created_at)
@@ -255,13 +304,19 @@ export class SentinelReadHistoryRepository {
             row.created_at,
           ]
         )
-        .catch(() => {});
+        .catch((error: unknown) => {
+          this.logDbWarning('postgres_write_failed', {
+            table: 'agent_runs',
+            run_id: row.run_id,
+            error,
+          });
+        });
     }
   }
 
   public async recordDecision(row: DecisionRow): Promise<void> {
     this.decisions.unshift(row);
-    if (await this.ensureReady()) {
+    if ((await this.ensureReady()) && this.pgPool) {
       await this.pgPool
         .query(
           `INSERT INTO decisions (
@@ -286,13 +341,20 @@ export class SentinelReadHistoryRepository {
             row.created_at,
           ]
         )
-        .catch(() => {});
+        .catch((error: unknown) => {
+          this.logDbWarning('postgres_write_failed', {
+            table: 'decisions',
+            run_id: row.run_id,
+            decision_id: row.decision_id,
+            error,
+          });
+        });
     }
   }
 
   public async recordExecution(row: ExecutionRow): Promise<void> {
     this.executions.unshift(row);
-    if (await this.ensureReady()) {
+    if ((await this.ensureReady()) && this.pgPool) {
       await this.pgPool
         .query(
           `INSERT INTO executions (
@@ -316,7 +378,14 @@ export class SentinelReadHistoryRepository {
             row.created_at,
           ]
         )
-        .catch(() => {});
+        .catch((error: unknown) => {
+          this.logDbWarning('postgres_write_failed', {
+            table: 'executions',
+            decision_id: row.decision_id,
+            execution_id: row.execution_id,
+            error,
+          });
+        });
     }
   }
 
@@ -333,7 +402,7 @@ export class SentinelReadHistoryRepository {
       created_at: Date.now(),
     };
     this.portfolioSnapshots.unshift(row);
-    if (await this.ensureReady()) {
+    if ((await this.ensureReady()) && this.pgPool) {
       await this.pgPool
         .query(
           `INSERT INTO portfolio_snapshots (
@@ -354,7 +423,13 @@ export class SentinelReadHistoryRepository {
             row.created_at,
           ]
         )
-        .catch(() => {});
+        .catch((error: unknown) => {
+          this.logDbWarning('postgres_write_failed', {
+            table: 'portfolio_snapshots',
+            snapshot_id: row.snapshot_id,
+            error,
+          });
+        });
     }
     return row;
   }
@@ -378,7 +453,7 @@ export class SentinelReadHistoryRepository {
       created_at: record.timestamp,
     };
     this.evidenceIndex.unshift(row);
-    if (await this.ensureReady()) {
+    if ((await this.ensureReady()) && this.pgPool) {
       await this.pgPool
         .query(
           `INSERT INTO evidence_index (
@@ -402,7 +477,14 @@ export class SentinelReadHistoryRepository {
             row.created_at,
           ]
         )
-        .catch(() => {});
+        .catch((error: unknown) => {
+          this.logDbWarning('postgres_write_failed', {
+            table: 'evidence_index',
+            decision_id: decisionId,
+            evidence_id: row.evidence_id,
+            error,
+          });
+        });
     }
     return row;
   }
@@ -413,7 +495,7 @@ export class SentinelReadHistoryRepository {
 
   public async queryAgentRuns(wallet?: string, limit: number = 100): Promise<AgentRunRow[]> {
     const filterWallet = wallet && wallet !== 'default' ? wallet : null;
-    if (await this.ensureReady()) {
+    if ((await this.ensureReady()) && this.pgPool) {
       try {
         const res = filterWallet
           ? await this.pgPool.query(
@@ -435,8 +517,8 @@ export class SentinelReadHistoryRepository {
           summary: r.summary,
           created_at: Number(r.created_at),
         }));
-      } catch {
-        // Fallback to in-memory cache if query fails
+      } catch (error) {
+        this.logDbWarning('postgres_read_failed', { table: 'agent_runs', error });
       }
     }
     return this.getAgentRuns(wallet).slice(0, limit);
@@ -444,7 +526,7 @@ export class SentinelReadHistoryRepository {
 
   public async queryDecisions(wallet?: string, limit: number = 100): Promise<DecisionRow[]> {
     const filterWallet = wallet && wallet !== 'default' ? wallet : null;
-    if (await this.ensureReady()) {
+    if ((await this.ensureReady()) && this.pgPool) {
       try {
         const res = filterWallet
           ? await this.pgPool.query(
@@ -470,8 +552,8 @@ export class SentinelReadHistoryRepository {
           transaction_signature: r.transaction_signature ?? undefined,
           created_at: Number(r.created_at),
         }));
-      } catch {
-        // Fallback to in-memory cache if query fails
+      } catch (error) {
+        this.logDbWarning('postgres_read_failed', { table: 'decisions', error });
       }
     }
     return this.getDecisions(wallet).slice(0, limit);
@@ -479,7 +561,7 @@ export class SentinelReadHistoryRepository {
 
   public async queryExecutions(wallet?: string, limit: number = 100): Promise<ExecutionRow[]> {
     const filterWallet = wallet && wallet !== 'default' ? wallet : null;
-    if (await this.ensureReady()) {
+    if ((await this.ensureReady()) && this.pgPool) {
       try {
         const res = filterWallet
           ? await this.pgPool.query(
@@ -504,8 +586,8 @@ export class SentinelReadHistoryRepository {
           is_simulation: Boolean(r.is_simulation),
           created_at: Number(r.created_at),
         }));
-      } catch {
-        // Fallback to in-memory cache if query fails
+      } catch (error) {
+        this.logDbWarning('postgres_read_failed', { table: 'executions', error });
       }
     }
     return this.getExecutions(wallet).slice(0, limit);
@@ -513,7 +595,7 @@ export class SentinelReadHistoryRepository {
 
   public async queryPortfolioSnapshots(wallet?: string, limit: number = 100): Promise<PortfolioSnapshotRow[]> {
     const filterWallet = wallet && wallet !== 'default' ? wallet : null;
-    if (await this.ensureReady()) {
+    if ((await this.ensureReady()) && this.pgPool) {
       try {
         const res = filterWallet
           ? await this.pgPool.query(
@@ -535,8 +617,8 @@ export class SentinelReadHistoryRepository {
           state_hash: r.state_hash,
           created_at: Number(r.created_at),
         }));
-      } catch {
-        // Fallback to in-memory cache if query fails
+      } catch (error) {
+        this.logDbWarning('postgres_read_failed', { table: 'portfolio_snapshots', error });
       }
     }
     return this.getPortfolioSnapshots(wallet).slice(0, limit);
@@ -544,7 +626,7 @@ export class SentinelReadHistoryRepository {
 
   public async queryEvidenceList(wallet?: string, limit: number = 100): Promise<EvidenceIndexRow[]> {
     const filterWallet = wallet && wallet !== 'default' ? wallet : null;
-    if (await this.ensureReady()) {
+    if ((await this.ensureReady()) && this.pgPool) {
       try {
         const res = filterWallet
           ? await this.pgPool.query(
@@ -568,15 +650,15 @@ export class SentinelReadHistoryRepository {
           record: typeof r.record_json === 'string' ? JSON.parse(r.record_json) : r.record_json,
           created_at: Number(r.created_at),
         }));
-      } catch {
-        // Fallback to in-memory cache if query fails
+      } catch (error) {
+        this.logDbWarning('postgres_read_failed', { table: 'evidence_index', error });
       }
     }
     return this.getEvidenceList(wallet).slice(0, limit);
   }
 
   public async queryEvidenceById(decisionOrEvidenceId: string): Promise<EvidenceIndexRow | undefined> {
-    if (await this.ensureReady()) {
+    if ((await this.ensureReady()) && this.pgPool) {
       try {
         const res =
           decisionOrEvidenceId === 'latest' || decisionOrEvidenceId === 'current'
@@ -603,15 +685,19 @@ export class SentinelReadHistoryRepository {
             created_at: Number(r.created_at),
           };
         }
-      } catch {
-        // Fallback to in-memory cache
+      } catch (error) {
+        this.logDbWarning('postgres_read_failed', {
+          table: 'evidence_index',
+          evidence_id: decisionOrEvidenceId,
+          error,
+        });
       }
     }
     return this.getEvidenceById(decisionOrEvidenceId);
   }
 
   public async queryStats() {
-    if (await this.ensureReady()) {
+    if ((await this.ensureReady()) && this.pgPool) {
       try {
         const [runs, decs, execs, snaps, evs] = await Promise.all([
           this.pgPool.query(`SELECT COUNT(*)::int AS c FROM agent_runs`),
@@ -626,6 +712,8 @@ export class SentinelReadHistoryRepository {
           mode: this.getMode(),
           postgresConfigured: Boolean(this.databaseUrl),
           postgresConnected: true,
+          lastError: this.lastError,
+          lastErrorAt: this.lastErrorAt,
           tables: {
             agent_runs: runs.rows[0]?.c ?? 0,
             decisions: decs.rows[0]?.c ?? 0,
@@ -634,8 +722,8 @@ export class SentinelReadHistoryRepository {
             evidence_index: evs.rows[0]?.c ?? 0,
           },
         };
-      } catch {
-        // Fallback to synchronous stats
+      } catch (error) {
+        this.logDbWarning('postgres_read_failed', { table: 'stats_count', error });
       }
     }
     return this.getStats();
@@ -686,6 +774,8 @@ export class SentinelReadHistoryRepository {
       mode: this.getMode(),
       postgresConfigured: Boolean(this.databaseUrl),
       postgresConnected: this.isPostgresConnected(),
+      lastError: this.lastError,
+      lastErrorAt: this.lastErrorAt,
       tables: {
         agent_runs: this.agentRuns.length,
         decisions: this.decisions.length,

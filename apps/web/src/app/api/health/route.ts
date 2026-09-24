@@ -1,3 +1,4 @@
+import { Connection } from '@solana/web3.js';
 import { getServerStore } from '../../../lib/server-state';
 import { APP_CONFIG } from '../../../lib/config';
 
@@ -5,16 +6,57 @@ import { APP_CONFIG } from '../../../lib/config';
  * GET /api/health
  *
  * P14 Docker & Production Liveness Probe
- * Exposes service health, active Solana cluster environment (LOCAL | DEVNET | MAINNET),
- * dynamically derived Anchor PDAs, and live Postgres read-model row counts.
+ * Explicitly distinguishes component health:
+ *   status   : "ok" | "degraded"
+ *   solana   : "connected" | "configured"
+ *   postgres : "connected" | "not_configured" | "disconnected"
+ *   llm      : "configured" | "demo_fallback"
+ *
+ * Keeps HTTP 200 available for the Docker container healthcheck while never silently
+ * hiding degraded persistence or missing credentials.
  */
 export async function GET() {
   try {
     const store = getServerStore();
-    const dbStats = await store.db.queryStats();
+
+    // 1. Check Postgres connectivity honestly (`connected` | `not_configured` | `disconnected`)
+    const [postgresStatus, dbStats] = await Promise.all([
+      store.db.checkConnectionHealth(),
+      store.db.queryStats(),
+    ]);
+
+    // 2. Check Solana RPC connectivity (`connected` | `configured`)
+    let solanaStatus: 'connected' | 'configured' = 'configured';
+    if (APP_CONFIG.rpcUrl) {
+      try {
+        const connection = new Connection(APP_CONFIG.rpcUrl, 'confirmed');
+        const slot = await Promise.race([
+          connection.getSlot(),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000)),
+        ]);
+        if (typeof slot === 'number' && slot > 0) {
+          solanaStatus = 'connected';
+        }
+      } catch {
+        solanaStatus = 'configured';
+      }
+    }
+
+    // 3. Check LLM configuration (`configured` when OPENAI_API_KEY is present, else `demo_fallback`)
+    const llmStatus: 'configured' | 'demo_fallback' = process.env.OPENAI_API_KEY
+      ? 'configured'
+      : 'demo_fallback';
+
+    // If DATABASE_URL was explicitly set by operator (`postgresConfigured === true`)
+    // but Postgres failed to connect (`postgresStatus === 'disconnected'`), report status="degraded"
+    const overallStatus: 'ok' | 'degraded' =
+      dbStats.postgresConfigured && postgresStatus === 'disconnected' ? 'degraded' : 'ok';
 
     return Response.json({
-      status: 'ok',
+      status: overallStatus,
+      solana: solanaStatus,
+      postgres: postgresStatus,
+      llm: llmStatus,
       service: 'sentinel-finance',
       version: '1.2.0',
       authority: 'SOLANA_ON_CHAIN',
@@ -30,7 +72,9 @@ export async function GET() {
       agent: {
         agentId: store.client.getAgent().agentId,
         status: store.status,
-        llmProvider: store.client.getLLMProvider().providerName,
+        llmProvider: process.env.OPENAI_API_KEY
+          ? 'OpenAIProvider'
+          : store.client.getLLMProvider().providerName,
       },
       historyStore: dbStats,
       timestamp: Date.now(),
