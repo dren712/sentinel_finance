@@ -2,7 +2,7 @@
 
 import React from 'react';
 import {
-  Sparkles,
+  LayoutDashboard,
   PieChart,
   Bot,
   ShieldCheck,
@@ -37,7 +37,7 @@ export const Navigation: React.FC<NavigationProps> = ({
   evidenceCount,
 }) => {
   const tabs: TabItem[] = [
-    { id: 'overview', label: 'Overview', icon: Sparkles },
+    { id: 'overview', label: 'Overview', icon: LayoutDashboard },
     { id: 'portfolio', label: 'Portfolio', icon: PieChart },
     { id: 'agent', label: 'Agent', icon: Bot },
     { id: 'protection', label: 'Protection', icon: ShieldCheck },
@@ -47,29 +47,43 @@ export const Navigation: React.FC<NavigationProps> = ({
 
   return (
     <>
-      {/* Desktop Navigation (Top Tab Bar) */}
-      <div className="border-b border-sentinel-border bg-sentinel-bg/90 backdrop-blur sticky top-16 z-30 hidden md:block">
+      {/* Desktop Navigation (Subtle Horizontal Tab Bar with Active Underline) */}
+      <div className="border-b border-sentinel-border bg-sentinel-bg/95 backdrop-blur sticky top-16 z-30 hidden md:block">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <nav className="flex space-x-2 py-2.5">
+          <nav className="flex space-x-1 sm:space-x-2" aria-label="Main Navigation">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
               return (
                 <button
                   key={tab.id}
+                  type="button"
                   onClick={() => onSelectTab(tab.id)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold tracking-wide sentinel-interactive sentinel-focus cursor-pointer ${
+                  className={`relative flex items-center gap-2 px-3.5 py-3 text-xs transition-colors cursor-pointer select-none focus:outline-none ${
                     isActive
-                      ? 'bg-sentinel-surfaceElevated text-sentinel-text border border-sentinel-accent/40 shadow-xs'
-                      : 'text-sentinel-textMuted hover:text-sentinel-text hover:bg-sentinel-surface'
+                      ? 'text-white font-semibold'
+                      : 'text-sentinel-textMuted hover:text-white hover:bg-white/[0.02]'
                   }`}
                 >
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-sentinel-accent' : 'text-sentinel-textSubtle'}`} />
+                  <Icon
+                    className={`w-3.5 h-3.5 transition-colors ${
+                      isActive ? 'text-cyan-400' : 'text-sentinel-textSubtle'
+                    }`}
+                  />
                   <span>{tab.label}</span>
                   {tab.count !== undefined && tab.count > 0 && (
-                    <span className="px-1.5 py-0.2 rounded-full bg-sentinel-surfaceMuted text-sentinel-textMuted text-[10px] font-mono tabular-nums border border-sentinel-border">
+                    <span
+                      className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono tabular-nums leading-none ${
+                        isActive
+                          ? 'bg-cyan-500/15 text-cyan-300 font-semibold'
+                          : 'bg-sentinel-surfaceElevated text-sentinel-textSubtle border border-sentinel-border'
+                      }`}
+                    >
                       {tab.count}
                     </span>
+                  )}
+                  {isActive && (
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-t-full shadow-[0_0_8px_rgba(6,182,212,0.4)]" />
                   )}
                 </button>
               );
@@ -78,31 +92,41 @@ export const Navigation: React.FC<NavigationProps> = ({
         </div>
       </div>
 
-      {/* Mobile Bottom Navigation Bar (Non-negotiable) */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-sentinel-surface/95 backdrop-blur border-t border-sentinel-border px-3 py-1.5 shadow-2xl safe-area-bottom">
-        <nav className="grid grid-cols-6 gap-1">
+      {/* Mobile Bottom Navigation Bar (44px touch floor, no clipping at 320px/375px) */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-sentinel-surface/95 backdrop-blur border-t border-sentinel-border px-1 py-1 shadow-2xl safe-area-bottom">
+        <nav className="grid grid-cols-6 gap-0.5" aria-label="Mobile Navigation">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
+                type="button"
                 onClick={() => onSelectTab(tab.id)}
-                className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg sentinel-interactive sentinel-focus min-h-[44px] cursor-pointer ${
+                className={`min-h-[44px] flex flex-col items-center justify-center py-1 px-0.5 rounded-lg cursor-pointer transition-colors ${
                   isActive
-                    ? 'text-sentinel-text bg-sentinel-accent/15 border border-sentinel-accent/30 font-bold'
-                    : 'text-sentinel-textMuted hover:text-sentinel-text'
+                    ? 'text-white font-semibold bg-white/[0.04]'
+                    : 'text-sentinel-textMuted hover:text-white'
                 }`}
               >
                 <div className="relative">
-                  <Icon className={`w-5 h-5 ${isActive ? 'text-sentinel-accent' : 'text-sentinel-textSubtle'}`} />
+                  <Icon
+                    className={`w-4 h-4 ${
+                      isActive ? 'text-cyan-400' : 'text-sentinel-textSubtle'
+                    }`}
+                  />
                   {tab.count !== undefined && tab.count > 0 && (
-                    <span className="absolute -top-1 -right-2 px-1 py-0.2 rounded-full bg-sentinel-accent text-white text-[9px] font-mono tabular-nums font-bold leading-none">
+                    <span className="absolute -top-1 -right-2 px-1 min-w-[12px] h-3 flex items-center justify-center rounded-full bg-cyan-500 text-black text-[8px] font-mono font-bold leading-none">
                       {tab.count}
                     </span>
                   )}
                 </div>
-                <span className="text-[10px] mt-1 font-medium">{tab.label}</span>
+                <span className="text-[10px] mt-1 truncate max-w-full text-center leading-tight">
+                  {tab.id === 'proof' ? 'Verify' : tab.label}
+                </span>
+                {isActive && (
+                  <span className="w-3 h-0.5 bg-cyan-400 rounded-full mt-0.5" />
+                )}
               </button>
             );
           })}

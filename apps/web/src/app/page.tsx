@@ -623,7 +623,10 @@ export default function Home() {
         mode={mode}
         portfolioSource={portfolio.source}
         pythSource={pythSourceLabel}
-        walletAddress={portfolio.owner}
+        walletAddress={connected && publicKey ? publicKey.toBase58() : portfolio.owner}
+        walletBalanceSol={walletBalanceSol}
+        vaultPda={activePdas.vaultPda}
+        policyPda={activePdas.policyPda}
         onToggleMode={handleToggleMode}
         onRunDemo={handleRunDemo}
         onRunPreStocksDemo={handleRunPreStocksDemo}
@@ -737,29 +740,29 @@ export default function Home() {
           </div>
         )}
 
-        {/* Live Wallet Connection Bar (when wallet is connected) */}
-        {connected && publicKey && (
-          <div className="mb-5 px-4 py-2.5 rounded-lg bg-emerald-950/25 border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono text-emerald-300">
+        {/* Live Wallet Connection Bar (when wallet is connected and in app views) */}
+        {connected && publicKey && activeTab !== 'overview' && (
+          <div className="mb-4 px-3 py-1.5 rounded-lg bg-emerald-950/20 border border-emerald-500/25 flex flex-wrap items-center justify-between gap-2 text-xs font-mono text-emerald-300">
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Wallet Connected: {formatAddress(publicKey.toBase58(), 4)}</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Wallet: {formatAddress(publicKey.toBase58(), 4)}</span>
               {walletBalanceSol !== null && (
                 <span className="text-emerald-400/80">
-                  ({walletBalanceSol.toFixed(3)} SOL {APP_CONFIG.clusterLabel})
+                  · {walletBalanceSol.toFixed(3)} SOL ({APP_CONFIG.clusterLabel})
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-3">
-              <span className="text-[11px] text-slate-400">
-                Vault PDA: {formatAddress(activePdas.vaultPda, 4)} · Policy PDA: {formatAddress(activePdas.policyPda, 4)}
+            <div className="flex items-center gap-3 text-[11px]">
+              <span className="text-slate-400 hidden sm:inline">
+                Vault: {formatAddress(activePdas.vaultPda, 4)} · Policy: {formatAddress(activePdas.policyPda, 4)}
               </span>
               <a
                 href={getExplorerAddressUrl(publicKey.toBase58())}
                 target="_blank"
                 rel="noreferrer"
-                className="text-emerald-400 hover:underline flex items-center gap-1 text-[11px]"
+                className="text-emerald-400 hover:underline flex items-center gap-1"
               >
-                <span>View Wallet on Explorer</span>
+                <span>Explorer</span>
                 <ArrowUpRight className="w-3 h-3" />
               </a>
             </div>
