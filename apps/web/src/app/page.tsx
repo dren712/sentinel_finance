@@ -24,12 +24,10 @@ import { Header } from '@/components/Header';
 import { Navigation, NavTab } from '@/components/Navigation';
 import { LandingView } from '@/components/LandingView';
 import { PortfolioView } from '@/components/PortfolioView';
-import { HeroStoryCenterpiece, DemoScenarioKey } from '@/components/HeroStoryCenterpiece';
 import { AgentView } from '@/components/AgentView';
-import { GuaranteesView } from '@/components/GuaranteesView';
+import { GuaranteesView, PolicySaveOutcome } from '@/components/GuaranteesView';
 import { ActivityView } from '@/components/ActivityView';
 import { ProofVerificationView } from '@/components/ProofVerificationView';
-import { MarketRegimeBanner } from '@/components/ui/MarketRegimeBanner';
 import { TransactionModal, TxLifecycleStep, TxDetails } from '@/components/ui/TransactionModal';
 import { APP_CONFIG, getExplorerAddressUrl, deriveSentinelDomainPdas } from '@/lib/config';
 import { formatAddress } from '@/lib/formatters';
@@ -58,7 +56,7 @@ export default function Home() {
   const [demoTitle, setDemoTitle] = useState<string>('Flagship 5-Step Demo Flow');
   const [totalDemoSteps, setTotalDemoSteps] = useState<number>(5);
   const [walletBalanceSol, setWalletBalanceSol] = useState<number | null>(null);
-  const [selectedHeroScenario, setSelectedHeroScenario] = useState<DemoScenarioKey>('FLAGSHIP');
+  const [selectedHeroScenario, setSelectedHeroScenario] = useState<'FLAGSHIP' | 'PRESTOCKS' | 'METEORA' | 'PYTH'>('FLAGSHIP');
 
   const activePdas = useMemo(
     () => deriveSentinelDomainPdas(portfolio.owner, APP_CONFIG.sentinelProgramId),
@@ -266,7 +264,7 @@ export default function Home() {
     setSelectedHeroScenario('FLAGSHIP');
     setDemoTitle('Flagship 5-Step Demo Flow');
     setTotalDemoSteps(5);
-    setActiveTab('portfolio');
+    setActiveTab('agent');
 
     try {
       const agent = client.getAgent();
@@ -343,7 +341,7 @@ export default function Home() {
     setSelectedHeroScenario('PRESTOCKS');
     setDemoTitle('PreStocks Pre-IPO Ceiling Enforcement');
     setTotalDemoSteps(5);
-    setActiveTab('portfolio');
+    setActiveTab('agent');
 
     try {
       const effectivePolicy: FinancialPolicy = {
@@ -399,7 +397,7 @@ export default function Home() {
     setSelectedHeroScenario('METEORA');
     setDemoTitle('Meteora DBC Market Quality Enforcement');
     setTotalDemoSteps(5);
-    setActiveTab('portfolio');
+    setActiveTab('agent');
 
     try {
       // Step 1: Inspect Meteora DBC Market
@@ -452,7 +450,7 @@ export default function Home() {
     setSelectedHeroScenario('PYTH');
     setDemoTitle('Pyth Oracle Freshness & Fail-Closed Guard');
     setTotalDemoSteps(4);
-    setActiveTab('portfolio');
+    setActiveTab('agent');
 
     try {
       // Step 1: Inspect Pyth Market Truth
@@ -491,34 +489,42 @@ export default function Home() {
     }
   };
 
-  // Phase 8: Run full 10-stage autonomous reactive adaptation loop via POST /api/agent/run
+  // Canonical single-authority 10-stage autonomous adaptation cycle via POST /api/agent/run
   const handleRunAdaptation = async () => {
     setIsRunningAdaptation(true);
     try {
-      const serverRunPromise = fetch('/api/agent/run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          assetSymbol: 'NVDAx',
-          initialAmountUsd: 15_000,
-        }),
-      })
-        .then((res) => res.json())
-        .catch(() => null);
-
-      const localResult = await client.runAutonomousAdaptation(
-        portfolio,
-        policy,
-        'NVDAx',
-        15_000,
-        (state) => {
-          setLoopState({ ...state });
+      let apiResponse: any = null;
+      try {
+        const res = await fetch('/api/agent/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            assetSymbol: 'NVDAx',
+            initialAmountUsd: 15_000,
+          }),
+        });
+        if (res.ok) {
+          apiResponse = await res.json();
         }
-      );
+      } catch {
+        apiResponse = null;
+      }
 
-      const apiResponse = await serverRunPromise;
-      const result: AutonomousAdaptationResult =
-        apiResponse?.success && apiResponse?.result ? apiResponse.result : localResult;
+      let result: AutonomousAdaptationResult;
+      if (apiResponse?.success && apiResponse?.result) {
+        result = apiResponse.result;
+      } else {
+        // Offline / simulation fallback ONLY if server orchestration endpoint was unavailable
+        result = await client.runAutonomousAdaptation(
+          portfolio,
+          policy,
+          'NVDAx',
+          15_000,
+          (state) => {
+            setLoopState({ ...state });
+          }
+        );
+      }
 
       setAdaptationResult(result);
       setLoopState(result.loopState);
@@ -547,29 +553,14 @@ export default function Home() {
     }
   };
 
-  const handleHeroRunAdaptation = async () => {
-    if (selectedHeroScenario === 'FLAGSHIP') {
-      await handleRunDemo();
-    } else if (selectedHeroScenario === 'PRESTOCKS') {
-      await handleRunPreStocksDemo();
-    } else if (selectedHeroScenario === 'METEORA') {
-      await handleRunMeteoraDemo();
-    } else if (selectedHeroScenario === 'PYTH') {
-      await handleRunPythDemo();
-    }
-  };
-
   const handleSelectEvidenceRecord = (record: EvidenceRecord) => {
     setSelectedEvidenceId(record.id);
     setActiveTab('activity');
   };
 
-  const handleUpdatePolicy = async (updated: Partial<FinancialPolicy>) => {
-    setPolicy((prev) => ({
-      ...prev,
-      ...updated,
-    }));
-
+  const handleUpdatePolicy = async (
+    updated: Partial<FinancialPolicy>
+  ): Promise<PolicySaveOutcome> => {
     const targetWallet =
       connected && publicKey ? publicKey.toBase58() : portfolio.owner || 'default';
 
@@ -581,21 +572,62 @@ export default function Home() {
       });
       const data = await res.json().catch(() => null);
 
-      // Server prepares an UNSIGNED transaction; browser wallet signs & submits to Solana
-      if (
-        connected &&
-        publicKey &&
-        signTransaction &&
-        data?.preparedTransaction?.serializedTxBase64
-      ) {
+      if (!res.ok || data?.success === false) {
+        return {
+          status: 'failed',
+          error: data?.error || `Policy server returned HTTP ${res.status}`,
+        };
+      }
+
+      // Live mode requires wallet signature and Devnet confirmation before claiming PDA commitment
+      if (mode === 'LIVE') {
+        if (!connected || !publicKey || !signTransaction) {
+          return {
+            status: 'failed',
+            error: 'Connect a Solana wallet to sign and commit Policy PDA changes on Devnet.',
+          };
+        }
+        if (!data?.preparedTransaction?.serializedTxBase64) {
+          return {
+            status: 'failed',
+            error: 'Server did not return a prepared Policy PDA transaction.',
+          };
+        }
+
         const txBuffer = Buffer.from(data.preparedTransaction.serializedTxBase64, 'base64');
         const unsignedTx = Transaction.from(txBuffer);
         const signedTx = await signTransaction(unsignedTx);
         const signature = await connection.sendRawTransaction(signedTx.serialize());
         await connection.confirmTransaction(signature, 'confirmed');
+
+        setPolicy((prev) => ({
+          ...prev,
+          ...updated,
+        }));
+
+        return {
+          status: 'committed_pda',
+          signature,
+        };
       }
-    } catch {
-      // Wallet declined signature or operating in local preview mode
+
+      // Simulation mode: update local/server state and explicitly report simulation state
+      setPolicy((prev) => ({
+        ...prev,
+        ...updated,
+      }));
+
+      return {
+        status: 'saved_simulation',
+      };
+    } catch (err) {
+      return {
+        status: 'failed',
+        error:
+          err instanceof Error
+            ? err.message
+            : 'Wallet rejected signature or Devnet RPC confirmation failed.',
+      };
     }
   };
 
@@ -646,94 +678,7 @@ export default function Home() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-12">
-        {/* Institutional Market Regime & Session Context Bar (shown in app views) */}
-        {activeTab !== 'overview' && (
-          <div className="space-y-3 mb-6">
-            <MarketRegimeBanner
-              onNavigateToProof={() => setActiveTab('proof')}
-              pythFreshnessSec={8}
-              isEmergencyPaused={policy.isEmergencyPaused}
-              mode={mode}
-            />
-
-            {/* Cross-Surface Verification Scenario Launcher (Phase 13) */}
-            <div className="px-3.5 py-2.5 rounded-xl bg-sentinel-surface border border-sentinel-border flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 text-xs font-mono">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-sentinel-textSubtle">
-                  Guided Verification Scenarios:
-                </span>
-                <button
-                  type="button"
-                  disabled={isRunningDemo}
-                  onClick={handleRunDemo}
-                  className={`px-2.5 py-1 rounded border text-[11px] font-semibold transition cursor-pointer ${
-                    selectedHeroScenario === 'FLAGSHIP' && demoStep > 0
-                      ? 'bg-blue-500/20 border-blue-500 text-blue-300'
-                      : 'bg-sentinel-surfaceMuted border-sentinel-border text-sentinel-textMuted hover:text-white'
-                  }`}
-                >
-                  1. Flagship ($15k → $5k)
-                </button>
-                <button
-                  type="button"
-                  disabled={isRunningDemo}
-                  onClick={handleRunPreStocksDemo}
-                  className={`px-2.5 py-1 rounded border text-[11px] font-semibold transition cursor-pointer ${
-                    selectedHeroScenario === 'PRESTOCKS' && demoStep > 0
-                      ? 'bg-purple-500/20 border-purple-500 text-purple-300'
-                      : 'bg-sentinel-surfaceMuted border-sentinel-border text-sentinel-textMuted hover:text-white'
-                  }`}
-                >
-                  2. PreStocks (20% Cap)
-                </button>
-                <button
-                  type="button"
-                  disabled={isRunningDemo}
-                  onClick={handleRunMeteoraDemo}
-                  className={`px-2.5 py-1 rounded border text-[11px] font-semibold transition cursor-pointer ${
-                    selectedHeroScenario === 'METEORA' && demoStep > 0
-                      ? 'bg-amber-500/20 border-amber-500 text-amber-300'
-                      : 'bg-sentinel-surfaceMuted border-sentinel-border text-sentinel-textMuted hover:text-white'
-                  }`}
-                >
-                  3. Meteora DBC (Slippage)
-                </button>
-                <button
-                  type="button"
-                  disabled={isRunningDemo}
-                  onClick={handleRunPythDemo}
-                  className={`px-2.5 py-1 rounded border text-[11px] font-semibold transition cursor-pointer ${
-                    selectedHeroScenario === 'PYTH' && demoStep > 0
-                      ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
-                      : 'bg-sentinel-surfaceMuted border-sentinel-border text-sentinel-textMuted hover:text-white'
-                  }`}
-                >
-                  4. Pyth (Stale Quote Guard)
-                </button>
-              </div>
-
-              <div className="flex items-center gap-2 self-start lg:self-auto">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('agent')}
-                  className="text-[11px] text-blue-400 hover:text-blue-300 hover:underline cursor-pointer"
-                >
-                  Agent Console →
-                </button>
-                <span className="text-sentinel-textSubtle">·</span>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('activity')}
-                  className="text-[11px] text-purple-400 hover:text-purple-300 hover:underline cursor-pointer"
-                >
-                  Audit Trail ({evidenceList.length || 4}) →
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Dynamic Demo Stepper Banner */}
+        {/* Dynamic Demo Stepper Banner (shown only while a guided demo is actively executing) */}
         {demoStep > 0 && (
           <div className="mb-6 p-4 rounded-xl bg-sentinel-surfaceElevated border border-sentinel-borderStrong shadow-lg animate-in fade-in slide-in-from-top-4 duration-200">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
@@ -762,67 +707,67 @@ export default function Home() {
             <div className={`grid grid-cols-2 ${totalDemoSteps === 4 ? 'sm:grid-cols-4' : 'sm:grid-cols-5'} gap-2 text-[10px] font-mono tabular-nums`}>
               {demoTitle.includes('Pyth') ? (
                 <>
-                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 1 ? 'bg-amber-900/50 border-amber-400 text-white font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 1 ? 'bg-amber-900/50 border-amber-400 text-white font-semibold' : 'bg-sentinel-surfaceMuted border-sentinel-border text-sentinel-textSubtle'}`}>
                     1. Stale Quote (140s)
                   </div>
-                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 2 ? 'bg-amber-900/50 border-amber-400 text-white font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 2 ? 'bg-amber-900/50 border-amber-400 text-white font-semibold' : 'bg-sentinel-surfaceMuted border-sentinel-border text-sentinel-textSubtle'}`}>
                     2. Propose $4k
                   </div>
-                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 3 ? 'bg-red-950/70 border-red-500 text-red-300 font-semibold shadow-sm' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 3 ? 'bg-red-950/70 border-red-500 text-red-300 font-semibold shadow-sm' : 'bg-sentinel-surfaceMuted border-sentinel-border text-sentinel-textSubtle'}`}>
                     3. Security Refusal
                   </div>
-                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 4 ? 'bg-emerald-950/70 border-emerald-400 text-emerald-300 font-semibold shadow-sm' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 4 ? 'bg-emerald-950/70 border-emerald-400 text-emerald-300 font-semibold shadow-sm' : 'bg-sentinel-surfaceMuted border-sentinel-border text-sentinel-textSubtle'}`}>
                     4. Pull Update &amp; Settle
                   </div>
                 </>
               ) : totalDemoSteps === 4 ? (
                 <>
-                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 1 ? 'bg-blue-900/50 border-blue-400 text-white font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 1 ? 'bg-blue-900/50 border-blue-400 text-white font-semibold' : 'bg-sentinel-surfaceMuted border-sentinel-border text-sentinel-textSubtle'}`}>
                     1. DBC Market
                   </div>
-                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 2 ? 'bg-blue-900/50 border-blue-400 text-white font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 2 ? 'bg-blue-900/50 border-blue-400 text-white font-semibold' : 'bg-sentinel-surfaceMuted border-sentinel-border text-sentinel-textSubtle'}`}>
                     2. Propose $8k
                   </div>
-                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 3 ? 'bg-amber-950/70 border-amber-400 text-amber-300 font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 3 ? 'bg-amber-950/70 border-amber-400 text-amber-300 font-semibold' : 'bg-sentinel-surfaceMuted border-sentinel-border text-sentinel-textSubtle'}`}>
                     3. Liquidity Check
                   </div>
-                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 4 ? 'bg-red-950/70 border-red-500 text-red-300 font-semibold shadow-sm' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 4 ? 'bg-red-950/70 border-red-500 text-red-300 font-semibold shadow-sm' : 'bg-sentinel-surfaceMuted border-sentinel-border text-sentinel-textSubtle'}`}>
                     4. Market Guard Block
                   </div>
                 </>
               ) : demoTitle.includes('PreStocks') ? (
                 <>
-                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 1 ? 'bg-purple-900/50 border-purple-400 text-white font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 1 ? 'bg-purple-900/50 border-purple-400 text-white font-semibold' : 'bg-sentinel-surfaceMuted border-sentinel-border text-sentinel-textSubtle'}`}>
                     1. Pre-IPO Universe
                   </div>
-                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 2 ? 'bg-purple-900/50 border-purple-400 text-white font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 2 ? 'bg-purple-900/50 border-purple-400 text-white font-semibold' : 'bg-sentinel-surfaceMuted border-sentinel-border text-sentinel-textSubtle'}`}>
                     2. Propose $30k
                   </div>
-                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 3 ? 'bg-red-950/70 border-red-500 text-red-300 font-semibold shadow-sm' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 3 ? 'bg-red-950/70 border-red-500 text-red-300 font-semibold shadow-sm' : 'bg-sentinel-surfaceMuted border-sentinel-border text-sentinel-textSubtle'}`}>
                     3. Cap Revert (48% &gt; 20%)
                   </div>
-                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 4 ? 'bg-amber-950/70 border-amber-400 text-amber-300 font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 4 ? 'bg-amber-950/70 border-amber-400 text-amber-300 font-semibold' : 'bg-sentinel-surfaceMuted border-sentinel-border text-sentinel-textSubtle'}`}>
                     4. Auto-Adapt $2k
                   </div>
-                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 5 ? 'bg-emerald-950/70 border-emerald-400 text-emerald-300 font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 5 ? 'bg-emerald-950/70 border-emerald-400 text-emerald-300 font-semibold' : 'bg-sentinel-surfaceMuted border-sentinel-border text-sentinel-textSubtle'}`}>
                     5. PreStocks Settle
                   </div>
                 </>
               ) : (
                 <>
-                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 1 ? 'bg-blue-900/50 border-blue-400 text-white font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 1 ? 'bg-blue-900/50 border-blue-400 text-white font-semibold' : 'bg-sentinel-surfaceMuted border-sentinel-border text-sentinel-textSubtle'}`}>
                     1. Initial State
                   </div>
-                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 2 ? 'bg-blue-900/50 border-blue-400 text-white font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 2 ? 'bg-blue-900/50 border-blue-400 text-white font-semibold' : 'bg-sentinel-surfaceMuted border-sentinel-border text-sentinel-textSubtle'}`}>
                     2. Propose $15k
                   </div>
-                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 3 ? 'bg-red-950/70 border-red-500 text-red-300 font-semibold shadow-sm' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 3 ? 'bg-red-950/70 border-red-500 text-red-300 font-semibold shadow-sm' : 'bg-sentinel-surfaceMuted border-sentinel-border text-sentinel-textSubtle'}`}>
                     3. Invariant Revert
                   </div>
-                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 4 ? 'bg-amber-950/70 border-amber-400 text-amber-300 font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 4 ? 'bg-amber-950/70 border-amber-400 text-amber-300 font-semibold' : 'bg-sentinel-surfaceMuted border-sentinel-border text-sentinel-textSubtle'}`}>
                     4. Auto-Adapt $5k
                   </div>
-                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 5 ? 'bg-emerald-950/70 border-emerald-400 text-emerald-300 font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
+                  <div className={`p-2 rounded border text-center transition-all ${demoStep >= 5 ? 'bg-emerald-950/70 border-emerald-400 text-emerald-300 font-semibold' : 'bg-sentinel-surfaceMuted border-sentinel-border text-sentinel-textSubtle'}`}>
                     5. PROVN Settle
                   </div>
                 </>
@@ -844,7 +789,7 @@ export default function Home() {
               )}
             </div>
             <div className="flex items-center gap-3 text-[11px]">
-              <span className="text-slate-400 hidden sm:inline">
+              <span className="text-sentinel-textMuted hidden sm:inline">
                 Vault: {formatAddress(activePdas.vaultPda, 4)} · Policy: {formatAddress(activePdas.policyPda, 4)}
               </span>
               <a
@@ -863,10 +808,7 @@ export default function Home() {
         {activeTab === 'overview' && (
           <LandingView
             onEnterApp={() => setActiveTab('portfolio')}
-            onRunDemo={() => {
-              setActiveTab('portfolio');
-              handleRunDemo();
-            }}
+            onRunDemo={handleRunDemo}
             isRunningDemo={isRunningDemo}
           />
         )}
@@ -882,11 +824,6 @@ export default function Home() {
             onNavigateToAgent={() => setActiveTab('agent')}
             onNavigateToProtection={() => setActiveTab('protection')}
             onBuildPortfolio={handleBuildPortfolio}
-            onRunAdaptation={handleHeroRunAdaptation}
-            isRunningAdaptation={isRunningAdaptation || isRunningDemo}
-            selectedScenario={selectedHeroScenario}
-            onSelectScenario={setSelectedHeroScenario}
-            demoStep={demoStep}
           />
         )}
 
@@ -911,6 +848,7 @@ export default function Home() {
           <GuaranteesView
             policy={policy}
             portfolio={portfolio}
+            mode={mode}
             onUpdatePolicy={handleUpdatePolicy}
             agentRiskState={client.getAgentRiskState()}
             onResetCircuitBreaker={() => {

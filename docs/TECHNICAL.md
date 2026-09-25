@@ -85,3 +85,21 @@ $$\text{EvidenceHash} = \text{SHA-256}\left(\text{IntentHash} \parallel \text{Po
 
 - **Postgres Read Index (`evidence_index`)**: Stores the full JSON receipt and hashes for sub-millisecond query lookup via `GET /api/evidence/:id`.
 - **Solana Verification**: Verifies the transaction signature and `EvidenceAccount` / `PolicyAccount` PDAs directly against Solana Devnet (`SOLANA_RPC_URL`).
+
+---
+
+## 5. Canonical Docker & Production Deployment
+
+Sentinel ships with a multi-stage `Dockerfile` and `docker-compose.yml` orchestrating `@sentinel/web` (`port 3000`) and the PostgreSQL 16 read index (`postgres:5432`).
+
+```bash
+# 1. Configure environment variables
+cp .env.example .env
+
+# 2. Build and start the containerized stack
+docker compose up --build -d
+
+# 3. Verify health & Devnet connectivity
+curl http://localhost:3000/api/health
+```
+

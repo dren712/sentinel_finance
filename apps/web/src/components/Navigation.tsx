@@ -29,6 +29,7 @@ interface TabItem {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   count?: number;
+  badgeText?: string;
 }
 
 export const Navigation: React.FC<NavigationProps> = ({
@@ -41,7 +42,7 @@ export const Navigation: React.FC<NavigationProps> = ({
     { id: 'portfolio', label: 'Portfolio', icon: PieChart },
     { id: 'agent', label: 'Agent', icon: Bot },
     { id: 'protection', label: 'Protection', icon: ShieldCheck },
-    { id: 'proof', label: 'Verification', icon: CheckCircle2, count: 11 },
+    { id: 'proof', label: 'Verification', icon: CheckCircle2, count: 11, badgeText: '11 negative proofs' },
     { id: 'activity', label: 'Activity', icon: FileCheck, count: evidenceCount },
   ];
 
@@ -71,15 +72,15 @@ export const Navigation: React.FC<NavigationProps> = ({
                     }`}
                   />
                   <span>{tab.label}</span>
-                  {tab.count !== undefined && tab.count > 0 && (
+                  {(tab.badgeText || (tab.count !== undefined && tab.count > 0)) && (
                     <span
-                      className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono tabular-nums leading-none ${
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-mono tabular-nums leading-none ${
                         isActive
                           ? 'bg-sentinel-accent/20 text-blue-300 font-semibold'
                           : 'bg-sentinel-surfaceElevated text-sentinel-textSubtle border border-sentinel-border'
                       }`}
                     >
-                      {tab.count}
+                      {tab.badgeText ?? tab.count}
                     </span>
                   )}
                   {isActive && (

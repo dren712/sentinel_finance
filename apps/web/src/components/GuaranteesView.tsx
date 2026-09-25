@@ -40,10 +40,19 @@ import { Card, CardHeader } from './ui/Card';
 import { Badge } from './ui/Badge';
 import { SourceBadge } from './ui/SourceBadge';
 
+export interface PolicySaveOutcome {
+  status: 'committed_pda' | 'saved_simulation' | 'failed';
+  signature?: string;
+  error?: string;
+}
+
 interface GuaranteesViewProps {
   policy: FinancialPolicy;
   portfolio?: PortfolioSnapshot;
-  onUpdatePolicy: (updated: Partial<FinancialPolicy>) => void;
+  mode?: 'SIMULATION' | 'LIVE';
+  onUpdatePolicy: (
+    updated: Partial<FinancialPolicy>
+  ) => Promise<PolicySaveOutcome | void> | PolicySaveOutcome | void;
   agentRiskState?: AgentRiskState;
   onResetCircuitBreaker?: () => void;
 }
@@ -54,6 +63,7 @@ const AVAILABLE_VENUES = ['METEORA_DBC', 'PRESTOCKS_SECONDARY', 'DEMO_SIMULATION
 export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
   policy,
   portfolio,
+  mode = 'SIMULATION',
   onUpdatePolicy,
   agentRiskState,
   onResetCircuitBreaker,
@@ -80,6 +90,7 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
   const [activeTab, setActiveTab] = useState<'tiers' | 'dsl'>('tiers');
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [saveOutcome, setSaveOutcome] = useState<PolicySaveOutcome | null>(null);
   const [copiedDsl, setCopiedDsl] = useState(false);
   const [activeProfile, setActiveProfile] = useState<string>('custom');
 
@@ -164,8 +175,10 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
 
   const handleSave = async () => {
     setIsSaving(true);
+    setSaveOutcome(null);
+    setIsSaved(false);
     try {
-      await onUpdatePolicy({
+      const outcome = await onUpdatePolicy({
         maxSingleAssetBps: Math.round(maxSingleAssetPct * 100),
         minStablecoinBps: Math.round(minStablecoinPct * 100),
         maxPublicEquitiesExposureBps: Math.round(maxPublicEquitiesExposurePct * 100),
@@ -188,21 +201,44 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
         policyVersion: policy.policyVersion + 1,
         updatedAt: Date.now(),
       });
+
+      if (outcome && outcome.status === 'failed') {
+        setSaveOutcome(outcome);
+        setIsSaved(false);
+        return;
+      }
+
+      const resolvedOutcome: PolicySaveOutcome =
+        outcome ?? { status: mode === 'LIVE' ? 'committed_pda' : 'saved_simulation' };
+      setSaveOutcome(resolvedOutcome);
       setIsSaved(true);
-      setTimeout(() => setIsSaved(false), 2500);
+      setTimeout(() => setIsSaved(false), 4000);
+    } catch (err) {
+      setSaveOutcome({
+        status: 'failed',
+        error: err instanceof Error ? err.message : 'Policy commit failed',
+      });
+      setIsSaved(false);
     } finally {
       setIsSaving(false);
     }
   };
 
-  const toggleEmergencyPause = () => {
+  const toggleEmergencyPause = async () => {
     const nextState = !isEmergencyPaused;
     setIsEmergencyPaused(nextState);
-    onUpdatePolicy({
+    setSaveOutcome(null);
+    const outcome = await onUpdatePolicy({
       isEmergencyPaused: nextState,
       policyVersion: policy.policyVersion + 1,
       updatedAt: Date.now(),
     });
+    if (outcome) {
+      setSaveOutcome(outcome);
+      if (outcome.status === 'failed') {
+        setIsEmergencyPaused(!nextState);
+      }
+    }
   };
 
   const currentPolicyDsl: Partial<FinancialPolicy> = {
@@ -382,21 +418,31 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
             <button
               type="button"
               onClick={handleSave}
-              disabled={(!hasUnsavedChanges && !isSaved) || isSaving}
+              disabled={(!hasUnsavedChanges && !isSaved && saveOutcome?.status !== 'failed') || isSaving}
               className={`px-4 py-2 rounded-lg text-white text-xs font-bold sentinel-interactive sentinel-focus flex items-center gap-1.5 shadow-md cursor-pointer ${
-                isSaved
+                saveOutcome?.status === 'failed'
+                  ? 'bg-rose-600 hover:bg-rose-500 border border-rose-500/50'
+                  : isSaved && saveOutcome?.status === 'committed_pda'
                   ? 'bg-emerald-600 border border-emerald-500/50'
+                  : isSaved && saveOutcome?.status === 'saved_simulation'
+                  ? 'bg-amber-600 border border-amber-500/50'
                   : hasUnsavedChanges
                   ? 'bg-blue-600 hover:bg-blue-500 border border-blue-500/50'
-                  : 'bg-slate-800 text-slate-400 border border-slate-700/60 opacity-60 cursor-not-allowed'
+                  : 'bg-sentinel-surfaceElevated text-sentinel-textMuted border border-sentinel-border opacity-60 cursor-not-allowed'
               }`}
             >
               <Save className={`w-3.5 h-3.5 ${isSaving ? 'animate-spin' : ''}`} />
               <span>
                 {isSaving
-                  ? 'Committing...'
-                  : isSaved
-                  ? 'Committed to PDA!'
+                  ? mode === 'LIVE'
+                    ? 'Awaiting Wallet & Devnet...'
+                    : 'Saving Policy...'
+                  : saveOutcome?.status === 'failed'
+                  ? 'Save Failed — Retry'
+                  : isSaved && saveOutcome?.status === 'committed_pda'
+                  ? 'Committed to Devnet PDA ✓'
+                  : isSaved && saveOutcome?.status === 'saved_simulation'
+                  ? 'Saved locally / simulation state'
                   : hasUnsavedChanges
                   ? 'Save Boundaries'
                   : 'Policy Synced'}
@@ -404,6 +450,41 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Explicit Save Outcome / Error Feedback Banner */}
+        {saveOutcome?.status === 'failed' && (
+          <div className="mt-3 p-3 rounded-lg bg-rose-950/30 border border-rose-500/40 flex items-center justify-between gap-3 text-xs font-mono text-rose-200">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>
+                <strong>Policy Save Failed:</strong> {saveOutcome.error || 'Transaction declined or API unreachable. Policy was not committed to PDA.'}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleSave}
+              className="px-2.5 py-1 rounded bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-200 font-semibold cursor-pointer shrink-0"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {isSaved && saveOutcome?.status === 'saved_simulation' && (
+          <div className="mt-3 p-2.5 rounded-lg bg-amber-950/25 border border-amber-500/30 flex items-center justify-between gap-2 text-xs font-mono text-amber-200">
+            <span>
+              ✓ <strong>Saved locally / simulation state:</strong> Active in Sentinel simulator &amp; session store (Switch to Live mode + connect wallet to commit to Devnet PDA).
+            </span>
+          </div>
+        )}
+
+        {isSaved && saveOutcome?.status === 'committed_pda' && (
+          <div className="mt-3 p-2.5 rounded-lg bg-emerald-950/25 border border-emerald-500/30 flex items-center justify-between gap-2 text-xs font-mono text-emerald-200">
+            <span>
+              ✓ <strong>Committed to Devnet PDA:</strong> Signed by wallet and confirmed on Solana Devnet{saveOutcome.signature ? ` (${formatAddress(saveOutcome.signature, 6)})` : ''}.
+            </span>
+          </div>
+        )}
       </Card>
 
       {/* 3. FOUR CORE INVARIANTS (THE INSTITUTIONAL FOUNDATION) */}

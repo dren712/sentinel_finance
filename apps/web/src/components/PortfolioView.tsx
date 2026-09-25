@@ -87,8 +87,6 @@ import { PriceProvenanceHover } from './ui/PriceProvenanceHover';
 import { formatCurrency, formatPercent, formatAddress } from '@/lib/formatters';
 import { getExplorerAddressUrl } from '@/lib/config';
 
-export type DemoScenarioKey = 'FLAGSHIP' | 'PRESTOCKS' | 'METEORA' | 'PYTH';
-
 interface PortfolioViewProps {
   portfolio: PortfolioSnapshot;
   policy: FinancialPolicy;
@@ -99,11 +97,6 @@ interface PortfolioViewProps {
   onNavigateToAgent?: () => void;
   onNavigateToProtection?: () => void;
   onBuildPortfolio?: (allocations: Record<string, number>) => void;
-  onRunAdaptation?: () => void;
-  isRunningAdaptation?: boolean;
-  selectedScenario?: DemoScenarioKey;
-  onSelectScenario?: (scenario: DemoScenarioKey) => void;
-  demoStep?: number;
 }
 
 const PORTFOLIO_PRESETS = [
@@ -183,11 +176,6 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
   onNavigateToAgent,
   onNavigateToProtection,
   onBuildPortfolio,
-  onRunAdaptation,
-  isRunningAdaptation,
-  selectedScenario,
-  onSelectScenario,
-  demoStep,
 }) => {
   const [selectedAssetSymbol, setSelectedAssetSymbol] = useState<string | null>(null);
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
@@ -305,13 +293,11 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
   };
 
   const getAssetColor = (symbol: string): string => {
-    const meta = getAssetMetadata(symbol);
-    if (meta?.colorHex) return meta.colorHex;
-    if (symbol === 'NVDAx') return '#10B981';
-    if (symbol === 'AAPLx') return '#94A3B8';
-    if (symbol === 'SPYx') return '#3B82F6';
-    if (symbol === 'USDC') return '#06B6D4';
-    return '#8B5CF6';
+    if (symbol === 'NVDAx') return 'var(--sentinel-asset-nvda)';
+    if (symbol === 'AAPLx') return 'var(--sentinel-asset-aapl)';
+    if (symbol === 'SPYx') return 'var(--sentinel-asset-spy)';
+    if (symbol === 'USDC') return 'var(--sentinel-asset-usdc)';
+    return 'var(--sentinel-asset-preipo)';
   };
 
   return (
