@@ -37,7 +37,7 @@ import {
   EvidenceRecord,
   SENTINEL_PROGRAM_ID,
 } from '@sentinel/domain';
-import { SentinelReadHistoryRepository } from './database';
+import { SentinelReadHistoryRepository, ExecutionRow } from './database';
 import { APP_CONFIG, getServerSolanaRpcUrl } from './config';
 
 if (typeof window !== 'undefined') {
@@ -59,6 +59,8 @@ export interface DecisionActivityItem {
   signature?: string;
   evidenceId: string;
   evidenceRecord?: EvidenceRecord;
+  isSimulation?: boolean;
+  venueName?: string;
 }
 
 export interface ServerStateStore {
@@ -483,10 +485,38 @@ export async function queryAuthoritativeActivity(walletAddress?: string) {
     evidenceMap.set(row.evidence_id, row.record);
   }
 
+  const executionMap = new Map<string, ExecutionRow>();
+  for (const ex of executions) {
+    executionMap.set(ex.decision_id, ex);
+  }
+
   const dbActivities: DecisionActivityItem[] = decisions.map((dec) => {
     const ev = evidenceMap.get(dec.decision_id) || evidenceMap.get(dec.evidence_id);
+    const exec = executionMap.get(dec.decision_id);
     const type: 'APPROVED' | 'REJECTED' | 'ADAPTED' =
       dec.status === 'REJECTED' ? 'REJECTED' : dec.status === 'ADAPTED' ? 'ADAPTED' : 'APPROVED';
+
+    const isSimulation = Boolean(
+      exec?.is_simulation ||
+      ev?.isSimulation ||
+      !dec.transaction_signature ||
+      dec.transaction_signature.startsWith('sim_') ||
+      dec.transaction_signature.startsWith('TRANSACTION_')
+    );
+    const venueName = isSimulation
+      ? (exec?.venue_name || 'Simulated Execution')
+      : (exec?.venue_name || 'Solana Devnet');
+
+    let summary: string;
+    if (dec.status === 'REJECTED') {
+      summary = isSimulation
+        ? `Initial $${dec.amount_usd.toLocaleString()} intent blocked by Sentinel simulation guard.`
+        : `Initial $${dec.amount_usd.toLocaleString()} intent blocked by Sentinel on-chain postconditions (Devnet Revert).`;
+    } else {
+      summary = isSimulation
+        ? `Auto-adapted trade approved in simulation: $${dec.amount_usd.toLocaleString()} ${dec.direction} ${dec.asset_symbol}.`
+        : `Auto-adapted trade approved: $${dec.amount_usd.toLocaleString()} ${dec.direction} ${dec.asset_symbol} settled on Solana Devnet.`;
+    }
 
     return {
       id: dec.decision_id,
@@ -495,15 +525,14 @@ export async function queryAuthoritativeActivity(walletAddress?: string) {
       asset: dec.asset_symbol,
       amountUsd: dec.amount_usd,
       direction: dec.direction,
-      summary:
-        dec.status === 'REJECTED'
-          ? `Initial $${dec.amount_usd.toLocaleString()} intent blocked by Sentinel postconditions.`
-          : `Auto-adapted trade approved: $${dec.amount_usd.toLocaleString()} ${dec.direction} ${dec.asset_symbol} settled on Solana Devnet.`,
+      summary,
       receiptNumber: dec.evidence_id || ev?.id,
       failureReason: dec.failure_reason ?? ev?.failureReason,
       signature: dec.transaction_signature ?? ev?.transactionSignature,
       evidenceId: dec.evidence_id || ev?.id || dec.decision_id,
       evidenceRecord: ev,
+      isSimulation,
+      venueName,
     };
   });
 

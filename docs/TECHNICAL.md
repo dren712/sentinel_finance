@@ -122,7 +122,7 @@ Because Sentinel's core guarantees operate at the SVM application layer (Anchor 
 Agent Intelligence ➔ Sentinel Policy Postconditions ➔ SVM Execution ➔ Solana Consensus / Finality ➔ PROVN Evidence Index
 ```
 
-As Solana advances toward sub-second finality, Sentinel's policy-bound execution pipeline becomes uniquely well suited for high-frequency autonomous agent workflows:
+As Solana moves toward lower-latency finality, Sentinel's policy-bound execution model can support increasingly responsive autonomous workflows:
 - **Today:** Sentinel runs on Solana Devnet with real on-chain policy enforcement (`execute_guarded_trade`), deterministic state transitions on `VaultAccount` PDAs, and PROVN cryptographic evidence.
 - **Direction:** Faster consensus + autonomous agents + deterministic financial postconditions.
 

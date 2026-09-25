@@ -42,8 +42,8 @@
 While AI agents excel at market research and trade formulation, they operate in probabilistic space. Prompts, fine-tuning, and off-chain wrappers cannot provide deterministic guarantees against catastrophic risk. Sentinel places a deterministic, on-chain state-transition boundary between agent intelligence and financial settlement:
 
 - **Autonomous Intelligence:** The agent (`Robo-01`) is free to analyze signals and formulate complex trade intents across tokenized equities (`NVDAx`, `AAPLx`, `SPYx`) and certified Pre-IPO assets (`PreStocks`).
-- **Deterministic Postconditions:** Every proposed trade is evaluated against hard portfolio invariants—single-asset concentration caps, stablecoin reserve floors, trade size ceilings, Pyth dual-feed freshness, and Meteora pool liquidity depth.
-- **Atomic Enforcement & Adaptation:** Any invariant violation reverts atomically on Solana before capital moves. The agent receives structured headroom diagnostics, recalculates compliant trade parameters, and settles on-chain with verifiable PROVN cryptographic receipts.
+- **Deterministic Guards:** Proposed trades are evaluated against Sentinel's on-chain portfolio invariants and off-chain pre-trade market/data guards, including Pyth freshness, PreStocks exposure, and Meteora liquidity.
+- **Atomic Enforcement & Adaptation:** Violations of on-chain invariants revert atomically on Solana; pre-trade data and market-quality failures halt authorization before settlement. The agent receives structured headroom diagnostics, recalculates compliant trade parameters, and settles on-chain with verifiable PROVN cryptographic receipts.
 
 ---
 
@@ -138,7 +138,7 @@ Agent Intelligence ➔ Sentinel Policy Postconditions ➔ SVM Execution ➔ Sola
 ```
 
 - **Today:** Sentinel runs on Solana Devnet with real on-chain policy enforcement (`execute_guarded_trade`), state transitions on `VaultAccount` PDAs, and PROVN cryptographic evidence.
-- **Direction:** Faster consensus + autonomous agents + deterministic financial postconditions. The consensus layer can evolve underneath the Sentinel enforcement model without requiring redesign of the core policy logic.
+- **Direction:** As Solana moves toward lower-latency finality, Sentinel's policy-bound execution model can support increasingly responsive autonomous workflows without requiring redesign of the core policy logic.
 
 ---
 
@@ -149,7 +149,7 @@ Agent Intelligence ➔ Sentinel Policy Postconditions ➔ SVM Execution ➔ Sola
 | **Sentinel Anchor Program** | `3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK` | [Program](https://explorer.solana.com/address/3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK?cluster=devnet) |
 | **Live Railway Deployment** | `sentinel-finance-production-4560.up.railway.app` | [Live Production App](https://sentinel-finance-production-4560.up.railway.app/) |
 | **PolicyAccount PDA** | `3wTp1YDSG3xmf9TtuwZ64b11uLuLNUgQRwdesMbFJUUh` | [Policy PDA](https://explorer.solana.com/address/3wTp1YDSG3xmf9TtuwZ64b11uLuLNUgQRwdesMbFJUUh?cluster=devnet) |
-| **AgentAccount PDA (`robo-01`)** | `62vpHzSG92GUbAXtNh4czG6U6HyTpndrY4NvZM9euUnQ` | [Agent PDA](https://explorer.solana.com/address/62vpHzSG92GUbAXtNh4czG6U6HyTpndrY4NvZM9euUnQ?cluster=devnet) |
+| **AgentAccount PDA (`robo-01`)** | `G9MwRFgstx8Ee4dC6CYLb4CuwhR5YXXpYUhbyHrsxSpv` *(Live/Hosted)* <br>`62vpHzSG92GUbAXtNh4czG6U6HyTpndrY4NvZM9euUnQ` *(Test Harness)* | [Live Agent PDA](https://explorer.solana.com/address/G9MwRFgstx8Ee4dC6CYLb4CuwhR5YXXpYUhbyHrsxSpv?cluster=devnet) · [Test PDA](https://explorer.solana.com/address/62vpHzSG92GUbAXtNh4czG6U6HyTpndrY4NvZM9euUnQ?cluster=devnet) |
 | **VaultAccount PDA** | `7TffMKzUgVme4eod8Wh9ANAQ3YrRMzj4c2JrfKm6AY4Y` | [Vault PDA](https://explorer.solana.com/address/7TffMKzUgVme4eod8Wh9ANAQ3YrRMzj4c2JrfKm6AY4Y?cluster=devnet) |
 | **Rejected `$15K` Trade Proof TX** | `2haBLUKavXYzqa6nTtDMNaNNUu4ax5rqSnYmQKMAxCwJeqzaUw4tPSSMtDdynbWjqSW32EgqmHxaeHj4eGWsTjCD` | [View TX](https://explorer.solana.com/tx/2haBLUKavXYzqa6nTtDMNaNNUu4ax5rqSnYmQKMAxCwJeqzaUw4tPSSMtDdynbWjqSW32EgqmHxaeHj4eGWsTjCD?cluster=devnet) |
 | **Settled `$5K` Adapted Trade TX** | `59KCBrondaKxhKmTqeib4cMGFZRh1mRQW815GUeazmAK5PYwD3Vomy957XreERfXmsLQKDc3XibcjURPnWJVmqUd` | [View TX](https://explorer.solana.com/tx/59KCBrondaKxhKmTqeib4cMGFZRh1mRQW815GUeazmAK5PYwD3Vomy957XreERfXmsLQKDc3XibcjURPnWJVmqUd?cluster=devnet) |
