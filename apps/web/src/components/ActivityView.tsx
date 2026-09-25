@@ -463,10 +463,31 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
 
         {/* List of Timeline Rows */}
         <div className="divide-y divide-sentinel-border border border-sentinel-border rounded-xl overflow-hidden bg-sentinel-surfaceMuted/30">
-          {filteredItems.map((item) => {
-            const isRejected = item.status === 'REJECTED';
-            const isPolicy = item.status === 'POLICY_UPDATE';
-            const primaryProjection = item.beforeVsProposed?.[0];
+          {filteredItems.length === 0 ? (
+            <div className="p-8 text-center space-y-2.5 font-mono">
+              <div className="text-xs font-bold text-white uppercase tracking-wider">
+                No Matching Audit Records Found
+              </div>
+              <p className="text-xs text-sentinel-textMuted font-sans max-w-md mx-auto">
+                No cryptographic evidence records match filter <span className="text-white font-mono">{filter}</span>
+                {searchQuery ? ` and query "${searchQuery}"` : ''}.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setFilter('ALL');
+                  setSearchQuery('');
+                }}
+                className="px-3 py-1.5 rounded-lg bg-sentinel-surface hover:bg-sentinel-surfaceElevated border border-sentinel-border text-xs text-blue-400 hover:text-blue-300 font-semibold cursor-pointer"
+              >
+                Reset Search &amp; Filters
+              </button>
+            </div>
+          ) : (
+            filteredItems.map((item) => {
+              const isRejected = item.status === 'REJECTED';
+              const isPolicy = item.status === 'POLICY_UPDATE';
+              const primaryProjection = item.beforeVsProposed?.[0];
 
             return (
               <div
@@ -540,7 +561,7 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
                 </div>
               </div>
             );
-          })}
+          }))}
         </div>
       </Card>
 

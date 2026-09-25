@@ -1,19 +1,24 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ShieldCheck, ChevronDown, ChevronUp, X, ExternalLink } from 'lucide-react';
+import { ShieldCheck, OctagonAlert, ChevronDown, ChevronUp, X, ExternalLink } from 'lucide-react';
 import { SourceBadge } from './SourceBadge';
+import { Badge } from './Badge';
 import { APP_CONFIG, getExplorerAddressUrl } from '@/lib/config';
 
 interface MarketRegimeBannerProps {
   onNavigateToProof?: () => void;
   pythFreshnessSec?: number;
+  isEmergencyPaused?: boolean;
+  mode?: 'SIMULATION' | 'LIVE';
   className?: string;
 }
 
 export const MarketRegimeBanner: React.FC<MarketRegimeBannerProps> = ({
   onNavigateToProof,
   pythFreshnessSec = 8,
+  isEmergencyPaused = false,
+  mode = 'SIMULATION',
   className = '',
 }) => {
   const [isDismissed, setIsDismissed] = useState(false);
@@ -35,35 +40,41 @@ export const MarketRegimeBanner: React.FC<MarketRegimeBannerProps> = ({
 
   return (
     <div
-      className={`mb-4 rounded-lg border border-sentinel-border bg-sentinel-surface/80 backdrop-blur font-mono text-xs overflow-hidden transition-all shadow-xs ${className}`}
+      className={`rounded-xl border font-mono text-xs overflow-hidden transition-all shadow-xs ${
+        isEmergencyPaused
+          ? 'border-rose-500/40 bg-rose-950/20'
+          : 'border-sentinel-border bg-sentinel-surface/90'
+      } ${className}`}
     >
       {/* Compact 1-Line Primary Ticker */}
-      <div className="px-3 sm:px-4 py-2 flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
+      <div className="px-3.5 py-2 flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
         {/* Left: Ticker Items */}
-        <div className="flex items-center gap-2 sm:gap-3 flex-wrap text-[11px] leading-tight text-sentinel-textMuted overflow-hidden">
+        <div className="flex items-center gap-2.5 sm:gap-3.5 flex-wrap text-[11px] leading-tight text-sentinel-textMuted overflow-hidden">
           {/* Live Indicator */}
           <div className="flex items-center gap-1.5 shrink-0">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="font-bold text-white tracking-wide uppercase text-[10px]">
-              Regime:
-            </span>
-            <span className="text-emerald-300 font-medium">Solana 24/7 Live</span>
+            <Badge variant={isEmergencyPaused ? 'danger' : 'success'} dot>
+              {isEmergencyPaused ? 'EMERGENCY PAUSE ACTIVE' : 'SENTINEL ARMED'}
+            </Badge>
           </div>
 
           <span className="text-sentinel-border hidden sm:inline">|</span>
 
-          {/* Circuit Breaker Status */}
-          <div className="flex items-center gap-1 shrink-0">
-            <span className="text-sentinel-textSubtle">Circuit Breaker:</span>
-            <span className="text-emerald-400 font-semibold">ARMED</span>
+          {/* Mode & Regime */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-sentinel-textSubtle">Mode:</span>
+            <span className="text-white font-semibold">
+              {mode === 'LIVE' ? 'Solana Devnet Live' : 'Deterministic Simulation'}
+            </span>
           </div>
 
           <span className="text-sentinel-border hidden md:inline">|</span>
 
           {/* Pyth Oracle Freshness */}
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-1 shrink-0 tabular-nums">
             <span className="text-sentinel-textSubtle">Oracle:</span>
-            <span className="text-sentinel-text">Pyth Hermes ({pythFreshnessSec}s quote)</span>
+            <span className="text-sentinel-text">
+              Pyth Hermes ({pythFreshnessSec}s quote)
+            </span>
           </div>
 
           <span className="text-sentinel-border hidden lg:inline">|</span>
@@ -75,8 +86,12 @@ export const MarketRegimeBanner: React.FC<MarketRegimeBannerProps> = ({
               onClick={onNavigateToProof}
               className="hidden lg:inline-flex items-center gap-1 text-blue-400 hover:text-blue-300 hover:underline cursor-pointer"
             >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>11/11 Adversarial Invariants Active</span>
+              {isEmergencyPaused ? (
+                <OctagonAlert className="w-3.5 h-3.5 text-rose-400" />
+              ) : (
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              )}
+              <span>11/11 Adversarial Invariants Enforced</span>
             </button>
           ) : (
             <span className="hidden lg:inline text-sentinel-textSubtle">
@@ -90,10 +105,10 @@ export const MarketRegimeBanner: React.FC<MarketRegimeBannerProps> = ({
           <button
             type="button"
             onClick={() => setIsExpanded(!isExpanded)}
-            className="p-1 rounded text-sentinel-textSubtle hover:text-sentinel-text hover:bg-white/[0.04] transition cursor-pointer text-[10px] flex items-center gap-0.5"
+            className="px-2 py-1 rounded text-sentinel-textSubtle hover:text-sentinel-text hover:bg-white/[0.04] transition cursor-pointer text-[10px] flex items-center gap-1"
             title={isExpanded ? 'Collapse Ground Truth details' : 'Expand Ground Truth details'}
           >
-            <span className="hidden sm:inline">Details</span>
+            <span className="hidden sm:inline">Provenance</span>
             {isExpanded ? (
               <ChevronUp className="w-3 h-3" />
             ) : (
@@ -113,16 +128,16 @@ export const MarketRegimeBanner: React.FC<MarketRegimeBannerProps> = ({
 
       {/* Expandable Ground Truth Badges Strip */}
       {isExpanded && (
-        <div className="px-3 sm:px-4 py-2.5 bg-sentinel-surfaceElevated/60 border-t border-sentinel-border flex flex-col md:flex-row md:items-center justify-between gap-2.5 animate-in fade-in slide-in-from-top-1 duration-150 text-[11px]">
+        <div className="px-3.5 py-2.5 bg-sentinel-surfaceElevated/60 border-t border-sentinel-border flex flex-col md:flex-row md:items-center justify-between gap-2.5 animate-in fade-in slide-in-from-top-1 duration-150 text-[11px]">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[10px] uppercase font-bold text-sentinel-textSubtle tracking-wider">
               GROUND TRUTH:
             </span>
-            <SourceBadge source="PYTH" detail={`${pythFreshnessSec}s quote`} />
-            <SourceBadge source="PRESTOCKS" detail="409A private equity" />
-            <SourceBadge source="METEORA" detail="$31.8K depth verified" />
-            <SourceBadge source="SOLANA" detail="Devnet Anchor" />
-            <SourceBadge source="PROVN" detail="SHA-256 sealed" />
+            <SourceBadge source="PYTH" detail={`${pythFreshnessSec}s quote`} size="xs" />
+            <SourceBadge source="PRESTOCKS" detail="409A private equity" size="xs" />
+            <SourceBadge source="METEORA" detail="$31.8K depth verified" size="xs" />
+            <SourceBadge source="SOLANA" detail="Devnet Anchor" size="xs" />
+            <SourceBadge source="PROVN" detail="SHA-256 sealed" size="xs" />
           </div>
 
           <div className="flex items-center gap-2 shrink-0 self-end md:self-auto">
@@ -130,9 +145,11 @@ export const MarketRegimeBanner: React.FC<MarketRegimeBannerProps> = ({
               href={getExplorerAddressUrl(APP_CONFIG.sentinelProgramId)}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1 text-[10px] text-blue-400 hover:underline"
+              className="inline-flex items-center gap-1 text-[10px] text-blue-400 hover:underline tabular-nums"
             >
-              <span>Anchor: {APP_CONFIG.sentinelProgramId.slice(0, 4)}...{APP_CONFIG.sentinelProgramId.slice(-4)}</span>
+              <span>
+                Anchor: {APP_CONFIG.sentinelProgramId.slice(0, 4)}…{APP_CONFIG.sentinelProgramId.slice(-4)}
+              </span>
               <ExternalLink className="w-3 h-3" />
             </a>
           </div>

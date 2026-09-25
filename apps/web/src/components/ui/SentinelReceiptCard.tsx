@@ -21,6 +21,8 @@ import {
 import { formatCurrency, formatTimeAgo } from '@/lib/formatters';
 
 import { getExplorerTxUrl, APP_CONFIG } from '@/lib/config';
+import { Badge } from './Badge';
+import { SourceBadge } from './SourceBadge';
 
 interface SentinelReceiptCardProps {
   record: EvidenceRecord;
@@ -81,100 +83,95 @@ export const SentinelReceiptCard: React.FC<SentinelReceiptCardProps> = ({
   const swarmTotalCount = swarmSummary?.totalCount ?? 6;
 
   return (
-    <div className="relative font-mono rounded-xl border border-sentinel-border bg-slate-950/90 shadow-2xl overflow-hidden transition-all hover:border-blue-500/40">
-      {/* Decorative top receipt perforated pattern */}
-      <div className="h-2 w-full bg-[radial-gradient(circle,_rgba(59,130,246,0.3)_1px,_transparent_1px)] [background-size:8px_8px] border-b border-dashed border-sentinel-border" />
-
-      <div className="p-5 sm:p-6 space-y-5">
+    <div className="relative font-mono rounded-xl border border-sentinel-borderStrong bg-sentinel-surface shadow-lg overflow-hidden">
+      <div className="p-5 space-y-4">
         {/* Header: Institutional Receipt Title */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-dashed border-sentinel-border">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3.5 border-b border-sentinel-border">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400">
               <FileText className="w-4 h-4" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black tracking-widest text-white uppercase">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-black tracking-wider text-white uppercase">
                   VERIFIED SENTINEL RECEIPT
                 </span>
-                <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 font-bold border border-blue-500/40">
-                  Decision #{decisionNum}
-                </span>
+                <Badge variant="info">Decision #{decisionNum}</Badge>
+                <SourceBadge source="PROVN" detail="SHA-256" size="xs" />
               </div>
-              <span className="text-[10px] text-sentinel-textMuted font-sans">
-                {intentSummary} · Two-Tier PROVN Evidence
+              <span className="text-[11px] text-sentinel-textMuted font-sans block mt-0.5">
+                {intentSummary} · Two-Tier Cryptographic Evidence
               </span>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-sans font-semibold shadow-xs bg-emerald-950/60 border border-emerald-500/40 text-emerald-400">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Integrity: ✓ VERIFIED</span>
-            </div>
+            <Badge variant={isSettled ? 'success' : 'danger'} dot>
+              {isSettled ? 'INTEGRITY VERIFIED' : 'INVARIANT BLOCKED'}
+            </Badge>
           </div>
         </div>
 
         {/* P19 Canonical PROVN Receipt Body */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs tabular-nums">
           {/* 1. Intent */}
-          <div className="bg-slate-900/70 p-3 rounded-lg border border-slate-800 space-y-1">
+          <div className="bg-sentinel-surfaceMuted p-3 rounded-lg border border-sentinel-border space-y-1">
             <span className="text-[10px] uppercase font-bold text-sentinel-textSubtle block font-sans">
-              Intent
+              Intent Commitment
             </span>
-            <div className="font-bold text-white text-sm truncate" title={record.intentHash}>
+            <div className="font-bold text-white text-xs truncate" title={record.intentHash}>
               {intentHash0x}
             </div>
             <div className="text-[10px] text-sentinel-textMuted font-sans">{intentSummary}</div>
           </div>
 
           {/* 2. Policy */}
-          <div className="bg-slate-900/70 p-3 rounded-lg border border-slate-800 space-y-1">
+          <div className="bg-sentinel-surfaceMuted p-3 rounded-lg border border-sentinel-border space-y-1">
             <span className="text-[10px] uppercase font-bold text-sentinel-textSubtle block font-sans">
-              Policy
+              Policy Preimage
             </span>
-            <div className="font-bold text-purple-300 text-sm truncate" title={record.policyHash}>
+            <div className="font-bold text-purple-300 text-xs truncate" title={record.policyHash}>
               {policyHash0x}
             </div>
             <div className="text-[10px] text-sentinel-textMuted font-sans">25% cap · 20% floor · $10K max</div>
           </div>
 
           {/* 3. Pre-state */}
-          <div className="bg-slate-900/70 p-3 rounded-lg border border-slate-800 space-y-1">
+          <div className="bg-sentinel-surfaceMuted p-3 rounded-lg border border-sentinel-border space-y-1">
             <span className="text-[10px] uppercase font-bold text-sentinel-textSubtle block font-sans">
-              Pre-state
+              Pre-state Root
             </span>
-            <div className="font-bold text-blue-300 text-sm truncate" title={record.preStateHash}>
+            <div className="font-bold text-blue-300 text-xs truncate" title={record.preStateHash}>
               {preStateShort}
             </div>
             <div className="text-[10px] text-sentinel-textMuted font-sans">Canonical vault pre-root</div>
           </div>
 
           {/* 4. Post-state */}
-          <div className="bg-slate-900/70 p-3 rounded-lg border border-slate-800 space-y-1">
+          <div className="bg-sentinel-surfaceMuted p-3 rounded-lg border border-sentinel-border space-y-1">
             <span className="text-[10px] uppercase font-bold text-sentinel-textSubtle block font-sans">
-              Post-state
+              Post-state Root
             </span>
-            <div className="font-bold text-emerald-300 text-sm truncate" title={record.postStateHash}>
+            <div className="font-bold text-emerald-300 text-xs truncate" title={record.postStateHash}>
               {postStateShort}
             </div>
             <div className="text-[10px] text-sentinel-textMuted font-sans">Verified postcondition root</div>
           </div>
 
           {/* 5. Transaction + Explorer ↗ */}
-          <div className="bg-slate-900/70 p-3 rounded-lg border border-slate-800 space-y-1 flex flex-col justify-between">
+          <div className="bg-sentinel-surfaceMuted p-3 rounded-lg border border-sentinel-border space-y-1 flex flex-col justify-between">
             <span className="text-[10px] uppercase font-bold text-sentinel-textSubtle block font-sans">
-              Transaction
+              Solana Signature
             </span>
             <div className="flex items-center justify-between gap-2">
-              <span className="font-bold text-white text-sm tabular-nums" title={rawSig}>
+              <span className="font-bold text-white text-xs tabular-nums" title={rawSig}>
                 {shortSig}
               </span>
               <a
                 href={getExplorerTxUrl(rawSig)}
                 target="_blank"
                 rel="noreferrer"
-                className="text-blue-400 hover:text-blue-300 font-bold text-xs inline-flex items-center gap-1 hover:underline sentinel-interactive sentinel-focus rounded p-0.5"
+                className="text-blue-400 hover:text-blue-300 font-bold text-[11px] inline-flex items-center gap-1 hover:underline sentinel-interactive sentinel-focus rounded p-0.5"
               >
                 <span>Explorer ↗</span>
               </a>
@@ -183,30 +180,28 @@ export const SentinelReceiptCard: React.FC<SentinelReceiptCardProps> = ({
           </div>
 
           {/* 6. Integrity */}
-          <div className="bg-slate-900/70 p-3 rounded-lg border border-emerald-500/30 space-y-1">
+          <div className="bg-sentinel-surfaceMuted p-3 rounded-lg border border-emerald-500/30 space-y-1">
             <span className="text-[10px] uppercase font-bold text-sentinel-textSubtle block font-sans">
-              Integrity
+              Cryptographic Proof
             </span>
-            <div className="font-black text-emerald-400 text-sm flex items-center gap-1">
-              <span>✓ VERIFIED</span>
+            <div className="font-black text-emerald-400 text-xs flex items-center gap-1">
+              <span>✓ ED25519 + SHA-256</span>
             </div>
-            <div className="text-[10px] text-sentinel-textMuted font-sans">Ed25519 + SHA-256</div>
+            <div className="text-[10px] text-sentinel-textMuted font-sans">Deterministic Preimage</div>
           </div>
         </div>
 
         {/* Collapsible Technical Drawer Header (Developer / Judge View) */}
-        <div className="pt-2 border-t border-dashed border-sentinel-border">
+        <div className="pt-1 border-t border-sentinel-border">
           <button
             type="button"
             onClick={() => setDrawerOpen(!drawerOpen)}
-            className="w-full py-2.5 px-4 rounded-lg bg-slate-900/90 hover:bg-slate-800/90 border border-slate-700/60 flex items-center justify-between text-xs transition cursor-pointer sentinel-interactive sentinel-focus"
+            className="w-full py-2.5 px-3.5 rounded-lg bg-sentinel-surfaceMuted hover:bg-sentinel-surfaceElevated border border-sentinel-border flex items-center justify-between text-xs transition cursor-pointer sentinel-interactive sentinel-focus"
           >
-            <div className="flex items-center gap-2 text-slate-300 font-sans font-semibold">
-              <Lock className="w-3.5 h-3.5 text-amber-400" />
+            <div className="flex items-center gap-2 text-white font-sans font-semibold">
+              <Lock className="w-3.5 h-3.5 text-purple-400" />
               <span>Developer / Judge Technical Drawer</span>
-              <span className="text-[10px] px-2 py-0.2 rounded bg-amber-500/10 text-amber-300 font-mono border border-amber-500/30 tabular-nums">
-                AUDIT TELEMETRY
-              </span>
+              <Badge variant="neutral">AUDIT TELEMETRY</Badge>
             </div>
             <div className="flex items-center gap-2 text-sentinel-textMuted">
               <span className="text-[11px] font-mono hidden sm:inline">

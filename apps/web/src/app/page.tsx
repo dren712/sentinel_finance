@@ -649,7 +649,12 @@ export default function Home() {
         {/* Institutional Market Regime & Session Context Bar (shown in app views) */}
         {activeTab !== 'overview' && (
           <div className="space-y-3 mb-6">
-            <MarketRegimeBanner onNavigateToProof={() => setActiveTab('proof')} pythFreshnessSec={8} />
+            <MarketRegimeBanner
+              onNavigateToProof={() => setActiveTab('proof')}
+              pythFreshnessSec={8}
+              isEmergencyPaused={policy.isEmergencyPaused}
+              mode={mode}
+            />
 
             {/* Cross-Surface Verification Scenario Launcher (Phase 13) */}
             <div className="px-3.5 py-2.5 rounded-xl bg-sentinel-surface border border-sentinel-border flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 text-xs font-mono">

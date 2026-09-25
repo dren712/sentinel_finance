@@ -4,6 +4,8 @@ import React from 'react';
 import { CheckCircle2, XCircle, Loader2, ExternalLink, ShieldCheck, ArrowRight } from 'lucide-react';
 import { getExplorerTxUrl } from '@/lib/config';
 import { formatCurrency, formatSignature } from '@/lib/formatters';
+import { Badge } from './Badge';
+import { SourceBadge } from './SourceBadge';
 
 export type TxLifecycleStep =
   | 'idle'
@@ -47,19 +49,24 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
       <div className="w-full max-w-md bg-sentinel-surface border border-sentinel-borderStrong rounded-2xl shadow-2xl overflow-hidden">
         {/* Modal Header */}
-        <div className="p-5 border-b border-sentinel-border flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="p-5 border-b border-sentinel-border flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-sentinel-accent border border-blue-500/30 flex items-center justify-center">
               <ShieldCheck className="w-4 h-4" />
             </div>
-            <h3 className="text-sm font-bold text-sentinel-text">
-              {step === 'awaiting_signature' ? 'Approve Sentinel Transaction' : 'Transaction Status'}
-            </h3>
+            <div>
+              <h3 className="text-sm font-bold text-sentinel-text">
+                {step === 'awaiting_signature' ? 'Approve Sentinel Transaction' : 'Transaction Lifecycle'}
+              </h3>
+              <span className="text-[10px] font-mono text-sentinel-textSubtle block">
+                Anchor Pre-Flight &amp; Postcondition Guard
+              </span>
+            </div>
           </div>
-          {details.isSimulated && (
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30">
-              SIMULATED
-            </span>
+          {details.isSimulated ? (
+            <SourceBadge source="SIMULATION" detail="Deterministic" size="xs" />
+          ) : (
+            <SourceBadge source="SOLANA" detail="Devnet" size="xs" />
           )}
         </div>
 
