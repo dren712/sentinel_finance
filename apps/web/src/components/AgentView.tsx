@@ -32,6 +32,8 @@ import {
   X,
   Sliders,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { Badge } from './ui/Badge';
 import { FlagshipEnforcementCard } from './ui/FlagshipEnforcementCard';
@@ -81,6 +83,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
   const [direction, setDirection] = useState<'BUY' | 'SELL'>('BUY');
   const [tradeAmount, setTradeAmount] = useState('15000');
   const [strategy, setStrategy] = useState<'Momentum Growth' | 'Balanced Allocation' | 'Conservative Capital Preservation'>('Momentum Growth');
+  const [isProposerOpen, setIsProposerOpen] = useState(false);
 
   // Action Review Modal / Bottom Sheet state
   const [isReviewOpen, setIsReviewOpen] = useState(false);
@@ -224,32 +227,25 @@ export const AgentView: React.FC<AgentViewProps> = ({
           </div>
         </div>
 
-        {/* 4 Status Pillars */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-5 text-xs font-mono">
-          <div className="bg-sentinel-surfaceMuted p-3 rounded-lg border border-sentinel-border">
-            <span className="text-sentinel-textSubtle block text-[10px]">MANDATE</span>
-            <span className="text-white font-semibold mt-0.5 block">Balanced Growth</span>
-            <span className="text-[10px] text-sentinel-textMuted">Dynamic Multi-Asset</span>
+        {/* 4 Status Indicators - Clean Architectural Row */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 pt-4 text-xs font-mono">
+          <div className="px-3 py-2 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border flex items-center justify-between">
+            <span className="text-sentinel-textSubtle text-[11px]">MANDATE</span>
+            <span className="text-white font-semibold">Balanced Growth</span>
           </div>
-
-          <div className="bg-sentinel-surfaceMuted p-3 rounded-lg border border-sentinel-border">
-            <span className="text-sentinel-textSubtle block text-[10px]">REBALANCE CADENCE</span>
-            <span className="text-white font-semibold mt-0.5 block">Monitoring</span>
-            <span className="text-[10px] text-sentinel-textMuted">Block-by-block preflight</span>
+          <div className="px-3 py-2 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border flex items-center justify-between">
+            <span className="text-sentinel-textSubtle text-[11px]">CADENCE</span>
+            <span className="text-white font-semibold">Block-by-Block</span>
           </div>
-
-          <div className="bg-sentinel-surfaceMuted p-3 rounded-lg border border-sentinel-border">
-            <span className="text-sentinel-textSubtle block text-[10px]">ENFORCEMENT</span>
-            <span className="text-emerald-400 font-semibold mt-0.5 block">Bound to Sentinel</span>
-            <span className="text-[10px] text-sentinel-textMuted">Zero-bypass PDA ticket</span>
+          <div className="px-3 py-2 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border flex items-center justify-between">
+            <span className="text-sentinel-textSubtle text-[11px]">ENFORCEMENT</span>
+            <span className="text-emerald-400 font-semibold">On-Chain Sentinel PDA</span>
           </div>
-
-          <div className="bg-sentinel-surfaceMuted p-3 rounded-lg border border-sentinel-border">
-            <span className="text-sentinel-textSubtle block text-[10px]">EXECUTION VENUE</span>
-            <span className="text-blue-400 font-semibold mt-0.5 block truncate">
+          <div className="px-3 py-2 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border flex items-center justify-between">
+            <span className="text-sentinel-textSubtle text-[11px]">VENUE</span>
+            <span className="text-blue-400 font-semibold truncate ml-2">
               {activeVenue === 'METEORA_DBC' ? 'Meteora DBC' : activeVenue === 'PRESTOCKS_SECONDARY' ? 'PreStocks' : 'Simulator'}
             </span>
-            <span className="text-[10px] text-sentinel-textMuted">Tokenized SPL DEX</span>
           </div>
         </div>
       </div>
@@ -533,54 +529,48 @@ export const AgentView: React.FC<AgentViewProps> = ({
         </div>
       </div>
 
-      {/* 4. EXECUTION VENUE SELECTOR & NON-BYPASS LIFECYCLE (PHASE 4 & 10) */}
-      <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-5 sm:p-6 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-sentinel-border pb-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <Layers className="w-4 h-4 text-blue-400" />
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-                Polymorphic Execution Venues
-              </h3>
-            </div>
-            <p className="text-xs text-sentinel-textMuted mt-0.5">
-              Select targeted liquidity venue. Sentinel strictly enforces pre-flight invariants prior to venue dispatch.
-            </p>
+      {/* 4. EXECUTION VENUE SELECTOR (HIGH-DENSITY COMPACT CARDS) */}
+      <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-4 sm:p-5 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-sentinel-border pb-2.5">
+          <div className="flex items-center gap-2">
+            <Layers className="w-4 h-4 text-blue-400" />
+            <h3 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider">
+              Polymorphic Execution Venues
+            </h3>
           </div>
-
-          <span className="px-2.5 py-1 rounded bg-blue-500/15 text-blue-300 text-xs font-mono font-bold border border-blue-500/30 self-start sm:self-auto">
-            Venue: {activeVenue}
+          <span className="px-2 py-0.5 rounded bg-blue-500/15 text-blue-300 text-[11px] font-mono font-bold border border-blue-500/30 self-start sm:self-auto">
+            Active: {activeVenue}
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
           {/* Venue 1: Meteora DBC */}
           <button
             type="button"
             onClick={() => handleVenueChange('METEORA_DBC')}
-            className={`text-left p-3.5 rounded-xl border transition cursor-pointer flex flex-col justify-between ${
+            className={`text-left p-3 rounded-lg border transition cursor-pointer flex flex-col justify-between ${
               activeVenue === 'METEORA_DBC'
-                ? 'bg-blue-950/20 border-blue-500 shadow-md'
+                ? 'bg-blue-500/10 border-blue-500 shadow-xs'
                 : 'bg-sentinel-surfaceMuted border-sentinel-border hover:border-slate-600'
             }`}
           >
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="px-1.5 py-0.2 rounded bg-blue-500/20 text-blue-400 font-mono text-[10px] font-bold">
-                  PUBLIC EQUITIES
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <TrendingUp className="w-3.5 h-3.5 text-blue-400" />
+                  Meteora DBC
                 </span>
-                <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+                <span className="px-1.5 py-0.2 rounded bg-blue-500/20 text-blue-400 font-mono text-[9px] font-bold">
+                  PUBLIC
+                </span>
               </div>
-              <h4 className="text-xs font-bold text-white flex items-center gap-1">
-                <TrendingUp className="w-3.5 h-3.5 text-blue-400" />
-                Meteora Dynamic Bonding Curve
-              </h4>
-              <p className="text-[11px] text-sentinel-textMuted mt-1">
+              <p className="text-[11px] text-sentinel-textMuted line-clamp-1">
                 Dynamic bonding curve AMM for tokenized stocks (NVDAx, AAPLx, SPYx).
               </p>
             </div>
-            <div className="mt-3 pt-2 border-t border-sentinel-border/50 text-[10px] font-mono text-sentinel-textSubtle">
-              Min Depth: $25k · Max Slip: 1.00%
+            <div className="mt-2 pt-1.5 border-t border-sentinel-border/50 text-[10px] font-mono text-sentinel-textSubtle flex justify-between">
+              <span>Depth: $25k</span>
+              <span>Max Slip: 1.00%</span>
             </div>
           </button>
 
@@ -588,29 +578,29 @@ export const AgentView: React.FC<AgentViewProps> = ({
           <button
             type="button"
             onClick={() => handleVenueChange('PRESTOCKS_SECONDARY')}
-            className={`text-left p-3.5 rounded-xl border transition cursor-pointer flex flex-col justify-between ${
+            className={`text-left p-3 rounded-lg border transition cursor-pointer flex flex-col justify-between ${
               activeVenue === 'PRESTOCKS_SECONDARY'
-                ? 'bg-purple-950/20 border-purple-500 shadow-md'
+                ? 'bg-purple-500/10 border-purple-500 shadow-xs'
                 : 'bg-sentinel-surfaceMuted border-sentinel-border hover:border-slate-600'
             }`}
           >
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-400 font-mono text-[10px] font-bold">
-                  PRE-IPO UNICORNS
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-purple-400" />
+                  PreStocks Vault
                 </span>
-                <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
+                <span className="px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-400 font-mono text-[9px] font-bold">
+                  PRE-IPO
+                </span>
               </div>
-              <h4 className="text-xs font-bold text-white flex items-center gap-1">
-                <Building2 className="w-3.5 h-3.5 text-purple-400" />
-                PreStocks Secondary Vault
-              </h4>
-              <p className="text-[11px] text-sentinel-textMuted mt-1">
-                Order matching vault for late-stage private giants (SpaceX, OpenAI, Stripe).
+              <p className="text-[11px] text-sentinel-textMuted line-clamp-1">
+                Secondary order matching vault for private tech giants (SpaceX, OpenAI, Stripe).
               </p>
             </div>
-            <div className="mt-3 pt-2 border-t border-sentinel-border/50 text-[10px] font-mono text-sentinel-textSubtle">
-              Transfer Check: Active · Max Cap: 20%
+            <div className="mt-2 pt-1.5 border-t border-sentinel-border/50 text-[10px] font-mono text-sentinel-textSubtle flex justify-between">
+              <span>Transfer: Verified</span>
+              <span>Cap: 20%</span>
             </div>
           </button>
 
@@ -618,51 +608,66 @@ export const AgentView: React.FC<AgentViewProps> = ({
           <button
             type="button"
             onClick={() => handleVenueChange('DEMO_SIMULATION')}
-            className={`text-left p-3.5 rounded-xl border transition cursor-pointer flex flex-col justify-between ${
+            className={`text-left p-3 rounded-lg border transition cursor-pointer flex flex-col justify-between ${
               activeVenue === 'DEMO_SIMULATION'
-                ? 'bg-amber-950/20 border-amber-500 shadow-md'
+                ? 'bg-amber-500/10 border-amber-500 shadow-xs'
                 : 'bg-sentinel-surfaceMuted border-sentinel-border hover:border-slate-600'
             }`}
           >
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-400 font-mono text-[10px] font-bold">
-                  OFFLINE SIMULATION
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <Cpu className="w-3.5 h-3.5 text-amber-400" />
+                  Local Simulator
                 </span>
-                <span className="w-2 h-2 rounded-full bg-amber-400" />
+                <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-400 font-mono text-[9px] font-bold">
+                  SIMULATION
+                </span>
               </div>
-              <h4 className="text-xs font-bold text-white flex items-center gap-1">
-                <Cpu className="w-3.5 h-3.5 text-amber-400" />
-                Deterministic Local Simulator
-              </h4>
-              <p className="text-[11px] text-sentinel-textMuted mt-1">
-                In-memory execution harness for deterministic testing and air-gapped scenarios.
+              <p className="text-[11px] text-sentinel-textMuted line-clamp-1">
+                Deterministic in-memory execution harness for air-gapped testing.
               </p>
             </div>
-            <div className="mt-3 pt-2 border-t border-sentinel-border/50 text-[10px] font-mono text-sentinel-textSubtle">
-              Signatures: sim_tx_* · No network delay
+            <div className="mt-2 pt-1.5 border-t border-sentinel-border/50 text-[10px] font-mono text-sentinel-textSubtle flex justify-between">
+              <span>Signatures: sim_tx_*</span>
+              <span>Zero Latency</span>
             </div>
           </button>
         </div>
       </div>
 
-      {/* 5. MANUAL TRADE PROPOSER & PRE-FLIGHT VERIFIER ENGINE */}
-      <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-5 sm:p-6 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-sentinel-border pb-3">
-          <div>
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-              Autonomous Trade Intent Proposer
-            </h3>
-            <p className="text-xs text-sentinel-textMuted mt-0.5">
-              Simulate arbitrary trade proposals from the agent authority to test real-time invariant enforcement.
-            </p>
+      {/* 5. MANUAL TRADE PROPOSER & PRE-FLIGHT VERIFIER ENGINE (COLLAPSIBLE ACCORDION) */}
+      <div className="bg-sentinel-surface border border-sentinel-border rounded-xl overflow-hidden shadow-xs">
+        <button
+          type="button"
+          onClick={() => setIsProposerOpen(!isProposerOpen)}
+          className="w-full p-4 sm:p-5 flex items-center justify-between text-left hover:bg-sentinel-surfaceMuted/50 transition cursor-pointer"
+        >
+          <div className="flex items-center gap-2.5">
+            <Sliders className="w-4 h-4 text-blue-400" />
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider">
+                  Manual Trade Proposal &amp; Pre-Flight Engine
+                </h3>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-sentinel-surfaceMuted text-sentinel-textSubtle border border-sentinel-border">
+                  {swarmPassingCount} / 6 Verifiers Passing
+                </span>
+              </div>
+              <p className="text-[11px] text-sentinel-textMuted mt-0.5">
+                Simulate arbitrary trade proposals from agent authority to test real-time invariant enforcement.
+              </p>
+            </div>
           </div>
-          <span className="text-xs font-mono text-sentinel-textSubtle">
-            {swarmPassingCount} / 6 Verifiers Passing
-          </span>
-        </div>
+          <div className="flex items-center gap-2 text-xs font-mono text-sentinel-textSubtle shrink-0">
+            <span>{isProposerOpen ? 'Hide Proposer' : 'Expand Proposer'}</span>
+            {isProposerOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </div>
+        </button>
 
-        <form onSubmit={handleCustomSubmit} className="space-y-4">
+        {isProposerOpen && (
+          <div className="p-5 border-t border-sentinel-border space-y-4 bg-sentinel-surfaceMuted/20 animate-in fade-in duration-150">
+            <form onSubmit={handleCustomSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {/* Asset Selection */}
             <div>
@@ -842,6 +847,9 @@ export const AgentView: React.FC<AgentViewProps> = ({
           </div>
         </form>
       </div>
-    </div>
+    )}
+  </div>
+</div>
   );
 };
+
