@@ -19,7 +19,7 @@ import {
 } from '@sentinel/sdk';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { Transaction } from '@solana/web3.js';
-import { ArrowUpRight } from 'lucide-react';
+import { ArrowUpRight, Github } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { Navigation, NavTab } from '@/components/Navigation';
 import { LandingView } from '@/components/LandingView';
@@ -932,11 +932,25 @@ export default function Home() {
             <span>·</span>
             <span>Outcome-Bounded Autonomous Portfolios on Solana</span>
           </div>
-          <div className="text-sentinel-textSubtle font-medium">
-            Propose. Project. Enforce. Adapt. Settle.
+          <div className="flex items-center gap-4">
+            <div className="text-sentinel-textSubtle font-medium hidden md:block">
+              Propose. Project. Enforce. Adapt. Settle.
+            </div>
+            <span className="hidden md:inline text-sentinel-border">·</span>
+            <a
+              href="https://github.com/dren712/sentinel_finance"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-sentinel-textMuted hover:text-white transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-sentinel-accent/50 rounded px-1.5 py-0.5"
+              aria-label="Sentinel Finance GitHub repository (opens in a new tab)"
+            >
+              <Github className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>GitHub</span>
+            </a>
           </div>
         </div>
       </footer>
+
     </div>
   );
 }
