@@ -20,7 +20,6 @@ import {
   ArrowRight,
   Clock,
   Layers,
-  Sparkles,
   Shield,
   FileText,
   ArrowUpRight,

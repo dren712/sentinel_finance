@@ -310,7 +310,7 @@ export const HeroStoryCenterpiece: React.FC<HeroStoryCenterpieceProps> = ({
           </div>
 
           {/* ADAPTATION BRIDGE */}
-          <div className="bg-gradient-to-r from-purple-950/40 via-purple-900/20 to-slate-950 border border-purple-500/30 rounded-xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
+          <div className="bg-sentinel-surface border border-purple-500/30 rounded-xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono shadow-xs">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-purple-600/20 border border-purple-500/40 flex items-center justify-center text-purple-400">
                 <Bot className="w-4 h-4" />
@@ -458,7 +458,7 @@ export const HeroStoryCenterpiece: React.FC<HeroStoryCenterpieceProps> = ({
           </div>
 
           {/* ADAPTATION BRIDGE ALONG DBC CURVE */}
-          <div className="bg-gradient-to-r from-amber-950/40 via-amber-900/20 to-slate-950 border border-amber-500/30 rounded-xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
+          <div className="bg-sentinel-surface border border-amber-500/30 rounded-xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono shadow-xs">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-amber-600/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
                 <Bot className="w-4 h-4" />
@@ -619,7 +619,7 @@ export const HeroStoryCenterpiece: React.FC<HeroStoryCenterpieceProps> = ({
           </div>
 
           {/* HERMÈS PULL UPDATE */}
-          <div className="bg-gradient-to-r from-emerald-950/40 via-emerald-900/20 to-slate-950 border border-emerald-500/30 rounded-xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
+          <div className="bg-sentinel-surface border border-emerald-500/30 rounded-xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono shadow-xs">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-emerald-600/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
                 <RefreshCw className="w-4 h-4" />

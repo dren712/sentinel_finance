@@ -686,7 +686,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
 
             <div className="p-3.5 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div className="flex items-center gap-3">
-                <span className="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 font-bold">METEORA DBC</span>
+                <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 font-bold">METEORA DBC</span>
                 <span className="text-sentinel-text font-semibold">Bonding Curve Liquidity Verifier</span>
               </div>
               <div className="text-sentinel-textMuted text-[11px]">

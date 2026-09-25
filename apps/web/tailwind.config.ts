@@ -41,6 +41,15 @@ const config: Config = {
           muted: '#64748B',
         },
       },
+      borderRadius: {
+        DEFAULT: '0.375rem', // 6px
+        sm: '0.25rem',       // 4px
+        md: '0.375rem',      // 6px
+        lg: '0.5rem',        // 8px (structural cards)
+        xl: '0.75rem',       // 12px (major panels)
+        '2xl': '0.75rem',    // architectural cap (no giant rounding)
+        full: '9999px',      // circular status indicators only
+      },
       fontFamily: {
         mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
         sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'system-ui', 'sans-serif'],

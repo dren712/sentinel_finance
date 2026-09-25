@@ -67,7 +67,7 @@ export const Navigation: React.FC<NavigationProps> = ({
                 >
                   <Icon
                     className={`w-3.5 h-3.5 transition-colors ${
-                      isActive ? 'text-cyan-400' : 'text-sentinel-textSubtle'
+                      isActive ? 'text-sentinel-accent' : 'text-sentinel-textSubtle'
                     }`}
                   />
                   <span>{tab.label}</span>
@@ -75,7 +75,7 @@ export const Navigation: React.FC<NavigationProps> = ({
                     <span
                       className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono tabular-nums leading-none ${
                         isActive
-                          ? 'bg-cyan-500/15 text-cyan-300 font-semibold'
+                          ? 'bg-sentinel-accent/20 text-blue-300 font-semibold'
                           : 'bg-sentinel-surfaceElevated text-sentinel-textSubtle border border-sentinel-border'
                       }`}
                     >
@@ -83,7 +83,7 @@ export const Navigation: React.FC<NavigationProps> = ({
                     </span>
                   )}
                   {isActive && (
-                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-t-full shadow-[0_0_8px_rgba(6,182,212,0.4)]" />
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-sentinel-accent rounded-t-full" />
                   )}
                 </button>
               );
@@ -112,11 +112,11 @@ export const Navigation: React.FC<NavigationProps> = ({
                 <div className="relative">
                   <Icon
                     className={`w-4 h-4 ${
-                      isActive ? 'text-cyan-400' : 'text-sentinel-textSubtle'
+                      isActive ? 'text-sentinel-accent' : 'text-sentinel-textSubtle'
                     }`}
                   />
                   {tab.count !== undefined && tab.count > 0 && (
-                    <span className="absolute -top-1 -right-2 px-1 min-w-[12px] h-3 flex items-center justify-center rounded-full bg-cyan-500 text-black text-[8px] font-mono font-bold leading-none">
+                    <span className="absolute -top-1 -right-2 px-1 min-w-[12px] h-3 flex items-center justify-center rounded-full bg-sentinel-accent text-white text-[8px] font-mono font-bold leading-none">
                       {tab.count}
                     </span>
                   )}
@@ -125,7 +125,7 @@ export const Navigation: React.FC<NavigationProps> = ({
                   {tab.id === 'proof' ? 'Verify' : tab.label}
                 </span>
                 {isActive && (
-                  <span className="w-3 h-0.5 bg-cyan-400 rounded-full mt-0.5" />
+                  <span className="w-3 h-0.5 bg-sentinel-accent rounded-full mt-0.5" />
                 )}
               </button>
             );

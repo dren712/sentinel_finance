@@ -71,7 +71,6 @@ import {
   Copy,
   Check,
   Sliders,
-  Sparkles,
   Building2,
   Rocket,
   RotateCcw,
@@ -609,13 +608,13 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
             <button
               disabled={!canDeploy}
               onClick={handleDeploy}
-              className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+              className={`px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center gap-2 cursor-pointer sentinel-interactive sentinel-focus ${
                 canDeploy
-                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md'
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs'
                   : 'bg-sentinel-surfaceMuted text-sentinel-textSubtle border border-sentinel-border cursor-not-allowed opacity-60'
               }`}
             >
-              <Sparkles className="w-3.5 h-3.5" />
+              <CheckCircle2 className="w-3.5 h-3.5" />
               <span>Apply Verified Portfolio</span>
             </button>
           </div>

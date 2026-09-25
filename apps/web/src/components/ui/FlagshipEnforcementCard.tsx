@@ -95,9 +95,9 @@ export const FlagshipEnforcementCard: React.FC<FlagshipEnforcementCardProps> = (
       {/* =====================================================================
           P18 — THE SINGLE SCREEN THAT HAS TO BE PERFECT
       ===================================================================== */}
-      <div className="lg:col-span-7 bg-sentinel-surfaceMuted border-2 border-sentinel-borderStrong rounded-2xl p-5 sm:p-8 font-mono shadow-2xl shadow-black/80 relative overflow-hidden flex flex-col justify-between">
-        {/* Subtle terminal scanline / top accent */}
-        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-500 via-rose-500 to-emerald-500" />
+      <div className="lg:col-span-7 bg-sentinel-surface border border-sentinel-border rounded-xl p-5 sm:p-7 font-mono shadow-md relative overflow-hidden flex flex-col justify-between">
+        {/* Subtle architectural top accent */}
+        <div className="absolute inset-x-0 top-0 h-0.5 bg-sentinel-accent" />
 
         {/* MOBILE STACKED INSPECTOR (< 640px / 320px–414px) */}
         <div className="sm:hidden space-y-4">
@@ -399,8 +399,8 @@ export const FlagshipEnforcementCard: React.FC<FlagshipEnforcementCardProps> = (
       {/* =====================================================================
           P19 — THEN PROVN: VERIFIED SENTINEL RECEIPT
       ===================================================================== */}
-      <div className="lg:col-span-5 bg-sentinel-surfaceMuted border-2 border-sentinel-borderStrong rounded-2xl p-6 sm:p-8 font-mono shadow-2xl shadow-black/80 relative overflow-hidden flex flex-col justify-between">
-        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-500 via-blue-500 to-purple-500" />
+      <div className="lg:col-span-5 bg-sentinel-surface border border-sentinel-border rounded-xl p-5 sm:p-7 font-mono shadow-md relative overflow-hidden flex flex-col justify-between">
+        <div className="absolute inset-x-0 top-0 h-0.5 bg-sentinel-success" />
 
         <div className="space-y-5">
           {/* Header */}

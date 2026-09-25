@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { PortfolioSnapshot, FinancialPolicy } from '@sentinel/domain';
-import { ShieldCheck, ShieldAlert, Sparkles, Sliders, ArrowRight, RotateCcw } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, Scale, Sliders, ArrowRight, RotateCcw } from 'lucide-react';
 import { formatCurrency, formatPercent } from '@/lib/formatters';
 
 interface InvariantSimulatorProps {
@@ -285,7 +285,7 @@ export const InvariantSimulator: React.FC<InvariantSimulatorProps> = ({
               onClick={handleSnapToHeadroom}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-blue-300 font-semibold transition cursor-pointer sentinel-interactive sentinel-focus sentinel-btn-physical"
             >
-              <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+              <Scale className="w-3.5 h-3.5 text-blue-400" />
               <span>Auto-Adapt to Headroom ({formatCurrency(maxHeadroomUsd)})</span>
             </button>
           )}

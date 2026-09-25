@@ -449,9 +449,9 @@ export const AgentView: React.FC<AgentViewProps> = ({
       )}
 
       {/* 3. PHASE 8: AUTONOMOUS DECISION & ADAPTATION HERO CARD */}
-      <div className="bg-gradient-to-br from-slate-950 via-blue-950/20 to-slate-950 border border-blue-500/30 rounded-xl overflow-hidden shadow-lg shadow-blue-500/5">
+      <div className="bg-sentinel-surface border border-sentinel-border rounded-xl overflow-hidden shadow-sm">
         {/* Header */}
-        <div className="p-5 sm:p-6 border-b border-blue-500/20">
+        <div className="p-5 sm:p-6 border-b border-sentinel-border">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center">

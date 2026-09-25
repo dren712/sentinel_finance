@@ -81,7 +81,7 @@ export const Header: React.FC<HeaderProps> = ({
           onClick={onNavigateToOverview}
           className="flex items-center gap-3 text-left cursor-pointer group focus:outline-none shrink-0"
         >
-          <div className="relative w-9 h-9 rounded-lg bg-sentinel-surfaceElevated border border-sentinel-border flex items-center justify-center shrink-0 p-1 group-hover:border-cyan-400/50 transition-all shadow-xs">
+          <div className="relative w-9 h-9 rounded-lg bg-sentinel-surfaceElevated border border-sentinel-border flex items-center justify-center shrink-0 p-1 group-hover:border-blue-500/40 transition-all shadow-xs">
             <Image
               src="/Sentinel_Logo.png"
               alt="Sentinel Logo"
@@ -92,7 +92,7 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-bold text-sm sm:text-base tracking-wider text-white group-hover:text-cyan-300 transition-colors">
+              <span className="font-bold text-sm sm:text-base tracking-wider text-white group-hover:text-blue-300 transition-colors">
                 SENTINEL
               </span>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-sentinel-surfaceElevated text-sentinel-textMuted font-medium border border-sentinel-border font-mono tracking-tight">
@@ -129,7 +129,7 @@ export const Header: React.FC<HeaderProps> = ({
               className="h-9 px-2.5 sm:px-3 rounded-lg bg-sentinel-surfaceElevated hover:bg-sentinel-surfaceMuted border border-sentinel-border text-sentinel-text hover:text-white text-xs font-medium flex items-center gap-1.5 transition disabled:opacity-50 cursor-pointer"
               title="Run Demo Scenarios"
             >
-              <Play className={`w-3.5 h-3.5 text-cyan-400 ${isRunningDemo ? 'animate-spin' : ''}`} />
+              <Play className={`w-3.5 h-3.5 text-blue-400 ${isRunningDemo ? 'animate-spin' : ''}`} />
               <span className="hidden sm:inline font-sans">{isRunningDemo ? 'Running...' : 'Run Demo'}</span>
               <span className="sm:hidden font-sans">{isRunningDemo ? '...' : 'Demo'}</span>
               <ChevronDown className="w-3 h-3 text-sentinel-textSubtle" />
@@ -151,9 +151,9 @@ export const Header: React.FC<HeaderProps> = ({
                   }}
                   className="w-full text-left p-2.5 rounded-lg hover:bg-slate-800 transition flex items-start gap-2.5 cursor-pointer group"
                 >
-                  <span className="w-2 h-2 rounded-full bg-cyan-400 mt-1 shrink-0" />
+                  <span className="w-2 h-2 rounded-full bg-blue-400 mt-1 shrink-0" />
                   <div>
-                    <div className="font-semibold text-white group-hover:text-cyan-300 transition flex items-center gap-1 font-sans">
+                    <div className="font-semibold text-white group-hover:text-blue-300 transition flex items-center gap-1 font-sans">
                       Flagship: Robo Adaptation
                     </div>
                     <div className="text-[11px] text-sentinel-textMuted mt-0.5 font-mono">
@@ -311,7 +311,7 @@ export const Header: React.FC<HeaderProps> = ({
                     }}
                     className="w-full py-2 px-3 rounded-lg bg-sentinel-surfaceElevated hover:bg-slate-800 border border-sentinel-border text-white text-xs font-mono flex items-center justify-center gap-2 transition cursor-pointer"
                   >
-                    <RotateCcw className="w-3.5 h-3.5 text-cyan-400" />
+                    <RotateCcw className="w-3.5 h-3.5 text-blue-400" />
                     <span>Reset Reference Portfolio</span>
                   </button>
                 </div>
@@ -334,7 +334,7 @@ export const Header: React.FC<HeaderProps> = ({
                         href={getExplorerAddressUrl(walletAddress)}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-cyan-400 hover:underline flex items-center gap-1 text-[10px]"
+                        className="text-blue-400 hover:underline flex items-center gap-1 text-[10px]"
                       >
                         <span>View on Solana Explorer</span>
                         <ExternalLink className="w-3 h-3" />
@@ -358,7 +358,7 @@ export const Header: React.FC<HeaderProps> = ({
                       href={getExplorerAddressUrl(APP_CONFIG.sentinelProgramId)}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-cyan-400 hover:underline flex items-center gap-1 text-[10px]"
+                      className="text-blue-400 hover:underline flex items-center gap-1 text-[10px]"
                     >
                       <span>{formatAddress(APP_CONFIG.sentinelProgramId, 4)}</span>
                       <ExternalLink className="w-3 h-3" />
@@ -371,7 +371,7 @@ export const Header: React.FC<HeaderProps> = ({
                         href={getExplorerAddressUrl(vaultPda)}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-cyan-400 hover:underline flex items-center gap-1 text-[10px]"
+                        className="text-blue-400 hover:underline flex items-center gap-1 text-[10px]"
                       >
                         <span>{formatAddress(vaultPda, 4)}</span>
                         <ExternalLink className="w-3 h-3" />
@@ -385,7 +385,7 @@ export const Header: React.FC<HeaderProps> = ({
                         href={getExplorerAddressUrl(policyPda)}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-cyan-400 hover:underline flex items-center gap-1 text-[10px]"
+                        className="text-blue-400 hover:underline flex items-center gap-1 text-[10px]"
                       >
                         <span>{formatAddress(policyPda, 4)}</span>
                         <ExternalLink className="w-3 h-3" />

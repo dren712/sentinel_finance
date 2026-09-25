@@ -63,7 +63,7 @@ export const MarketRegimeBanner: React.FC<MarketRegimeBannerProps> = ({
           {/* Pyth Oracle Freshness */}
           <div className="flex items-center gap-1 shrink-0">
             <span className="text-sentinel-textSubtle">Oracle:</span>
-            <span className="text-cyan-300">Pyth Hermes ({pythFreshnessSec}s quote)</span>
+            <span className="text-sentinel-text">Pyth Hermes ({pythFreshnessSec}s quote)</span>
           </div>
 
           <span className="text-sentinel-border hidden lg:inline">|</span>
@@ -73,7 +73,7 @@ export const MarketRegimeBanner: React.FC<MarketRegimeBannerProps> = ({
             <button
               type="button"
               onClick={onNavigateToProof}
-              className="hidden lg:inline-flex items-center gap-1 text-cyan-400 hover:text-cyan-300 hover:underline cursor-pointer"
+              className="hidden lg:inline-flex items-center gap-1 text-blue-400 hover:text-blue-300 hover:underline cursor-pointer"
             >
               <ShieldCheck className="w-3.5 h-3.5" />
               <span>11/11 Adversarial Invariants Active</span>
@@ -130,7 +130,7 @@ export const MarketRegimeBanner: React.FC<MarketRegimeBannerProps> = ({
               href={getExplorerAddressUrl(APP_CONFIG.sentinelProgramId)}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1 text-[10px] text-cyan-400 hover:underline"
+              className="inline-flex items-center gap-1 text-[10px] text-blue-400 hover:underline"
             >
               <span>Anchor: {APP_CONFIG.sentinelProgramId.slice(0, 4)}...{APP_CONFIG.sentinelProgramId.slice(-4)}</span>
               <ExternalLink className="w-3 h-3" />
