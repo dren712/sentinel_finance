@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { Shield, Play, RotateCcw, Activity, Settings, ExternalLink, Cpu, ChevronDown } from 'lucide-react';
 import { ClusterBadge } from './ui/ClusterBadge';
@@ -23,6 +24,7 @@ interface HeaderProps {
   onRunMeteoraDemo?: () => void;
   onRunPythDemo?: () => void;
   onReset: () => void;
+  onNavigateToOverview?: () => void;
   isRunningDemo: boolean;
 }
 
@@ -37,6 +39,7 @@ export const Header: React.FC<HeaderProps> = ({
   onRunMeteoraDemo,
   onRunPythDemo,
   onReset,
+  onNavigateToOverview,
   isRunningDemo,
 }) => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -72,17 +75,27 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="border-b border-sentinel-border bg-sentinel-surface/95 backdrop-blur sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-        {/* Brand & Subtitle */}
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-blue-600/15 border border-blue-500/30 flex items-center justify-center text-sentinel-accent shrink-0">
-            <Shield className="w-5 h-5" />
+        {/* Brand & Subtitle (Clickable to Overview) */}
+        <button
+          type="button"
+          onClick={onNavigateToOverview}
+          className="flex items-center gap-3 text-left cursor-pointer group focus:outline-none"
+        >
+          <div className="relative w-10 h-10 rounded-xl bg-purple-950/40 border border-purple-500/40 flex items-center justify-center shrink-0 p-1 group-hover:border-cyan-400 transition-all shadow-md group-hover:shadow-purple-500/20">
+            <Image
+              src="/Sentinel_Logo.png"
+              alt="Sentinel Logo"
+              width={34}
+              height={34}
+              className="object-contain"
+            />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-bold text-base sm:text-lg tracking-wider text-sentinel-text">
+              <span className="font-bold text-base sm:text-lg tracking-wider text-sentinel-text group-hover:text-cyan-300 transition-colors">
                 SENTINEL
               </span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-blue-500/10 text-blue-400 font-semibold border border-blue-500/30">
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-purple-500/10 text-purple-400 font-semibold border border-purple-500/30">
                 ROBO
               </span>
             </div>
@@ -90,7 +103,7 @@ export const Header: React.FC<HeaderProps> = ({
               Autonomous Investing with Enforceable Financial Guarantees
             </p>
           </div>
-        </div>
+        </button>
 
         {/* Action Controls & Top Right */}
         <div className="flex items-center gap-2.5">

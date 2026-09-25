@@ -22,6 +22,7 @@ import { Transaction } from '@solana/web3.js';
 import { ArrowUpRight } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { Navigation, NavTab } from '@/components/Navigation';
+import { LandingView } from '@/components/LandingView';
 import { PortfolioView } from '@/components/PortfolioView';
 import { HeroStoryCenterpiece, DemoScenarioKey } from '@/components/HeroStoryCenterpiece';
 import { AgentView } from '@/components/AgentView';
@@ -40,7 +41,7 @@ export default function Home() {
 
   const [mode, setMode] = useState<'SIMULATION' | 'LIVE'>('SIMULATION');
   const [selectedVenue, setSelectedVenue] = useState<ExecutionVenueType>('METEORA_DBC');
-  const [activeTab, setActiveTab] = useState<NavTab>('portfolio');
+  const [activeTab, setActiveTab] = useState<NavTab>('overview');
   const [portfolio, setPortfolio] = useState<PortfolioSnapshot>(() => client.createDefaultPortfolio());
   const [policy, setPolicy] = useState<FinancialPolicy>(() => client.createDefaultPolicy());
   const [marketPrices, setMarketPrices] = useState<Record<string, NormalizedMarketPrice>>({});
@@ -100,31 +101,42 @@ export default function Home() {
         setWalletBalanceSol(lamports / 1e9);
       }).catch(console.error);
 
-      // Bind connection to client indexer
-      client.setConnection(connection);
+      // Bind connection to client indexer safely
+      if (typeof (client as any)?.setConnection === 'function') {
+        client.setConnection(connection);
+      }
 
       // Attempt to read live on-chain token accounts from Solana RPC
-      client.fetchLiveOnChainPortfolio(publicKey.toBase58()).then((livePort) => {
-        if (livePort.assets.length > 0 && livePort.source === 'ON_CHAIN_PROJECTION') {
-          setPortfolio(livePort);
-        } else {
-          // If no token accounts yet on Devnet, maintain demo assets but update owner
+      if (typeof (client as any)?.fetchLiveOnChainPortfolio === 'function') {
+        client.fetchLiveOnChainPortfolio(publicKey.toBase58()).then((livePort) => {
+          if (livePort?.assets?.length > 0 && livePort.source === 'ON_CHAIN_PROJECTION') {
+            setPortfolio(livePort);
+          } else {
+            // If no token accounts yet on Devnet, maintain demo assets but update owner
+            setPortfolio(prev => ({
+              ...prev,
+              owner: publicKey.toBase58(),
+              walletAddress: publicKey.toBase58(),
+              source: 'SIMULATED_PROJECTION',
+            }));
+          }
+        }).catch((err) => {
+          console.warn('Could not read on-chain token accounts, falling back to simulated:', err);
           setPortfolio(prev => ({
             ...prev,
             owner: publicKey.toBase58(),
             walletAddress: publicKey.toBase58(),
             source: 'SIMULATED_PROJECTION',
           }));
-        }
-      }).catch((err) => {
-        console.warn('Could not read on-chain token accounts, falling back to simulated:', err);
+        });
+      } else {
         setPortfolio(prev => ({
           ...prev,
           owner: publicKey.toBase58(),
           walletAddress: publicKey.toBase58(),
           source: 'SIMULATED_PROJECTION',
         }));
-      });
+      }
 
       if (mode === 'LIVE') {
         client.setWalletSigner({
@@ -625,6 +637,7 @@ export default function Home() {
         onRunMeteoraDemo={handleRunMeteoraDemo}
         onRunPythDemo={handleRunPythDemo}
         onReset={handleReset}
+        onNavigateToOverview={() => setActiveTab('overview')}
         isRunningDemo={isRunningDemo}
       />
 
@@ -637,8 +650,10 @@ export default function Home() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-12">
-        {/* Institutional Market Regime & Session Context Bar */}
-        <MarketRegimeBanner onNavigateToProof={() => setActiveTab('proof')} pythFreshnessSec={8} />
+        {/* Institutional Market Regime & Session Context Bar (shown in app views) */}
+        {activeTab !== 'overview' && (
+          <MarketRegimeBanner onNavigateToProof={() => setActiveTab('proof')} pythFreshnessSec={8} />
+        )}
 
         {/* Dynamic Demo Stepper Banner */}
         {demoStep > 0 && (
@@ -756,6 +771,17 @@ export default function Home() {
               </a>
             </div>
           </div>
+        )}
+
+        {activeTab === 'overview' && (
+          <LandingView
+            onEnterApp={() => setActiveTab('portfolio')}
+            onRunDemo={() => {
+              setActiveTab('portfolio');
+              handleRunDemo();
+            }}
+            isRunningDemo={isRunningDemo}
+          />
         )}
 
         {activeTab === 'portfolio' && (
