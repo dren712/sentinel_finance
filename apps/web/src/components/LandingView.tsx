@@ -1,28 +1,19 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
 import {
-  Shield,
-  ShieldAlert,
-  ShieldCheck,
-  Zap,
   ArrowRight,
   Play,
-  RotateCcw,
-  Sparkles,
-  Bot,
-  Layers,
-  Lock,
   ExternalLink,
-  Cpu,
-  BarChart3,
-  CheckCircle2,
-  ChevronRight,
-  Sliders,
-  Flame,
-  Activity,
-  Award
+  ShieldCheck,
+  Check,
+  X,
+  SlidersHorizontal,
+  ChevronDown,
+  ChevronUp,
+  RefreshCw,
+  Lock,
 } from 'lucide-react';
 import { APP_CONFIG, getExplorerAddressUrl } from '@/lib/config';
 import { formatAddress } from '@/lib/formatters';
@@ -38,16 +29,13 @@ export const LandingView: React.FC<LandingViewProps> = ({
   onRunDemo,
   isRunningDemo = false,
 }) => {
-  // Interactive Playground State
+  // Interactive Guarantee Simulator State
   const [tradeAmount, setTradeAmount] = useState<number>(15000);
   const [selectedAsset, setSelectedAsset] = useState<'NVDAx' | 'OPENAIx' | 'AAPLx'>('NVDAx');
   const [isAdapted, setIsAdapted] = useState<boolean>(false);
-  const [pulseCount, setPulseCount] = useState<number>(0);
-  const [speechBubble, setSpeechBubble] = useState<string>(
-    'Systems online! I enforce postconditions on Solana so your AI agent cannot lose your funds.'
-  );
+  const [showEvidence, setShowEvidence] = useState<boolean>(false);
 
-  // Asset profiles for playground
+  // Asset profiles for simulation
   const assetData = {
     NVDAx: {
       name: 'NVIDIA Tokenized',
@@ -88,90 +76,59 @@ export const LandingView: React.FC<LandingViewProps> = ({
   const isOrderSizeBreach = tradeAmount > 10000;
   const isViolated = !isAdapted && (isConcentrationBreach || isCashFloorBreach || isOrderSizeBreach);
 
-  // Fun speech bubble reactions
-  const funResponses = [
-    '⚡ Sentinel Mech: "Invariant breached! Anchor program will atomically abort this transaction!"',
-    '🛡️ Sentinel Mech: "Defenses at 100%. Zero capital lost to AI hallucination."',
-    '🎯 Sentinel Mech: "Calculated headroom compliant. Solana Devnet ready for settlement."',
-    '🤖 Robo-01: "Adapting proposal based on on-chain rejection telemetry..."',
-    '🚀 Sentinel: "Stocklana Hackathon ready — PreStocks & Pyth Hermes integrated!"',
-  ];
-
-  const triggerMechPulse = () => {
-    setPulseCount((prev) => prev + 1);
-    const nextSpeech = funResponses[pulseCount % funResponses.length];
-    setSpeechBubble(nextSpeech);
-  };
-
   const handlePreset = (asset: 'NVDAx' | 'OPENAIx' | 'AAPLx', amount: number) => {
     setSelectedAsset(asset);
     setTradeAmount(amount);
     setIsAdapted(false);
   };
 
-  const handleAutoAdapt = () => {
+  const handleAdapt = () => {
     setIsAdapted(true);
     setTradeAmount(current.safeMax);
-    setSpeechBubble(
-      `⚡ Auto-Adapted! Scaled intent down to exactly $${current.safeMax.toLocaleString()} to satisfy all invariants!`
-    );
+  };
+
+  const handleReset = () => {
+    setIsAdapted(false);
+    setTradeAmount(15000);
   };
 
   return (
     <div className="relative overflow-hidden pb-16">
-      {/* Background Glows & Stars */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-[600px] pointer-events-none -z-10">
-        <div className="absolute top-12 left-1/4 w-96 h-96 bg-purple-600/15 rounded-full blur-[120px] animate-pulse-glow" />
-        <div className="absolute top-20 right-1/4 w-96 h-96 bg-cyan-500/15 rounded-full blur-[120px] animate-pulse-glow" style={{ animationDelay: '2s' }} />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[300px] bg-blue-600/10 rounded-full blur-[140px]" />
-      </div>
-
-      {/* HERO SECTION */}
-      <section className="pt-6 sm:pt-12 pb-12 sm:pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-        <div className="flex flex-col lg:flex-row items-center justify-between gap-12 lg:gap-8">
+      {/* SECTION 1: HERO */}
+      <section className="pt-8 sm:pt-14 pb-14 sm:pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
           
-          {/* Left Column: Headlines & Action */}
-          <div className="flex-1 text-center lg:text-left">
-            {/* Top Pill */}
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-sentinel-surfaceElevated border border-purple-500/30 text-purple-300 text-xs font-semibold mb-6 shadow-sm">
-              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-              <span className="text-cyan-400 font-bold">SOLANA DEVNET LIVE</span>
-              <span className="text-slate-500">|</span>
-              <span className="hidden sm:inline">Stocklana Hackathon 2026</span>
-              <span className="text-purple-400 font-mono text-[11px]">PROVN Verified</span>
+          {/* Left Column: Thesis & Primary Actions */}
+          <div className="lg:col-span-6 text-left">
+            {/* Proof Strip */}
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sentinel-surface border border-sentinel-border text-xs font-mono text-sentinel-textMuted mb-6">
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+              <span className="text-purple-300 font-semibold">SOLANA DEVNET</span>
+              <span className="text-slate-600">•</span>
+              <span className="text-sentinel-text">POLICY ENFORCED</span>
+              <span className="text-slate-600">•</span>
+              <span className="text-emerald-400">PROVN VERIFIED</span>
             </div>
 
-            {/* Main Headline */}
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white leading-[1.1] mb-6">
-              Autonomous Investing.{' '}
-              <span className="neon-gradient-text block mt-1">
-                Rigid Guarantees.
-              </span>
+            {/* Dominant Headline (Solid white, strict typography) */}
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-white leading-[1.08] mb-5">
+              AUTONOMOUS INVESTING.<br />
+              <span className="text-slate-300">RIGID GUARANTEES.</span>
             </h1>
 
-            {/* Subtitle */}
-            <p className="text-base sm:text-lg text-slate-300 max-w-2xl mx-auto lg:mx-0 font-normal leading-relaxed mb-8">
-              Delegating capital to AI agents on Solana shouldn&apos;t be a leap of faith.
-              Sentinel intercepts rogue trades before state commit—enforcing mathematical
-              portfolio invariants directly at the transaction layer.
+            {/* Supporting Sentence */}
+            <p className="text-base sm:text-lg text-sentinel-textMuted max-w-xl font-normal leading-relaxed mb-8">
+              AI can choose the trade. It cannot choose what the portfolio is allowed to become.
             </p>
 
-            {/* Thesis Banner */}
-            <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs sm:text-sm text-slate-300 font-mono mb-8 inline-flex items-center gap-3 max-w-xl mx-auto lg:mx-0">
-              <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 font-bold uppercase tracking-wider text-[10px]">
-                Thesis
-              </span>
-              <span>&ldquo;Intelligence is fluid. Enforcement is rigid.&rdquo;</span>
-            </div>
-
-            {/* CTA Group */}
-            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4">
+            {/* Maximum Two CTAs */}
+            <div className="flex flex-wrap items-center gap-3 mb-10">
               <button
                 type="button"
                 onClick={onEnterApp}
-                className="sentinel-btn-physical flex items-center gap-2.5 px-6 py-3.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold text-sm shadow-lg shadow-purple-500/20 transition-all cursor-pointer"
+                className="sentinel-btn-physical flex items-center gap-2 px-6 py-3 rounded-lg bg-sentinel-accent hover:bg-sentinel-accentHover text-white font-semibold text-sm transition-colors cursor-pointer"
               >
-                <span>Launch App Console</span>
+                <span>Launch Sentinel</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
 
@@ -179,197 +136,192 @@ export const LandingView: React.FC<LandingViewProps> = ({
                 type="button"
                 onClick={onRunDemo}
                 disabled={isRunningDemo}
-                className="sentinel-btn-physical flex items-center gap-2 px-5 py-3.5 rounded-xl bg-sentinel-surfaceElevated hover:bg-sentinel-surface border border-slate-700 text-slate-200 hover:text-white font-semibold text-sm transition-all cursor-pointer disabled:opacity-60"
+                className="sentinel-btn-physical flex items-center gap-2 px-5 py-3 rounded-lg bg-sentinel-surface hover:bg-sentinel-surfaceElevated border border-sentinel-border text-sentinel-text font-medium text-sm transition-colors cursor-pointer disabled:opacity-50"
               >
-                <Play className={`w-4 h-4 text-emerald-400 ${isRunningDemo ? 'animate-spin' : ''}`} />
-                <span>{isRunningDemo ? 'Running 5-Step Demo...' : 'Watch Live Demo'}</span>
+                <Play className={`w-3.5 h-3.5 text-sentinel-success ${isRunningDemo ? 'animate-spin' : ''}`} />
+                <span>{isRunningDemo ? 'Running 5-Step Demo...' : 'Watch 90s Demo'}</span>
               </button>
-
-              <a
-                href="#playground"
-                className="px-4 py-3.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-cyan-400 transition-colors flex items-center gap-1.5"
-              >
-                <Sliders className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Try Playground</span>
-              </a>
             </div>
 
-            {/* Verifiable Architecture Telemetry Under Hero */}
-            <div className="grid grid-cols-3 gap-4 mt-10 pt-8 border-t border-slate-800/80 max-w-lg mx-auto lg:mx-0 text-left">
+            {/* Compact Proof Metrics */}
+            <div className="grid grid-cols-3 gap-6 pt-6 border-t border-sentinel-border max-w-md">
               <div>
-                <div className="text-xl sm:text-2xl font-black text-white font-mono tabular-nums">4 Invariants</div>
-                <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold mt-0.5">
+                <div className="text-xl sm:text-2xl font-bold text-white font-mono tabular-nums">4 Invariants</div>
+                <div className="text-[10px] text-sentinel-textSubtle uppercase tracking-wider font-semibold mt-0.5">
                   Policy PDA Enforced
                 </div>
               </div>
               <div>
-                <div className="text-xl sm:text-2xl font-black text-emerald-400 font-mono tabular-nums">100% Atomic</div>
-                <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold mt-0.5">
+                <div className="text-xl sm:text-2xl font-bold text-sentinel-success font-mono tabular-nums">100% Atomic</div>
+                <div className="text-[10px] text-sentinel-textSubtle uppercase tracking-wider font-semibold mt-0.5">
                   Revert on Breach
                 </div>
               </div>
               <div>
-                <div className="text-xl sm:text-2xl font-black text-purple-400 font-mono tabular-nums">&lt;400ms</div>
-                <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold mt-0.5">
+                <div className="text-xl sm:text-2xl font-bold text-purple-400 font-mono tabular-nums">&lt;400ms</div>
+                <div className="text-[10px] text-sentinel-textSubtle uppercase tracking-wider font-semibold mt-0.5">
                   Pyth Hermes Gate
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Right Column: The New Fun Animated Sentinel Mascot & Logo Centerpiece */}
-          <div className="flex-1 flex flex-col items-center justify-center relative w-full max-w-md lg:max-w-none">
-            
-            {/* Ambient Animated Cosmic Glow */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="w-72 sm:w-96 h-72 sm:h-96 rounded-full bg-gradient-to-tr from-cyan-500/20 via-purple-600/25 to-pink-500/20 blur-3xl animate-pulse-glow" />
-            </div>
-
-            {/* Orbiting Ring Visual Effect */}
-            <div className="relative w-72 sm:w-88 md:w-96 aspect-square flex items-center justify-center">
+          {/* Right Column: Signature Constraint Trace Motif */}
+          <div className="lg:col-span-6">
+            <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-5 sm:p-6 shadow-xl">
               
-              {/* Outer Cosmic Orbit Ring */}
-              <div className="absolute inset-0 rounded-full border border-dashed border-purple-500/30 animate-orbit" />
-              
-              {/* Inner Reverse Orbit Ring */}
-              <div className="absolute inset-4 rounded-full border border-cyan-400/20 animate-orbit-reverse" />
-              
-              {/* Floating Orbiting Satellite Dots */}
-              <div className="absolute top-2 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-full bg-purple-900/80 border border-purple-400/40 text-[10px] font-mono text-purple-200 flex items-center gap-1.5 shadow-md">
-                <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-ping" />
-                <span>Policy PDA</span>
-              </div>
-
-              <div className="absolute bottom-4 left-6 px-2.5 py-1 rounded-full bg-cyan-950/80 border border-cyan-400/40 text-[10px] font-mono text-cyan-200 flex items-center gap-1.5 shadow-md">
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-                <span>Pyth Hermes</span>
-              </div>
-
-              <div className="absolute bottom-8 right-4 px-2.5 py-1 rounded-full bg-emerald-950/80 border border-emerald-400/40 text-[10px] font-mono text-emerald-200 flex items-center gap-1.5 shadow-md">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                <span>Atomic Revert</span>
-              </div>
-
-              {/* The Hero Logo Card with Interactive Click & Float */}
-              <div
-                onClick={triggerMechPulse}
-                className="relative z-10 cursor-pointer group transform transition-all duration-300 hover:scale-105"
-                title="Click me to test Sentinel Defenses!"
-              >
-                <div className="relative w-64 sm:w-76 md:w-80 h-64 sm:h-76 md:h-80 rounded-3xl bg-sentinel-surface/80 backdrop-blur-xl border border-purple-500/40 p-4 flex flex-col items-center justify-center shadow-2xl neon-border-glow group-hover:border-cyan-400 transition-all overflow-hidden animate-float">
-                  
-                  {/* Subtle Grid Matrix Texture */}
-                  <div className="absolute inset-0 bg-[radial-gradient(#1e2638_1px,transparent_1px)] [background-size:16px_16px] opacity-40" />
-
-                  {/* Logo Image */}
-                  <div className="relative w-52 sm:w-60 md:w-64 h-52 sm:h-60 md:h-64 drop-shadow-[0_10px_25px_rgba(153,69,255,0.4)]">
+              {/* Card Header: Quiet Anchor Identity */}
+              <div className="flex items-center justify-between pb-4 border-b border-sentinel-border">
+                <div className="flex items-center gap-2.5">
+                  <div className="relative w-6 h-6 rounded bg-slate-900 border border-slate-700 flex items-center justify-center shrink-0 p-0.5">
                     <Image
                       src="/Sentinel_Logo.png"
-                      alt="Sentinel Finance Official Logo"
-                      fill
-                      priority
+                      alt="Sentinel"
+                      width={20}
+                      height={20}
                       className="object-contain"
                     />
                   </div>
-
-                  {/* Interactive Badge at Bottom of Mascot */}
-                  <div className="absolute bottom-2 inset-x-4 py-1 rounded-xl bg-slate-950/85 border border-slate-800 flex items-center justify-between px-3 text-[10px] font-mono">
-                    <span className="text-cyan-400 font-bold flex items-center gap-1">
-                      <Cpu className="w-3 h-3 text-cyan-400" />
-                      ROBO-01
-                    </span>
-                    <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                      SYSTEMS LOCKED
-                    </span>
+                  <div>
+                    <div className="text-xs font-semibold text-white font-mono flex items-center gap-1.5">
+                      <span>SENTINEL INVARIANT GATE</span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400">ROBO-01</span>
+                    </div>
                   </div>
                 </div>
+                <div className="text-[10px] font-mono text-sentinel-textSubtle">
+                  PROGRAM: {formatAddress(APP_CONFIG.sentinelProgramId, 4)}
+                </div>
               </div>
-            </div>
 
-            {/* Mascot Interactive Speech Bubble */}
-            <div className="mt-4 px-4 py-2.5 rounded-2xl bg-sentinel-surfaceElevated border border-purple-500/30 text-xs text-slate-200 font-mono max-w-sm text-center shadow-lg relative flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-purple-400 shrink-0 animate-bounce" />
-              <span className="leading-snug">{speechBubble}</span>
-            </div>
-            <div className="text-[10px] text-slate-500 mt-1 font-mono">
-              (Click the Sentinel logo above to test guardian telemetry)
-            </div>
+              {/* Constraint Trace Steps */}
+              <div className="pt-5 space-y-4 font-mono text-xs">
+                
+                {/* 1. Agent Intent */}
+                <div className="relative pl-6 pb-2 border-l border-slate-800">
+                  <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-blue-500 ring-4 ring-slate-900" />
+                  <div className="text-[10px] text-blue-400 uppercase tracking-wider font-bold">
+                    01 • AGENT PROPOSAL
+                  </div>
+                  <div className="text-sm font-semibold text-white mt-1">
+                    BUY NVDAx $15,000 <span className="text-xs text-slate-400 font-normal">($128.45/sh via Hermes)</span>
+                  </div>
+                </div>
 
+                {/* 2. Post-State Calculation */}
+                <div className="relative pl-6 pb-2 border-l border-slate-800">
+                  <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-amber-500 ring-4 ring-slate-900" />
+                  <div className="text-[10px] text-amber-400 uppercase tracking-wider font-bold">
+                    02 • PROJECTED POST-STATE
+                  </div>
+                  <div className="mt-2 space-y-1.5 bg-sentinel-surfaceMuted p-3 rounded-lg border border-sentinel-border text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">NVDAx Concentration</span>
+                      <span className="text-rose-400 font-semibold tabular-nums">20.0% → 35.0% (Limit 25.0%) ✕</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">USDC Reserve Floor</span>
+                      <span className="text-rose-400 font-semibold tabular-nums">25.0% → 10.0% (Floor 20.0%) ✕</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Single Order Cap</span>
+                      <span className="text-rose-400 font-semibold tabular-nums">$15,000 (Limit $10,000) ✕</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Policy Gate Decision */}
+                <div className="relative pl-6">
+                  <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-rose-500 ring-4 ring-slate-900" />
+                  <div className="text-[10px] text-rose-400 uppercase tracking-wider font-bold">
+                    03 • POLICY GATE OUTCOME
+                  </div>
+                  <div className="mt-2 p-3 rounded-lg bg-rose-950/20 border border-rose-500/40 text-rose-300">
+                    <div className="font-bold flex items-center gap-1.5">
+                      <X className="w-3.5 h-3.5 text-rose-400" />
+                      <span>BLOCKED ON-CHAIN (0x1771)</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-1 font-sans">
+                      Sentinel aborted state commit before execution. Zero tokens transferred from Vault PDA.
+                    </p>
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
           </div>
+
         </div>
       </section>
 
-      {/* SECTION: INTERACTIVE DEFENSE PLAYGROUND */}
-      <section id="playground" className="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-        <div className="bg-sentinel-surface border border-sentinel-borderStrong rounded-2xl p-6 sm:p-8 shadow-2xl relative">
+      {/* SECTION 2: THE "AHA" — INTERACTIVE GUARANTEE */}
+      <section className="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+        <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-6 sm:p-8 shadow-xl">
           
-          {/* Header */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+          {/* Section Header */}
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-6 border-b border-sentinel-border">
             <div>
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 text-[11px] font-mono font-bold">
-                  INTERACTIVE LAB
-                </span>
-                <span className="text-xs text-slate-400 font-mono">Simulate a Rogue Agent Trade</span>
+              <div className="text-xs font-mono font-semibold uppercase tracking-wider text-sentinel-accent mb-1">
+                Interactive Guarantee
               </div>
-              <h2 className="text-2xl sm:text-3xl font-black text-white mt-1">
-                Try to Breach Sentinel&apos;s Policy
+              <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+                Test the guarantee
               </h2>
-              <p className="text-xs sm:text-sm text-slate-400 mt-1">
-                Drag the order slider to test what happens when an AI agent proposes trades beyond policy limits.
+              <p className="text-sm text-sentinel-textMuted mt-1">
+                Simulate what happens when an AI agent proposes an out-of-bounds trade. Watch Sentinel calculate compliant headroom.
               </p>
             </div>
 
-            {/* Quick Presets */}
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-slate-400 font-mono mr-1">Presets:</span>
+            {/* Presets */}
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs text-sentinel-textSubtle font-mono">Presets:</span>
               <button
                 type="button"
                 onClick={() => handlePreset('NVDAx', 15000)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded text-xs font-mono font-medium transition-colors cursor-pointer ${
                   selectedAsset === 'NVDAx' && tradeAmount === 15000 && !isAdapted
-                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-                    : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                    ? 'bg-rose-950/50 text-rose-300 border border-rose-500/40'
+                    : 'bg-sentinel-surfaceMuted text-sentinel-textMuted hover:text-white border border-sentinel-border'
                 }`}
               >
-                🚨 Rogue $15k NVDAx
+                Rogue $15k NVDAx
               </button>
               <button
                 type="button"
                 onClick={() => handlePreset('OPENAIx', 25000)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded text-xs font-mono font-medium transition-colors cursor-pointer ${
                   selectedAsset === 'OPENAIx' && tradeAmount === 25000 && !isAdapted
-                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-                    : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                    ? 'bg-rose-950/50 text-rose-300 border border-rose-500/40'
+                    : 'bg-sentinel-surfaceMuted text-sentinel-textMuted hover:text-white border border-sentinel-border'
                 }`}
               >
-                ⚠️ Pre-IPO $25k Overcap
+                Pre-IPO $25k Overcap
               </button>
               <button
                 type="button"
                 onClick={() => handlePreset('AAPLx', 5000)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded text-xs font-mono font-medium transition-colors cursor-pointer ${
                   selectedAsset === 'AAPLx' && tradeAmount === 5000
-                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                    : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                    ? 'bg-emerald-950/50 text-emerald-300 border border-emerald-500/40'
+                    : 'bg-sentinel-surfaceMuted text-sentinel-textMuted hover:text-white border border-sentinel-border'
                 }`}
               >
-                ✅ Safe $5k AAPLx
+                Compliant $5k AAPLx
               </button>
             </div>
           </div>
 
-          {/* Playground Main Grid */}
+          {/* Interactive Simulation Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mt-6">
             
-            {/* Left Controls (5 cols) */}
+            {/* Left Column: Intent Formulation (5 cols) */}
             <div className="lg:col-span-5 space-y-6">
               
               {/* Asset Selector */}
               <div>
-                <label className="text-xs font-mono text-slate-400 uppercase tracking-wider block mb-2 font-semibold">
-                  1. Target Tokenized Equity
+                <label className="text-xs font-mono text-sentinel-textSubtle uppercase tracking-wider block mb-2 font-semibold">
+                  Target Equity
                 </label>
                 <div className="grid grid-cols-3 gap-2">
                   {(['NVDAx', 'OPENAIx', 'AAPLx'] as const).map((sym) => (
@@ -380,17 +332,17 @@ export const LandingView: React.FC<LandingViewProps> = ({
                         setSelectedAsset(sym);
                         setIsAdapted(false);
                       }}
-                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                      className={`p-3 rounded-lg border text-left transition-colors cursor-pointer ${
                         selectedAsset === sym
-                          ? 'bg-sentinel-surfaceElevated border-blue-500/60 shadow-sm'
-                          : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                          ? 'bg-sentinel-surfaceElevated border-sentinel-accent text-white'
+                          : 'bg-sentinel-surfaceMuted border-sentinel-border text-sentinel-textMuted hover:border-sentinel-borderStrong'
                       }`}
                     >
-                      <div className="text-xs font-bold text-white font-mono">{sym}</div>
-                      <div className="text-[10px] text-slate-400 truncate mt-0.5">
+                      <div className="text-xs font-bold font-mono">{sym}</div>
+                      <div className="text-[11px] truncate text-sentinel-textSubtle mt-0.5">
                         {assetData[sym].name}
                       </div>
-                      <div className="text-[10px] font-mono text-cyan-400 mt-1">
+                      <div className="text-[10px] font-mono text-slate-400 mt-1">
                         Cap: {assetData[sym].cap}%
                       </div>
                     </button>
@@ -401,10 +353,10 @@ export const LandingView: React.FC<LandingViewProps> = ({
               {/* Slider for Trade Amount */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-mono text-slate-400 uppercase tracking-wider font-semibold">
-                    2. Agent Proposed Trade Size
+                  <label className="text-xs font-mono text-sentinel-textSubtle uppercase tracking-wider font-semibold">
+                    Agent Proposes Size
                   </label>
-                  <span className="text-base font-black font-mono text-white">
+                  <span className="text-base font-bold font-mono text-white tabular-nums">
                     ${tradeAmount.toLocaleString()}
                   </span>
                 </div>
@@ -418,160 +370,192 @@ export const LandingView: React.FC<LandingViewProps> = ({
                     setTradeAmount(Number(e.target.value));
                     setIsAdapted(false);
                   }}
-                  className="w-full accent-blue-500 h-2 bg-slate-800 rounded-lg cursor-pointer"
+                  className="w-full accent-blue-600 h-2 bg-slate-800 rounded cursor-pointer"
                 />
-                <div className="flex justify-between text-[10px] font-mono text-slate-500 mt-1">
+                <div className="flex justify-between text-[10px] font-mono text-sentinel-textSubtle mt-1.5">
                   <span>$1,000 (Safe)</span>
-                  <span className="text-amber-400 font-bold">$10,000 (Max Limit)</span>
-                  <span>$30,000 (Extreme)</span>
+                  <span className="text-amber-400 font-medium">$10,000 (Max Single Order)</span>
+                  <span>$30,000 (Oversized)</span>
                 </div>
               </div>
 
-              {/* Autonomous Adaptation Action */}
-              <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-xs font-bold text-white flex items-center gap-1.5 font-mono">
-                      <Zap className="w-3.5 h-3.5 text-amber-400" />
-                      Autonomous Adaptation
-                    </div>
-                    <div className="text-[11px] text-slate-400 mt-0.5">
-                      Let the agent read the rejection telemetry and adapt to the exact mathematical ceiling.
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleAutoAdapt}
-                    disabled={!isViolated}
-                    className="px-3 py-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold text-xs font-mono shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Auto-Adapt
-                  </button>
-                </div>
-              </div>
-
-              {/* Launch to App CTA */}
+              {/* Enter Console CTA */}
               <button
                 type="button"
                 onClick={onEnterApp}
-                className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-wider font-mono flex items-center justify-center gap-2 cursor-pointer shadow-md"
+                className="w-full py-3 rounded-lg bg-sentinel-surfaceElevated hover:bg-sentinel-border border border-sentinel-border text-white font-semibold text-xs uppercase tracking-wider font-mono flex items-center justify-center gap-2 cursor-pointer transition-colors"
               >
-                <span>Open in Sentinel Trading Terminal</span>
-                <ChevronRight className="w-4 h-4" />
+                <span>Enter Trading Console</span>
+                <ArrowRight className="w-3.5 h-3.5 text-sentinel-accent" />
               </button>
 
             </div>
 
-            {/* Right Sentinel Defense Radar (7 cols) */}
-            <div className="lg:col-span-7 bg-slate-950/70 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
+            {/* Right Column: Projected State & Decision (7 cols) */}
+            <div className="lg:col-span-7 bg-sentinel-surfaceMuted border border-sentinel-border rounded-xl p-5 flex flex-col justify-between">
               
-              {/* Top Status Banner */}
-              <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-                <div className="flex items-center gap-2">
-                  <div className={`w-3 h-3 rounded-full ${isViolated ? 'bg-rose-500 animate-ping' : 'bg-emerald-500 animate-pulse'}`} />
-                  <span className="font-mono text-xs font-bold uppercase tracking-wider text-slate-300">
-                    Solana Anchor Invariant Engine
+              <div>
+                {/* Projected Portfolio State Header */}
+                <div className="flex items-center justify-between pb-3 border-b border-sentinel-border mb-4">
+                  <span className="font-mono text-xs font-semibold uppercase tracking-wider text-sentinel-textSubtle">
+                    Projected Portfolio State
+                  </span>
+                  <span className="text-xs font-mono text-sentinel-textSubtle">
+                    Portfolio Total: $100,000
                   </span>
                 </div>
-                <div className={`px-2.5 py-1 rounded text-xs font-mono font-bold border ${
-                  isViolated
-                    ? 'bg-rose-950/80 border-rose-500 text-rose-300'
-                    : 'bg-emerald-950/80 border-emerald-500 text-emerald-300'
-                }`}>
-                  {isViolated ? '✕ ATOMIC REVERT TRIGGERED' : '✓ INVARIANTS SATISFIED'}
+
+                {/* Constraint Comparison Table */}
+                <div className="space-y-3 font-mono text-xs">
+                  
+                  {/* Concentration */}
+                  <div className={`p-3 rounded-lg border flex items-center justify-between ${
+                    isConcentrationBreach && !isAdapted
+                      ? 'bg-rose-950/20 border-rose-500/40 text-rose-200'
+                      : 'bg-sentinel-surface border-sentinel-border text-sentinel-text'
+                  }`}>
+                    <div>
+                      <div className="text-[10px] text-sentinel-textSubtle uppercase">Concentration</div>
+                      <div className="font-bold tabular-nums mt-0.5">
+                        {current.currentShare.toFixed(1)}% → {projectedShare.toFixed(1)}%
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] text-sentinel-textSubtle uppercase">Policy Cap: {current.cap}%</div>
+                      <div className={`font-bold mt-0.5 ${isConcentrationBreach && !isAdapted ? 'text-rose-400' : 'text-emerald-400'}`}>
+                        {isConcentrationBreach && !isAdapted ? '✕ 35.0% (Limit Exceeded)' : '✓ Compliant'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Cash Floor */}
+                  <div className={`p-3 rounded-lg border flex items-center justify-between ${
+                    isCashFloorBreach && !isAdapted
+                      ? 'bg-rose-950/20 border-rose-500/40 text-rose-200'
+                      : 'bg-sentinel-surface border-sentinel-border text-sentinel-text'
+                  }`}>
+                    <div>
+                      <div className="text-[10px] text-sentinel-textSubtle uppercase">Cash Reserve Floor</div>
+                      <div className="font-bold tabular-nums mt-0.5">
+                        25.0% → {projectedCash.toFixed(1)}%
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] text-sentinel-textSubtle uppercase">Minimum: 20.0%</div>
+                      <div className={`font-bold mt-0.5 ${isCashFloorBreach && !isAdapted ? 'text-rose-400' : 'text-emerald-400'}`}>
+                        {isCashFloorBreach && !isAdapted ? '✕ 10.0% (Floor Breached)' : '✓ Safe Reserves'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Order Cap */}
+                  <div className={`p-3 rounded-lg border flex items-center justify-between ${
+                    isOrderSizeBreach && !isAdapted
+                      ? 'bg-rose-950/20 border-rose-500/40 text-rose-200'
+                      : 'bg-sentinel-surface border-sentinel-border text-sentinel-text'
+                  }`}>
+                    <div>
+                      <div className="text-[10px] text-sentinel-textSubtle uppercase">Order Size Cap</div>
+                      <div className="font-bold tabular-nums mt-0.5">
+                        ${tradeAmount.toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] text-sentinel-textSubtle uppercase">Max Single Order: $10,000</div>
+                      <div className={`font-bold mt-0.5 ${isOrderSizeBreach && !isAdapted ? 'text-rose-400' : 'text-emerald-400'}`}>
+                        {isOrderSizeBreach && !isAdapted ? '✕ Oversized Order' : '✓ Within Cap'}
+                      </div>
+                    </div>
+                  </div>
+
                 </div>
+
+                {/* Outcome & Adaptation Action */}
+                <div className="mt-4 pt-4 border-t border-sentinel-border">
+                  {isViolated ? (
+                    <div className="p-3.5 rounded-lg bg-rose-950/20 border border-rose-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <div className="text-xs font-bold text-rose-400 flex items-center gap-1.5 font-mono">
+                          <X className="w-3.5 h-3.5" />
+                          <span>BLOCKED: 0x1771 Invariant Breach</span>
+                        </div>
+                        <div className="text-[11px] text-slate-300 mt-1">
+                          Sentinel calculated compliant headroom: <span className="font-mono font-bold text-amber-300">${current.safeMax.toLocaleString()}</span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAdapt}
+                        className="sentinel-btn-physical px-4 py-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-200 text-xs font-mono font-semibold flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+                      >
+                        <RefreshCw className="w-3 h-3 text-amber-400" />
+                        <span>Let the agent adapt</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="p-3.5 rounded-lg bg-emerald-950/20 border border-emerald-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <div className="text-xs font-bold text-emerald-400 flex items-center gap-1.5 font-mono">
+                          <Check className="w-3.5 h-3.5" />
+                          <span>APPROVED: Invariants Satisfied</span>
+                        </div>
+                        <div className="text-[11px] text-slate-300 mt-1">
+                          Order (${tradeAmount.toLocaleString()}) satisfies all portfolio invariants and is ready for on-chain dispatch.
+                        </div>
+                      </div>
+                      {isAdapted && (
+                        <button
+                          type="button"
+                          onClick={handleReset}
+                          className="px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono cursor-pointer shrink-0"
+                        >
+                          Reset Simulation
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
               </div>
 
-              {/* 3 Live Invariant Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 my-5">
-                
-                {/* 1. Concentration Limit */}
-                <div className={`p-3.5 rounded-lg border font-mono ${
-                  isConcentrationBreach && !isAdapted
-                    ? 'bg-rose-950/30 border-rose-500/50 text-rose-200'
-                    : 'bg-slate-900/60 border-slate-800 text-slate-300'
-                }`}>
-                  <div className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
-                    1. Concentration
-                  </div>
-                  <div className="text-lg font-black mt-1">
-                    {projectedShare.toFixed(1)}%
-                  </div>
-                  <div className="text-[11px] text-slate-400 mt-0.5">
-                    Limit: {current.cap}%
-                  </div>
-                  <div className={`text-[10px] font-bold mt-2 ${
-                    isConcentrationBreach && !isAdapted ? 'text-rose-400' : 'text-emerald-400'
-                  }`}>
-                    {isConcentrationBreach && !isAdapted ? '✕ BREACH (+5.0%)' : '✓ COMPLIANT'}
-                  </div>
-                </div>
+              {/* View Decision Evidence Affordance (Forensic detail behind disclosure) */}
+              <div className="mt-4 pt-3 border-t border-sentinel-border">
+                <button
+                  type="button"
+                  onClick={() => setShowEvidence((prev) => !prev)}
+                  className="w-full flex items-center justify-between text-xs font-mono text-sentinel-textSubtle hover:text-sentinel-text transition-colors cursor-pointer py-1"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Lock className="w-3 h-3 text-sentinel-textSubtle" />
+                    <span>View decision evidence</span>
+                  </span>
+                  {showEvidence ? (
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  ) : (
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  )}
+                </button>
 
-                {/* 2. Cash Floor */}
-                <div className={`p-3.5 rounded-lg border font-mono ${
-                  isCashFloorBreach && !isAdapted
-                    ? 'bg-rose-950/30 border-rose-500/50 text-rose-200'
-                    : 'bg-slate-900/60 border-slate-800 text-slate-300'
-                }`}>
-                  <div className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
-                    2. Cash Reserve
-                  </div>
-                  <div className="text-lg font-black mt-1">
-                    {projectedCash.toFixed(1)}%
-                  </div>
-                  <div className="text-[11px] text-slate-400 mt-0.5">
-                    Floor: 20.0%
-                  </div>
-                  <div className={`text-[10px] font-bold mt-2 ${
-                    isCashFloorBreach && !isAdapted ? 'text-rose-400' : 'text-emerald-400'
-                  }`}>
-                    {isCashFloorBreach && !isAdapted ? '✕ VIOLATION' : '✓ SAFE RESERVES'}
-                  </div>
-                </div>
-
-                {/* 3. Single Order Cap */}
-                <div className={`p-3.5 rounded-lg border font-mono ${
-                  isOrderSizeBreach && !isAdapted
-                    ? 'bg-rose-950/30 border-rose-500/50 text-rose-200'
-                    : 'bg-slate-900/60 border-slate-800 text-slate-300'
-                }`}>
-                  <div className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
-                    3. Max Order Cap
-                  </div>
-                  <div className="text-lg font-black mt-1">
-                    ${tradeAmount.toLocaleString()}
-                  </div>
-                  <div className="text-[11px] text-slate-400 mt-0.5">
-                    Limit: $10,000
-                  </div>
-                  <div className={`text-[10px] font-bold mt-2 ${
-                    isOrderSizeBreach && !isAdapted ? 'text-rose-400' : 'text-emerald-400'
-                  }`}>
-                    {isOrderSizeBreach && !isAdapted ? '✕ OVERSIZED' : '✓ WITHIN CAP'}
-                  </div>
-                </div>
-
-              </div>
-
-              {/* Detailed Forensic Telemetry Box */}
-              <div className="p-3.5 rounded-lg bg-slate-900/90 border border-slate-800 font-mono text-xs">
-                <div className="text-slate-400 text-[11px] flex items-center justify-between mb-1.5">
-                  <span className="font-bold text-slate-300">Solana Transaction Telemetry</span>
-                  <span className="text-[10px] text-purple-400">Anchor CPI Pre-Flight</span>
-                </div>
-                {isViolated ? (
-                  <div className="text-rose-400 space-y-1">
-                    <p className="font-bold">🚨 0x1771: ERR_PORTFOLIO_INVARIANT_BREACH</p>
-                    <p className="text-slate-400 text-[11px]">
-                      The Anchor program aborted state commit on Devnet. Zero tokens transferred from Vault PDA.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="text-emerald-400 space-y-1">
-                    <p className="font-bold">✅ 0x0: INVARIANTS_PASSED_OK</p>
-                    <p className="text-slate-400 text-[11px]">
-                      Postcondition satisfied. PROVN SHA-256 evidence record registered to Devnet.
-                    </p>
+                {showEvidence && (
+                  <div className="mt-2.5 p-3 rounded bg-sentinel-surface border border-sentinel-border font-mono text-[11px] space-y-1.5 text-sentinel-textMuted">
+                    <div className="flex justify-between">
+                      <span className="text-sentinel-textSubtle">PROVN Evidence Hash</span>
+                      <span className="text-sentinel-text font-bold">0x7f9a12e8...c3b21</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sentinel-textSubtle">Policy Account PDA</span>
+                      <span className="text-sentinel-text">{formatAddress(APP_CONFIG.policyPda, 6)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sentinel-textSubtle">Vault Custody PDA</span>
+                      <span className="text-sentinel-text">{formatAddress(APP_CONFIG.vaultPda, 6)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sentinel-textSubtle">Anchor Gate Status</span>
+                      <span className={isViolated ? 'text-rose-400' : 'text-emerald-400'}>
+                        {isViolated ? 'ABORT_TRANSACTION_REVERT' : 'DISPATCH_INSTRUCTION_PASS'}
+                      </span>
+                    </div>
                   </div>
                 )}
               </div>
@@ -583,142 +567,173 @@ export const LandingView: React.FC<LandingViewProps> = ({
         </div>
       </section>
 
-      {/* SECTION: 3 CORE DEFENSE PILLARS */}
+      {/* SECTION 3: HOW IT WORKS — UNIFIED 5-STEP SEQUENCE */}
       <section className="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-mono font-bold mb-3">
-            TRIPLE-LOCK ARCHITECTURE
-          </div>
-          <h2 className="text-3xl sm:text-4xl font-black text-white">
-            Three Failure Modes Sentinel Neutralizes
-          </h2>
-          <p className="text-sm text-slate-400 mt-2 max-w-2xl mx-auto">
-            Standard delegation trusts the agent. Sentinel verifies the resulting post-state.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-6 sm:p-8 shadow-xl">
           
-          {/* Card 1 */}
-          <div className="bg-sentinel-surface border border-sentinel-border hover:border-blue-500/50 rounded-2xl p-6 transition-all hover:-translate-y-1 shadow-lg group">
-            <div className="w-12 h-12 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400 mb-5 group-hover:scale-110 transition-transform">
-              <Bot className="w-6 h-6" />
+          <div className="text-left max-w-2xl mb-8">
+            <div className="text-xs font-mono font-semibold uppercase tracking-wider text-sentinel-accent mb-1">
+              Execution Architecture
             </div>
-            <h3 className="text-lg font-bold text-white mb-2">
-              1. Untrusted Agent
-            </h3>
-            <p className="text-xs text-slate-400 leading-relaxed mb-4">
-              AI agents optimize for reward functions and can hallucinate massive trades. Sentinel
-              intercepts trades before commit, enforcing non-negotiable Policy PDA bounds.
-            </p>
-            <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800 text-[11px] font-mono text-slate-300">
-              <span className="text-rose-400 font-bold">Threat:</span> $15k trade violates 25% cap.<br />
-              <span className="text-emerald-400 font-bold">Sentinel:</span> Atomic Revert → Adapt $5k.
-            </div>
-          </div>
-
-          {/* Card 2 */}
-          <div className="bg-sentinel-surface border border-sentinel-border hover:border-purple-500/50 rounded-2xl p-6 transition-all hover:-translate-y-1 shadow-lg group">
-            <div className="w-12 h-12 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400 mb-5 group-hover:scale-110 transition-transform">
-              <Activity className="w-6 h-6" />
-            </div>
-            <h3 className="text-lg font-bold text-white mb-2">
-              2. Untrusted Data (Pyth)
-            </h3>
-            <p className="text-xs text-slate-400 leading-relaxed mb-4">
-              Flash loan attacks and stale quotes can spoof NAV calculations. Sentinel enforces sub-second
-              confidence intervals with Pyth Hermes, failing closed if feeds lag &gt;60s.
-            </p>
-            <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800 text-[11px] font-mono text-slate-300">
-              <span className="text-rose-400 font-bold">Threat:</span> Stale quote 140s old.<br />
-              <span className="text-emerald-400 font-bold">Sentinel:</span> Fail-closed `ERR_QUOTE_STALE`.
-            </div>
-          </div>
-
-          {/* Card 3 */}
-          <div className="bg-sentinel-surface border border-sentinel-border hover:border-cyan-500/50 rounded-2xl p-6 transition-all hover:-translate-y-1 shadow-lg group">
-            <div className="w-12 h-12 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400 mb-5 group-hover:scale-110 transition-transform">
-              <BarChart3 className="w-6 h-6" />
-            </div>
-            <h3 className="text-lg font-bold text-white mb-2">
-              3. Untrusted Market (Meteora)
-            </h3>
-            <p className="text-xs text-slate-400 leading-relaxed mb-4">
-              Illiquid bonding curves create devastating slippage. Sentinel&apos;s Liquidity Verifier
-              checks Meteora DBC pools for $25k minimum reserve depth before releasing orders.
-            </p>
-            <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800 text-[11px] font-mono text-slate-300">
-              <span className="text-rose-400 font-bold">Threat:</span> Shallow $12k pool spread &gt;200bps.<br />
-              <span className="text-emerald-400 font-bold">Sentinel:</span> Abort with `MARKET_QUALITY_FAIL`.
-            </div>
-          </div>
-
-        </div>
-      </section>
-
-      {/* SECTION: 5-STEP LIFECYCLE CHOREOGRAPHY */}
-      <section className="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-        <div className="bg-gradient-to-b from-sentinel-surface to-slate-950 border border-slate-800 rounded-2xl p-6 sm:p-10 shadow-2xl">
-          <div className="text-center max-w-2xl mx-auto mb-10">
-            <h2 className="text-2xl sm:text-3xl font-black text-white">
-              The 5-Step Autonomous Lifecycle
+            <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+              How Sentinel works
             </h2>
-            <p className="text-xs sm:text-sm text-slate-400 mt-2">
-              How Sentinel coordinates with autonomous agents from formulation to cryptographic proof.
+            <p className="text-sm text-sentinel-textMuted mt-1">
+              Every transaction follows a deterministic, 5-stage cryptographic lifecycle from proposal to verified settlement.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          {/* Unified Horizontal 5-Step Visual */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
             
-            <div className="p-4 rounded-xl bg-slate-900/70 border border-slate-800 relative">
-              <div className="text-[10px] font-mono text-blue-400 font-bold mb-1">STEP 01</div>
-              <div className="text-sm font-bold text-white mb-1">Proposal</div>
-              <div className="text-xs text-slate-400">Agent formulates trade intent (e.g. BUY $15k NVDAx) based on market telemetry.</div>
+            <div className="p-4 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border">
+              <div className="text-[10px] font-mono font-bold text-blue-400 uppercase tracking-wider mb-1.5">
+                01 • PROPOSE
+              </div>
+              <div className="text-sm font-semibold text-white mb-1.5">AI Intent</div>
+              <div className="text-xs text-sentinel-textMuted leading-relaxed">
+                Autonomous agent formulates trade proposal based on market telemetry and strategy parameters.
+              </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-slate-900/70 border border-slate-800 relative">
-              <div className="text-[10px] font-mono text-purple-400 font-bold mb-1">STEP 02</div>
-              <div className="text-sm font-bold text-white mb-1">Post-State</div>
-              <div className="text-xs text-slate-400">Sentinel models prospective portfolio state before touching on-chain capital.</div>
+            <div className="p-4 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border">
+              <div className="text-[10px] font-mono font-bold text-purple-400 uppercase tracking-wider mb-1.5">
+                02 • PROJECT
+              </div>
+              <div className="text-sm font-semibold text-white mb-1.5">Post-State</div>
+              <div className="text-xs text-sentinel-textMuted leading-relaxed">
+                Sentinel models prospective portfolio state before submitting any instruction to Solana.
+              </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-rose-950/40 border border-rose-500/40 relative">
-              <div className="text-[10px] font-mono text-rose-400 font-bold mb-1">STEP 03</div>
-              <div className="text-sm font-bold text-white mb-1">Atomic Revert</div>
-              <div className="text-xs text-slate-300">Anchor rejects breach. Transaction is aborted; zero capital is transferred.</div>
+            <div className="p-4 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border">
+              <div className="text-[10px] font-mono font-bold text-rose-400 uppercase tracking-wider mb-1.5">
+                03 • ENFORCE
+              </div>
+              <div className="text-sm font-semibold text-white mb-1.5">Policy Gate</div>
+              <div className="text-xs text-sentinel-textMuted leading-relaxed">
+                Policy PDA evaluates invariants. Any breach triggers an immediate, atomic pre-flight revert.
+              </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-amber-950/40 border border-amber-500/40 relative">
-              <div className="text-[10px] font-mono text-amber-400 font-bold mb-1">STEP 04</div>
-              <div className="text-sm font-bold text-white mb-1">Adaptation</div>
-              <div className="text-xs text-slate-300">Agent reads structured telemetry, solves for exact headroom ($5k), and adapts.</div>
+            <div className="p-4 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border">
+              <div className="text-[10px] font-mono font-bold text-amber-400 uppercase tracking-wider mb-1.5">
+                04 • ADAPT
+              </div>
+              <div className="text-sm font-semibold text-white mb-1.5">Safe Headroom</div>
+              <div className="text-xs text-sentinel-textMuted leading-relaxed">
+                Agent reads structured rejection telemetry and re-submits an adapted order within compliant limits.
+              </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-emerald-950/40 border border-emerald-500/40 relative">
-              <div className="text-[10px] font-mono text-emerald-400 font-bold mb-1">STEP 05</div>
-              <div className="text-sm font-bold text-white mb-1">PROVN Receipt</div>
-              <div className="text-xs text-slate-300">Settles on Solana Devnet with immutable SHA-256 cryptographic audit root.</div>
+            <div className="p-4 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border">
+              <div className="text-[10px] font-mono font-bold text-emerald-400 uppercase tracking-wider mb-1.5">
+                05 • PROVE
+              </div>
+              <div className="text-sm font-semibold text-white mb-1.5">Solana + PROVN</div>
+              <div className="text-xs text-sentinel-textMuted leading-relaxed">
+                Settles via Vault PDA and registers an immutable SHA-256 cryptographic trace on-chain.
+              </div>
             </div>
 
           </div>
+
+          <div className="mt-6 pt-5 border-t border-sentinel-border text-xs text-sentinel-textSubtle font-mono">
+            Intelligence is fluid. Enforcement is rigid. Zero capital loss from rogue agent execution.
+          </div>
+
         </div>
       </section>
 
-      {/* SECTION: ON-CHAIN DEVNET VERIFICATION */}
+      {/* SECTION 4: THE SENTINEL STACK (Compact Protocol & Sponsor Proof) */}
       <section className="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-        <div className="bg-sentinel-surface border border-sentinel-border rounded-2xl p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-6 sm:p-8 shadow-xl">
+          
+          <div className="text-left max-w-2xl mb-8">
+            <div className="text-xs font-mono font-semibold uppercase tracking-wider text-sentinel-accent mb-1">
+              Infrastructure
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+              The Sentinel Stack
+            </h2>
+            <p className="text-sm text-sentinel-textMuted mt-1">
+              Integrated with Solana ecosystem protocols for data integrity, liquidity verification, and cryptographic proof.
+            </p>
+          </div>
+
+          {/* 5 Architectural Rows */}
+          <div className="space-y-3 font-mono text-xs">
+            
+            <div className="p-3.5 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-3">
+                <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 font-bold">PYTH</span>
+                <span className="text-sentinel-text font-semibold">Dual-Feed Price Verification</span>
+              </div>
+              <div className="text-sentinel-textMuted text-[11px]">
+                Validates tokenized assets against underlying stock prices; fails closed if quotes lag &gt;60s.
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-3">
+                <span className="px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 font-bold">PRESTOCKS</span>
+                <span className="text-sentinel-text font-semibold">Isolated Pre-IPO Asset Universe</span>
+              </div>
+              <div className="text-sentinel-textMuted text-[11px]">
+                Secondary facility tokenization with certified NAV attestations and secondary vault PDAs.
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-3">
+                <span className="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 font-bold">METEORA DBC</span>
+                <span className="text-sentinel-text font-semibold">Bonding Curve Liquidity Verifier</span>
+              </div>
+              <div className="text-sentinel-textMuted text-[11px]">
+                Pre-trade reserve verification enforcing $25,000 liquidity floor before execution release.
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-3">
+                <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-bold">SOLANA</span>
+                <span className="text-sentinel-text font-semibold">Sub-Second Anchor Program Enforcement</span>
+              </div>
+              <div className="text-sentinel-textMuted text-[11px]">
+                Deterministic Policy PDA rules, non-custodial Vault PDAs, and atomic transaction execution.
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-3">
+                <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 font-bold">PROVN</span>
+                <span className="text-sentinel-text font-semibold">Verifiable Cryptographic Evidence</span>
+              </div>
+              <div className="text-sentinel-textMuted text-[11px]">
+                Immutable SHA-256 state commitment index anchoring agent proposals and enforcement telemetry.
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      </section>
+
+      {/* SECTION 5: DEVNET VERIFICATION & FINAL CTA */}
+      <section className="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+        <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-xl">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
-              <span className="text-xs font-mono text-purple-300 font-bold uppercase tracking-wider">
+              <span className="w-2 h-2 rounded-full bg-purple-400" />
+              <span className="text-xs font-mono text-purple-300 font-semibold uppercase tracking-wider">
                 Solana Devnet Live Deployment
               </span>
             </div>
-            <h3 className="text-xl sm:text-2xl font-bold text-white">
+            <h3 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
               Anchor Program: {formatAddress(APP_CONFIG.sentinelProgramId, 6)}
             </h3>
-            <p className="text-xs text-slate-400 mt-1 max-w-xl">
-              All policy accounts, vault custodianship, agent authorizations, and PROVN evidence registries are live and queryable on Solana Devnet.
+            <p className="text-xs text-sentinel-textMuted mt-1 max-w-xl">
+              All policy accounts, vault custodianship, agent authorizations, and PROVN evidence registries are live on Solana Devnet.
             </p>
           </div>
 
@@ -727,16 +742,16 @@ export const LandingView: React.FC<LandingViewProps> = ({
               href={getExplorerAddressUrl(APP_CONFIG.sentinelProgramId)}
               target="_blank"
               rel="noreferrer"
-              className="sentinel-btn-physical px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-mono text-slate-200 hover:text-white flex items-center gap-1.5"
+              className="sentinel-btn-physical px-4 py-2.5 rounded-lg bg-sentinel-surfaceMuted hover:bg-sentinel-surfaceElevated border border-sentinel-border text-xs font-mono text-sentinel-text flex items-center gap-1.5 transition-colors"
             >
               <span>View Program on Explorer</span>
-              <ExternalLink className="w-3.5 h-3.5" />
+              <ExternalLink className="w-3.5 h-3.5 text-sentinel-textSubtle" />
             </a>
 
             <button
               type="button"
               onClick={onEnterApp}
-              className="sentinel-btn-physical px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-xs font-bold text-white flex items-center gap-1.5 cursor-pointer"
+              className="sentinel-btn-physical px-5 py-2.5 rounded-lg bg-sentinel-accent hover:bg-sentinel-accentHover text-xs font-bold text-white flex items-center gap-1.5 cursor-pointer transition-colors"
             >
               <span>Enter Trading Console</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -744,7 +759,6 @@ export const LandingView: React.FC<LandingViewProps> = ({
           </div>
         </div>
       </section>
-
     </div>
   );
 };
