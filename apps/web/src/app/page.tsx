@@ -266,9 +266,7 @@ export default function Home() {
     setSelectedHeroScenario('FLAGSHIP');
     setDemoTitle('Flagship 5-Step Demo Flow');
     setTotalDemoSteps(5);
-    if (activeTab !== 'portfolio') {
-      setActiveTab('activity');
-    }
+    setActiveTab('portfolio');
 
     try {
       const agent = client.getAgent();
@@ -339,14 +337,13 @@ export default function Home() {
   };
 
   // PreStocks $10K Bounty Demo Flow (Pre-IPO 20% Ceiling Invariant Enforcement)
+  // PreStocks Demo Flow (Pre-IPO 20% Ceiling Invariant Enforcement)
   const handleRunPreStocksDemo = async () => {
     setIsRunningDemo(true);
     setSelectedHeroScenario('PRESTOCKS');
-    setDemoTitle('PreStocks $10K Bounty Demo: Asset-Class Ceiling Enforcement');
+    setDemoTitle('PreStocks Pre-IPO Ceiling Enforcement');
     setTotalDemoSteps(5);
-    if (activeTab !== 'portfolio') {
-      setActiveTab('activity');
-    }
+    setActiveTab('portfolio');
 
     try {
       const effectivePolicy: FinancialPolicy = {
@@ -396,15 +393,13 @@ export default function Home() {
     }
   };
 
-  // Meteora $5K Bounty Demo Flow (Sentinel Equity Market Guard & DBC Curve Adaptation)
+  // Meteora Demo Flow (Sentinel Equity Market Guard & DBC Curve Adaptation)
   const handleRunMeteoraDemo = async () => {
     setIsRunningDemo(true);
     setSelectedHeroScenario('METEORA');
-    setDemoTitle('Meteora $5K Bounty Demo: Sentinel Equity Market Guard');
+    setDemoTitle('Meteora DBC Market Quality Enforcement');
     setTotalDemoSteps(5);
-    if (activeTab !== 'portfolio') {
-      setActiveTab('activity');
-    }
+    setActiveTab('portfolio');
 
     try {
       // Step 1: Inspect Meteora DBC Market
@@ -451,15 +446,13 @@ export default function Home() {
     }
   };
 
-  // Pyth Network Bounty Demo Flow (Pyth as a Security Input: Quote Freshness & Pull Update)
+  // Pyth Network Demo Flow (Pyth as a Security Input: Quote Freshness & Pull Update)
   const handleRunPythDemo = async () => {
     setIsRunningDemo(true);
     setSelectedHeroScenario('PYTH');
-    setDemoTitle('Pyth Oracle Security Guard: Stale Quote Refusal & Pull Update');
+    setDemoTitle('Pyth Oracle Freshness & Fail-Closed Guard');
     setTotalDemoSteps(4);
-    if (activeTab !== 'portfolio') {
-      setActiveTab('activity');
-    }
+    setActiveTab('portfolio');
 
     try {
       // Step 1: Inspect Pyth Market Truth
@@ -645,7 +638,7 @@ export default function Home() {
       <Navigation
         activeTab={activeTab}
         onSelectTab={setActiveTab}
-        evidenceCount={evidenceList.length}
+        evidenceCount={4 + evidenceList.length}
       />
 
       {/* Main Content Area */}

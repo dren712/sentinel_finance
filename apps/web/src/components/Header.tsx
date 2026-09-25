@@ -183,7 +183,7 @@ export const Header: React.FC<HeaderProps> = ({
                   </div>
                 </button>
 
-                {/* Scenario 2: PreStocks $10K */}
+                {/* Scenario 2: PreStocks */}
                 {onRunPreStocksDemo && (
                   <button
                     onClick={() => {
@@ -195,8 +195,8 @@ export const Header: React.FC<HeaderProps> = ({
                     <span className="w-2 h-2 rounded-full bg-purple-400 mt-1 shrink-0" />
                     <div>
                       <div className="font-semibold text-white group-hover:text-purple-400 transition flex items-center gap-1.5">
-                        <span>PreStocks ($10K Bounty)</span>
-                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 font-bold">$10K</span>
+                        <span>PreStocks Pre-IPO Ceiling</span>
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 font-mono">Pre-IPO</span>
                       </div>
                       <div className="text-[11px] text-sentinel-textMuted mt-0.5">
                         OPENAI $30k ➔ Reverted (48% &gt; 20% Pre-IPO cap) ➔ Auto-adapts under cap
@@ -205,7 +205,7 @@ export const Header: React.FC<HeaderProps> = ({
                   </button>
                 )}
 
-                {/* Scenario 3: Meteora $5K */}
+                {/* Scenario 3: Meteora */}
                 {onRunMeteoraDemo && (
                   <button
                     onClick={() => {
@@ -217,8 +217,8 @@ export const Header: React.FC<HeaderProps> = ({
                     <span className="w-2 h-2 rounded-full bg-emerald-400 mt-1 shrink-0" />
                     <div>
                       <div className="font-semibold text-white group-hover:text-emerald-400 transition flex items-center gap-1.5">
-                        <span>Meteora ($5K Bounty)</span>
-                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-bold">$5K</span>
+                        <span>Meteora DBC Liquidity Guard</span>
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-mono">DBC Curve</span>
                       </div>
                       <div className="text-[11px] text-sentinel-textMuted mt-0.5">
                         Sentinel Equity Market Guard: Blocks trade on shallow DBC pool depth
@@ -240,7 +240,7 @@ export const Header: React.FC<HeaderProps> = ({
                     <div>
                       <div className="font-semibold text-white group-hover:text-amber-400 transition flex items-center gap-1.5">
                         <span>Pyth Oracle Security Guard</span>
-                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-bold">Pyth Pro</span>
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono">Hermes</span>
                       </div>
                       <div className="text-[11px] text-sentinel-textMuted mt-0.5">
                         Stale quote (140s &gt; 60s) ➔ Execution Refused ➔ Pyth pull update ➔ Settled
