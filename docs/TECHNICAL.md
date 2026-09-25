@@ -96,6 +96,9 @@ $$\text{EvidenceHash} = \text{SHA-256}\left(\text{IntentHash} \parallel \text{Po
 
 Sentinel ships with a multi-stage `Dockerfile` and `docker-compose.yml` orchestrating `@sentinel/web` (`port 3000`) and the PostgreSQL 16 read index (`postgres:5432`).
 
+- **Live Railway Production URL**: [`https://sentinel-finance-production-4560.up.railway.app/`](https://sentinel-finance-production-4560.up.railway.app/)
+- **Live Health Endpoint**: [`https://sentinel-finance-production-4560.up.railway.app/api/health`](https://sentinel-finance-production-4560.up.railway.app/api/health)
+
 ```bash
 # 1. Configure environment variables
 cp .env.example .env

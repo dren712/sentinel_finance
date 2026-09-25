@@ -1,5 +1,8 @@
 # Sentinel Robo — Flagship Demo Walkthrough (`docs/DEMO.md`)
 
+> **Live Hosted Application**: [https://sentinel-finance-production-4560.up.railway.app/](https://sentinel-finance-production-4560.up.railway.app/)  
+> *(Test the live 5-step autonomous loop directly in the browser against real Solana Devnet state)*
+
 ## 1. The 5-Step Flagship Demo Flow
 
 Trigger via **"Run 5-Step Demo"** in the header or `POST /api/agent/run`:
