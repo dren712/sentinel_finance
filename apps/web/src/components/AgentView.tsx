@@ -104,13 +104,86 @@ export const AgentView: React.FC<AgentViewProps> = ({
     onExecuteCustomTrade(selectedAsset, direction, amountNum);
   };
 
-  // Derive values from adaptationResult if available, else canonical Flagship cycle preview
+  // Derive values dynamically from adaptationResult, portfolio, and policy
   const initialDecision = adaptationResult?.step1RejectedDecision;
   const settledDecision = adaptationResult?.step2SettledDecision;
 
-  const initialAmountUsd = initialDecision?.intent.tradeAmountUsd ?? 15000;
-  const adaptedAmountUsd = settledDecision?.intent.tradeAmountUsd ?? 5000;
-  const targetSymbol = settledDecision?.intent.assetSymbol ?? 'NVDAx';
+  const targetSymbol =
+    settledDecision?.intent.assetSymbol ??
+    initialDecision?.intent.assetSymbol ??
+    'NVDAx';
+  const totalNav = portfolio.totalValueUsd || 100_000;
+
+  const maxSingleAssetPct = policy.maxSingleAssetBps / 100;
+  const minCashReservePct = policy.minStablecoinBps / 100;
+  const maxOrderSizeUsd = (policy as any).maxTradeUsd ?? policy.maxTradeValueUsd ?? 10_000;
+  const maxSlippagePct = (policy.maxSlippageBps ?? 100) / 100;
+  const estimatedSlippagePct = 0.38;
+
+  const currentAssetHolding =
+    portfolio.assets.find((a) => a.symbol === targetSymbol)?.valueUsd ?? 20_000;
+  const currentCashHolding = portfolio.stablecoinValueUsd ?? 25_000;
+
+  // Reconstruct pre-cycle holdings if adaptationResult has already mutated portfolio
+  const preCycleAssetVal =
+    adaptationResult && settledDecision
+      ? Math.max(0, currentAssetHolding - settledDecision.intent.tradeAmountUsd)
+      : currentAssetHolding;
+  const preCycleCashVal =
+    adaptationResult && settledDecision
+      ? currentCashHolding + settledDecision.intent.tradeAmountUsd
+      : currentCashHolding;
+
+  const initialAmountUsd = initialDecision?.intent.tradeAmountUsd ?? 15_000;
+
+  const dynamicHeadroomUsd = Math.max(
+    0,
+    Math.min(
+      (maxSingleAssetPct / 100) * totalNav - preCycleAssetVal,
+      preCycleCashVal - (minCashReservePct / 100) * totalNav,
+      maxOrderSizeUsd
+    )
+  );
+  const adaptedAmountUsd =
+    settledDecision?.intent.tradeAmountUsd ?? Math.round(dynamicHeadroomUsd);
+
+  const preAssetPct = (preCycleAssetVal / totalNav) * 100;
+  const projectedAssetPct = ((preCycleAssetVal + initialAmountUsd) / totalNav) * 100;
+  const adaptedAssetPct = ((preCycleAssetVal + adaptedAmountUsd) / totalNav) * 100;
+
+  const preCashPct = (preCycleCashVal / totalNav) * 100;
+  const projectedCashPct =
+    (Math.max(0, preCycleCashVal - initialAmountUsd) / totalNav) * 100;
+  const adaptedCashPct =
+    (Math.max(0, preCycleCashVal - adaptedAmountUsd) / totalNav) * 100;
+
+  const assetCheckPassed = projectedAssetPct <= maxSingleAssetPct + 0.01;
+  const cashCheckPassed = projectedCashPct >= minCashReservePct - 0.01;
+  const orderSizePassed = initialAmountUsd <= maxOrderSizeUsd;
+  const slippageCheckPassed = estimatedSlippagePct <= maxSlippagePct;
+
+  const breachedRuleNames: string[] = [];
+  if (!assetCheckPassed) {
+    breachedRuleNames.push(
+      `single-stock limit (${projectedAssetPct.toFixed(1)}% > ${maxSingleAssetPct.toFixed(0)}%)`
+    );
+  }
+  if (!cashCheckPassed) {
+    breachedRuleNames.push(
+      `cash reserve floor (${projectedCashPct.toFixed(1)}% < ${minCashReservePct.toFixed(0)}%)`
+    );
+  }
+  if (!orderSizePassed) {
+    breachedRuleNames.push(
+      `order size cap (${formatCurrency(initialAmountUsd)} > ${formatCurrency(maxOrderSizeUsd)})`
+    );
+  }
+  if (!slippageCheckPassed) {
+    breachedRuleNames.push(
+      `slippage limit (${estimatedSlippagePct.toFixed(2)}% > ${maxSlippagePct.toFixed(2)}%)`
+    );
+  }
+
   const refPrice = marketPrices?.[targetSymbol]?.priceUsd ?? 128.45;
   const settledTxSig = settledDecision?.evidenceRecord?.transactionSignature;
   const isRealOnChainTx = Boolean(
@@ -127,7 +200,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
       <PageHeader
         category="AGENT"
         title="Autonomous Decision Pipeline"
-        subtitle="Sentinel Robo-01 proposes trades, checks portfolio limits, resizes oversized orders, and settles."
+        subtitle="Sentinel Robo-01 proposes trades, checks the 4 on-chain execution invariants, resizes oversized orders, and settles."
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -165,7 +238,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
               </Badge>
             </div>
             <p className="text-xs text-sentinel-textMuted mt-0.5">
-              PROPOSE → PROJECT → BLOCK / APPROVE → ADAPT → SETTLE
+              PROPOSE → PROJECT (4 ON-CHAIN INVARIANTS) → BLOCK → ADAPT → SETTLE
             </p>
           </div>
 
@@ -186,7 +259,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
                 BUY {targetSymbol} {formatCurrency(initialAmountUsd)}
               </div>
               <p className="text-xs text-sentinel-textMuted mt-1.5 leading-relaxed">
-                Robo-01 spots momentum signal and requests an aggressive {formatCurrency(initialAmountUsd)} allocation.
+                Robo-01 evaluates market signals and proposes a {formatCurrency(initialAmountUsd)} {targetSymbol} order.
               </p>
             </div>
             <div className="pt-2 border-t border-sentinel-border/60 text-[11px] font-mono text-sentinel-textSubtle">
@@ -194,32 +267,44 @@ export const AgentView: React.FC<AgentViewProps> = ({
             </div>
           </div>
 
-          {/* STAGE 2: PROJECT */}
+          {/* STAGE 2: PROJECT (All 4 Authoritative On-Chain Invariants) */}
           <div className="p-4 rounded-xl bg-sentinel-surfaceMuted border border-sentinel-border flex flex-col justify-between space-y-3">
             <div>
               <div className="text-[11px] font-mono text-sentinel-textSubtle font-semibold">
                 02 · PROJECT
               </div>
               <div className="text-sm font-semibold text-white mt-1">
-                Post-Trade State
+                4 On-Chain Invariants
               </div>
               <div className="mt-2 space-y-1.5 text-xs font-mono tabular-nums">
-                <div className="flex justify-between">
-                  <span className="text-sentinel-textMuted">{targetSymbol} Weight</span>
-                  <span className="text-rose-400 font-semibold">20.0% → 35.0%</span>
+                <div className="flex justify-between" title={`Max Single-Stock Limit: ${maxSingleAssetPct.toFixed(0)}%`}>
+                  <span className="text-sentinel-textMuted">1. {targetSymbol} Cap</span>
+                  <span className={assetCheckPassed ? 'text-emerald-400 font-semibold' : 'text-rose-400 font-semibold'}>
+                    {preAssetPct.toFixed(1)}% → {projectedAssetPct.toFixed(1)}%
+                  </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-sentinel-textMuted">Cash Reserve</span>
-                  <span className="text-rose-400 font-semibold">25.0% → 10.0%</span>
+                <div className="flex justify-between" title={`Min Cash Reserve Floor: ${minCashReservePct.toFixed(0)}%`}>
+                  <span className="text-sentinel-textMuted">2. Cash Floor</span>
+                  <span className={cashCheckPassed ? 'text-emerald-400 font-semibold' : 'text-rose-400 font-semibold'}>
+                    {preCashPct.toFixed(1)}% → {projectedCashPct.toFixed(1)}%
+                  </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-sentinel-textMuted">Order Size</span>
-                  <span className="text-rose-400 font-semibold">$15k &gt; $10k</span>
+                <div className="flex justify-between" title={`Max Order Size: ${formatCurrency(maxOrderSizeUsd)}`}>
+                  <span className="text-sentinel-textMuted">3. Order Size</span>
+                  <span className={orderSizePassed ? 'text-emerald-400 font-semibold' : 'text-rose-400 font-semibold'}>
+                    {formatCurrency(initialAmountUsd)} {orderSizePassed ? '≤' : '>'} {formatCurrency(maxOrderSizeUsd)}
+                  </span>
+                </div>
+                <div className="flex justify-between" title={`Max Slippage Limit: ${maxSlippagePct.toFixed(2)}%`}>
+                  <span className="text-sentinel-textMuted">4. Slippage</span>
+                  <span className={slippageCheckPassed ? 'text-emerald-400 font-semibold' : 'text-rose-400 font-semibold'}>
+                    {estimatedSlippagePct.toFixed(2)}% ≤ {maxSlippagePct.toFixed(2)}%
+                  </span>
                 </div>
               </div>
             </div>
             <div className="pt-2 border-t border-sentinel-border/60 text-[11px] font-mono text-sentinel-textSubtle">
-              Simulated Pre-Settlement
+              Dynamic Pre-Settlement Check
             </div>
           </div>
 
@@ -231,14 +316,16 @@ export const AgentView: React.FC<AgentViewProps> = ({
                 <X className="w-3.5 h-3.5" />
               </div>
               <div className="text-sm font-semibold text-white mt-1">
-                Rejected by Policy
+                {breachedRuleNames.length > 0 ? 'Blocked by Policy Guard' : 'Policy Guard Active'}
               </div>
               <p className="text-xs text-sentinel-textMuted mt-1.5 leading-relaxed">
-                Violates single-stock ceiling ({(policy.maxSingleAssetBps / 100).toFixed(0)}%), cash reserve floor ({(policy.minStablecoinBps / 100).toFixed(0)}%), and order cap.
+                {breachedRuleNames.length > 0
+                  ? `Blocked: breaches ${breachedRuleNames.join(', ')}.`
+                  : `All 4 on-chain execution invariants are satisfied under current policy bounds.`}
               </p>
             </div>
             <div className="pt-2 border-t border-rose-500/20 text-[11px] font-mono text-rose-300">
-              0 Funds Transferred
+              0 Funds Transferred on Breach
             </div>
           </div>
 
@@ -253,11 +340,11 @@ export const AgentView: React.FC<AgentViewProps> = ({
                 Resize to {formatCurrency(adaptedAmountUsd)}
               </div>
               <p className="text-xs text-sentinel-textMuted mt-1.5 leading-relaxed">
-                Agent solves maximum compliant headroom: {targetSymbol} reaches 25.0% and cash reserve stays at 20.0%.
+                Agent solves compliant headroom: {targetSymbol} reaches {adaptedAssetPct.toFixed(1)}% (≤ {maxSingleAssetPct.toFixed(0)}%) and cash stays at {adaptedCashPct.toFixed(1)}% (≥ {minCashReservePct.toFixed(0)}%).
               </p>
             </div>
             <div className="pt-2 border-t border-amber-500/20 text-[11px] font-mono text-amber-300">
-              Headroom: {formatCurrency(adaptedAmountUsd)}
+              Compliant Headroom: {formatCurrency(adaptedAmountUsd)}
             </div>
           </div>
 
@@ -272,7 +359,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
                 {adaptationResult ? 'Executed & Recorded' : 'Ready to Settle'}
               </div>
               <p className="text-xs text-sentinel-textMuted mt-1.5 leading-relaxed">
-                {formatCurrency(adaptedAmountUsd)} {targetSymbol} order passes all 4 policy rules and generates a SHA-256 audit receipt.
+                {formatCurrency(adaptedAmountUsd)} {targetSymbol} order passes all 4 on-chain execution invariants and records a SHA-256 receipt.
               </p>
             </div>
             <div className="pt-2 border-t border-emerald-500/20 text-[11px] font-mono text-emerald-300 truncate">

@@ -69,6 +69,8 @@ export default function Home() {
     return mode === 'LIVE' ? 'Pyth Hermes Live' : 'Pyth Benchmark';
   }, [marketPrices, mode]);
 
+  const [liveModeNotice, setLiveModeNotice] = useState<string | null>(null);
+
   // Hydrate portfolio, policy, and activity history from the server API & Solana RPC
   useEffect(() => {
     const targetWallet = connected && publicKey ? publicKey.toBase58() : 'default';
@@ -82,6 +84,23 @@ export default function Home() {
       })
       .catch(() => {});
 
+    fetch(`/api/policy/${encodeURIComponent(targetWallet)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        const hydratedPolicy = data?.rawPolicy || data?.policy;
+        if (data?.success && hydratedPolicy) {
+          setPolicy((prev) => ({
+            ...prev,
+            ...hydratedPolicy,
+            maxTradeValueUsd:
+              hydratedPolicy.maxTradeValueUsd ??
+              hydratedPolicy.maxTradeUsd ??
+              prev.maxTradeValueUsd,
+          }));
+        }
+      })
+      .catch(() => {});
+
     fetch(`/api/activity/${encodeURIComponent(targetWallet)}`)
       .then((res) => res.json())
       .then((data) => {
@@ -90,11 +109,12 @@ export default function Home() {
         }
       })
       .catch(() => {});
-  }, [connected, publicKey]);
+  }, [connected, publicKey, client]);
 
   // Sync connected wallet with portfolio owner, bind signer, index live on-chain token accounts, and fetch Devnet balance
   useEffect(() => {
     if (connected && publicKey) {
+      setLiveModeNotice(null);
       connection.getBalance(publicKey).then((lamports) => {
         setWalletBalanceSol(lamports / 1e9);
       }).catch(console.error);
@@ -148,6 +168,11 @@ export default function Home() {
       }
     } else {
       setWalletBalanceSol(null);
+      if (mode === 'LIVE') {
+        setMode('SIMULATION');
+        client.setAdapter(new SimulatedExecutionAdapter(150));
+        client.setPythMode('BENCHMARK');
+      }
     }
   }, [connected, publicKey, connection, mode, client, signTransaction, sendTransaction]);
 
@@ -189,22 +214,27 @@ export default function Home() {
   const [txStep, setTxStep] = useState<TxLifecycleStep>('idle');
   const [txDetails, setTxDetails] = useState<TxDetails | null>(null);
 
-  // Toggle Live vs Simulation Mode
+  // Toggle Live vs Simulation Mode (requires a connected Solana wallet to enter LIVE mode)
   const handleToggleMode = () => {
     const nextMode = mode === 'SIMULATION' ? 'LIVE' : 'SIMULATION';
-    setMode(nextMode);
-    client.setPythMode(nextMode === 'LIVE' ? 'LIVE' : 'BENCHMARK');
     if (nextMode === 'LIVE') {
-      if (connected && publicKey) {
-        client.setWalletSigner({
-          publicKey,
-          signTransaction,
-          sendTransaction,
-        });
-      } else {
-        client.setAdapter(new LiveExecutionAdapter(APP_CONFIG.rpcUrl));
+      if (!connected || !publicKey) {
+        setLiveModeNotice('Connect a Solana wallet first to enable Live Devnet execution.');
+        setTimeout(() => setLiveModeNotice(null), 5000);
+        return;
       }
+      setLiveModeNotice(null);
+      setMode('LIVE');
+      client.setPythMode('LIVE');
+      client.setWalletSigner({
+        publicKey,
+        signTransaction,
+        sendTransaction,
+      });
     } else {
+      setLiveModeNotice(null);
+      setMode('SIMULATION');
+      client.setPythMode('BENCHMARK');
       client.setAdapter(new SimulatedExecutionAdapter(150));
     }
   };
@@ -492,6 +522,8 @@ export default function Home() {
   // Canonical single-authority 10-stage autonomous adaptation cycle via POST /api/agent/run
   const handleRunAdaptation = async () => {
     setIsRunningAdaptation(true);
+    const targetWallet =
+      connected && publicKey ? publicKey.toBase58() : portfolio.owner || 'default';
     try {
       let apiResponse: any = null;
       try {
@@ -499,8 +531,9 @@ export default function Home() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            assetSymbol: 'NVDAx',
-            initialAmountUsd: 15_000,
+            wallet: targetWallet,
+            targetAsset: 'NVDAx',
+            proposedAmountUsd: 15_000,
           }),
         });
         if (res.ok) {
@@ -514,7 +547,7 @@ export default function Home() {
       if (apiResponse?.success && apiResponse?.result) {
         result = apiResponse.result;
       } else {
-        // Offline / simulation fallback ONLY if server orchestration endpoint was unavailable
+        // Offline fallback ONLY if server orchestration endpoint was unreachable
         result = await client.runAutonomousAdaptation(
           portfolio,
           policy,
@@ -533,7 +566,6 @@ export default function Home() {
         apiResponse?.resultingPortfolio ?? result.step2SettledDecision.resultingPortfolio
       );
 
-      const targetWallet = connected && publicKey ? publicKey.toBase58() : portfolio.owner || 'default';
       fetch(`/api/activity/${encodeURIComponent(targetWallet)}`)
         .then((res) => res.json())
         .then((actData) => {
@@ -565,21 +597,7 @@ export default function Home() {
       connected && publicKey ? publicKey.toBase58() : portfolio.owner || 'default';
 
     try {
-      const res = await fetch(`/api/policy/${encodeURIComponent(targetWallet)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updated),
-      });
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok || data?.success === false) {
-        return {
-          status: 'failed',
-          error: data?.error || `Policy server returned HTTP ${res.status}`,
-        };
-      }
-
-      // Live mode requires wallet signature and Devnet confirmation before claiming PDA commitment
+      // Live mode requires wallet signature and Devnet confirmation BEFORE mutating server or UI state
       if (mode === 'LIVE') {
         if (!connected || !publicKey || !signTransaction) {
           return {
@@ -587,23 +605,53 @@ export default function Home() {
             error: 'Connect a Solana wallet to sign and commit Policy PDA changes on Devnet.',
           };
         }
-        if (!data?.preparedTransaction?.serializedTxBase64) {
+
+        // Step 1: Prepare unsigned transaction WITHOUT mutating server policy state
+        const prepRes = await fetch(`/api/policy/${encodeURIComponent(targetWallet)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...updated,
+            commitMode: 'PREPARE_ONLY',
+          }),
+        });
+        const prepData = await prepRes.json().catch(() => null);
+
+        if (!prepRes.ok || prepData?.success === false) {
+          return {
+            status: 'failed',
+            error: prepData?.error || `Policy preparation failed with HTTP ${prepRes.status}`,
+          };
+        }
+
+        if (!prepData?.preparedTransaction?.serializedTxBase64) {
           return {
             status: 'failed',
             error: 'Server did not return a prepared Policy PDA transaction.',
           };
         }
 
-        const txBuffer = Buffer.from(data.preparedTransaction.serializedTxBase64, 'base64');
+        // Step 2: Request user wallet signature & confirm on Solana Devnet
+        const txBuffer = Buffer.from(prepData.preparedTransaction.serializedTxBase64, 'base64');
         const unsignedTx = Transaction.from(txBuffer);
         const signedTx = await signTransaction(unsignedTx);
         const signature = await connection.sendRawTransaction(signedTx.serialize());
         await connection.confirmTransaction(signature, 'confirmed');
 
-        setPolicy((prev) => ({
-          ...prev,
-          ...updated,
-        }));
+        // Step 3: Commit policy update to server store after Devnet confirmation
+        const commitRes = await fetch(`/api/policy/${encodeURIComponent(targetWallet)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...updated,
+            commitMode: 'CONFIRMED_ON_CHAIN',
+            confirmedTxSignature: signature,
+          }),
+        });
+        const commitData = await commitRes.json().catch(() => null);
+        const nextPolicy = commitData?.policy || { ...policy, ...updated };
+
+        setPolicy(nextPolicy);
 
         return {
           status: 'committed_pda',
@@ -611,11 +659,26 @@ export default function Home() {
         };
       }
 
-      // Simulation mode: update local/server state and explicitly report simulation state
-      setPolicy((prev) => ({
-        ...prev,
-        ...updated,
-      }));
+      // Simulation mode: explicitly commit simulation policy state immediately
+      const simRes = await fetch(`/api/policy/${encodeURIComponent(targetWallet)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...updated,
+          commitMode: 'SIMULATION',
+        }),
+      });
+      const simData = await simRes.json().catch(() => null);
+
+      if (!simRes.ok || simData?.success === false) {
+        return {
+          status: 'failed',
+          error: simData?.error || `Policy server returned HTTP ${simRes.status}`,
+        };
+      }
+
+      const nextPolicy = simData?.policy || { ...policy, ...updated };
+      setPolicy(nextPolicy);
 
       return {
         status: 'saved_simulation',
@@ -669,11 +732,17 @@ export default function Home() {
         isRunningDemo={isRunningDemo}
       />
 
-      {/* Primary Navigation Tabs (4 Pillars) */}
+      {liveModeNotice && (
+        <div className="bg-amber-500/10 border-b border-amber-500/30 px-4 py-2 text-center text-xs text-amber-300 font-medium">
+          {liveModeNotice}
+        </div>
+      )}
+
+      {/* Primary Navigation Tabs (6 Surfaces) */}
       <Navigation
         activeTab={activeTab}
         onSelectTab={setActiveTab}
-        evidenceCount={4 + evidenceList.length}
+        evidenceCount={evidenceList.length}
       />
 
       {/* Main Content Area */}

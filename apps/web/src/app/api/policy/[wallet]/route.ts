@@ -19,12 +19,15 @@ export async function GET(
       success: true,
       authority: 'SOLANA_ON_CHAIN',
       wallet: params.wallet === 'default' ? policy.owner : params.wallet,
+      rawPolicy: policy,
       policy: {
+        ...policy,
         owner: policy.owner,
         maxSingleAssetBps: policy.maxSingleAssetBps,
         maxSingleAssetPct: `${(policy.maxSingleAssetBps / 100).toFixed(1)}%`,
         minStablecoinBps: policy.minStablecoinBps,
         minStablecoinPct: `${(policy.minStablecoinBps / 100).toFixed(1)}%`,
+        maxTradeUsd: (policy as any).maxTradeUsd ?? policy.maxTradeValueUsd,
         maxTradeValueUsd: policy.maxTradeValueUsd,
         maxSlippageBps: policy.maxSlippageBps,
         maxSlippagePct: `${(policy.maxSlippageBps / 100).toFixed(2)}%`,
@@ -54,41 +57,71 @@ export async function POST(
     const store = getServerStore();
     await reconcilePolicyFromSolana(params.wallet);
     const body = (await req.json().catch(() => ({}))) as any;
+    const commitMode: 'PREPARE_ONLY' | 'CONFIRMED_ON_CHAIN' | 'SIMULATION' =
+      body.commitMode || (body.confirmedTxSignature ? 'CONFIRMED_ON_CHAIN' : 'SIMULATION');
+
+    const candidatePolicy: any = { ...store.policy };
 
     if (body.maxSingleAssetBps !== undefined) {
-      store.policy.maxSingleAssetBps = Math.min(5000, Math.max(500, Number(body.maxSingleAssetBps)));
+      candidatePolicy.maxSingleAssetBps = Math.min(
+        5000,
+        Math.max(500, Number(body.maxSingleAssetBps))
+      );
     }
     if (body.minStablecoinBps !== undefined) {
-      store.policy.minStablecoinBps = Math.min(5000, Math.max(500, Number(body.minStablecoinBps)));
+      candidatePolicy.minStablecoinBps = Math.min(
+        5000,
+        Math.max(500, Number(body.minStablecoinBps))
+      );
     }
-    if (body.maxTradeValueUsd !== undefined) {
-      store.policy.maxTradeValueUsd = Math.max(500, Number(body.maxTradeValueUsd));
+    const incomingTradeLimit = body.maxTradeUsd ?? body.maxTradeValueUsd;
+    if (incomingTradeLimit !== undefined) {
+      const clampedTrade = Math.max(500, Number(incomingTradeLimit));
+      candidatePolicy.maxTradeUsd = clampedTrade;
+      candidatePolicy.maxTradeValueUsd = clampedTrade;
     }
     if (body.maxSlippageBps !== undefined) {
-      store.policy.maxSlippageBps = Math.min(500, Math.max(10, Number(body.maxSlippageBps)));
+      candidatePolicy.maxSlippageBps = Math.min(
+        500,
+        Math.max(10, Number(body.maxSlippageBps))
+      );
     }
     if (body.maxPreIpoExposureBps !== undefined) {
-      store.policy.maxPreIpoExposureBps = Math.min(5000, Math.max(500, Number(body.maxPreIpoExposureBps)));
+      candidatePolicy.maxPreIpoExposureBps = Math.min(
+        5000,
+        Math.max(500, Number(body.maxPreIpoExposureBps))
+      );
     }
     if (body.isEmergencyPaused !== undefined) {
-      store.policy.isEmergencyPaused = Boolean(body.isEmergencyPaused);
+      candidatePolicy.isEmergencyPaused = Boolean(body.isEmergencyPaused);
     }
 
-    store.policy.policyVersion += 1;
-    store.policy.updatedAt = Date.now();
+    candidatePolicy.policyVersion = (store.policy.policyVersion || 1) + 1;
+    candidatePolicy.updatedAt = Date.now();
 
     const ownerAddress =
-      params.wallet && params.wallet !== 'default' ? params.wallet : store.policy.owner;
+      params.wallet && params.wallet !== 'default' ? params.wallet : candidatePolicy.owner;
 
     const preparedTransaction = await store.client.prepareUnsignedPolicyUpdateTx(
       ownerAddress,
-      store.policy
+      candidatePolicy
     );
+
+    // Only mutate authoritative server policy when confirmed on-chain or explicitly in SIMULATION mode
+    if (commitMode === 'CONFIRMED_ON_CHAIN' || commitMode === 'SIMULATION') {
+      store.policy = candidatePolicy;
+    }
 
     return Response.json({
       success: true,
-      message: 'Unsigned Policy PDA transaction prepared for wallet signature',
-      policy: store.policy,
+      commitMode,
+      committed: commitMode === 'CONFIRMED_ON_CHAIN' || commitMode === 'SIMULATION',
+      confirmedTxSignature: body.confirmedTxSignature || undefined,
+      message:
+        commitMode === 'PREPARE_ONLY'
+          ? 'Unsigned Policy PDA transaction prepared for wallet signature (server state not mutated until confirmation)'
+          : 'Policy state updated',
+      policy: candidatePolicy,
       preparedTransaction,
     });
   } catch (error: any) {

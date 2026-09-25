@@ -210,15 +210,18 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
     (a) => !a.isStablecoin && !a.isIndex && a.exposureBps > policy.maxSingleAssetBps
   );
 
-  // Core guarantee checks (4 checks: Reserve floor, Single asset cap, Public equities cap, Pre-IPO cap)
-  const checksPassed = [
-    isReserveHealthy,
+  // Canonical taxonomy: 4 On-Chain Execution Invariants + 2 Portfolio Advisory Caps
+  const onChainChecksPassed = [
     !singleAssetExceeded,
+    isReserveHealthy,
+    ((policy as any).maxTradeUsd ?? policy.maxTradeValueUsd ?? 10_000) >= 500,
+    (policy.maxSlippageBps ?? 100) <= 500,
+  ].filter(Boolean).length;
+  const advisoryChecksPassed = [
     assetClassReport.publicEquities.passed,
     assetClassReport.preIpo.passed,
   ].filter(Boolean).length;
-  const totalChecks = 4;
-  const isHealthy = checksPassed === totalChecks;
+  const isHealthy = onChainChecksPassed === 4 && advisoryChecksPassed === 2;
 
   // Selected asset for drawer
   const selectedAsset = selectedAssetSymbol
@@ -338,7 +341,7 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
         </div>
 
         <div>
-          <span className="text-xs text-sentinel-textSubtle block">Public Equities</span>
+          <span className="text-xs text-sentinel-textSubtle block">Public Equities (Advisory)</span>
           <span className="text-sm font-semibold text-white font-mono tabular-nums mt-1 block">
             {(assetClassReport.publicEquities.exposureBps / 100).toFixed(1)}%
             <span className="text-sentinel-textSubtle font-normal text-xs ml-1">
@@ -348,7 +351,7 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
         </div>
 
         <div>
-          <span className="text-xs text-sentinel-textSubtle block">Pre-IPO Equities</span>
+          <span className="text-xs text-sentinel-textSubtle block">Pre-IPO Equities (Advisory)</span>
           <span className="text-sm font-semibold text-white font-mono tabular-nums mt-1 block">
             {(assetClassReport.preIpo.exposureBps / 100).toFixed(1)}%
             <span className="text-sentinel-textSubtle font-normal text-xs ml-1">
@@ -358,7 +361,7 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
         </div>
 
         <div>
-          <span className="text-xs text-sentinel-textSubtle block">USDC Cash Reserve</span>
+          <span className="text-xs text-sentinel-textSubtle block">USDC Reserve (On-Chain)</span>
           <span className="text-sm font-semibold text-white font-mono tabular-nums mt-1 block">
             {(portfolio.stablecoinExposureBps / 100).toFixed(1)}%
             <span className="text-sentinel-textSubtle font-normal text-xs ml-1">
@@ -369,9 +372,9 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
 
         <div>
           <span className="text-xs text-sentinel-textSubtle block">Policy Status</span>
-          <span className="text-sm font-semibold text-emerald-400 flex items-center gap-1.5 mt-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            {checksPassed} of {totalChecks} Limits Satisfied
+          <span className={`text-sm font-semibold flex items-center gap-1.5 mt-1 ${isHealthy ? 'text-emerald-400' : 'text-amber-400'}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${isHealthy ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+            {onChainChecksPassed}/4 On-Chain · {advisoryChecksPassed}/2 Advisory
           </span>
         </div>
       </div>

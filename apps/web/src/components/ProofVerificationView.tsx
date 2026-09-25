@@ -251,7 +251,10 @@ export const ProofVerificationView: React.FC = () => {
                   <span className="text-sm font-medium text-white truncate">{vec.name}</span>
                 </div>
 
-                <div className="flex items-center gap-3 shrink-0">
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <span className="hidden md:inline text-[10px] font-mono px-2 py-0.5 rounded border border-sentinel-border bg-sentinel-surfaceMuted text-sentinel-textSubtle">
+                    Static Vector
+                  </span>
                   <span className="hidden sm:inline text-xs font-mono text-sentinel-textMuted">
                     {vec.errorCode}
                   </span>
@@ -268,7 +271,13 @@ export const ProofVerificationView: React.FC = () => {
 
               {isExpanded && (
                 <div className="px-5 pb-4 pt-2 bg-sentinel-surfaceMuted/40 border-t border-sentinel-border/60 space-y-3 text-xs">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <span className="text-sentinel-textSubtle block mb-0.5">Verification Method</span>
+                      <p className="text-sentinel-text leading-relaxed font-mono text-[11px]">
+                        Static Adversarial Vector (Deterministic Anchor &amp; Domain Guard)
+                      </p>
+                    </div>
                     <div>
                       <span className="text-sentinel-textSubtle block mb-0.5">Test Input</span>
                       <p className="text-sentinel-text leading-relaxed">{vec.payload}</p>
@@ -281,7 +290,7 @@ export const ProofVerificationView: React.FC = () => {
 
                   <div className="pt-2 border-t border-sentinel-border/50 flex flex-wrap items-center justify-between gap-3 font-mono text-[11px] text-sentinel-textMuted">
                     <div className="flex items-center gap-2">
-                      <span>Preimage SHA-256:</span>
+                      <span>Vector Preimage SHA-256:</span>
                       <span className="text-white">0x{vec.sha256Hash.slice(0, 16)}…{vec.sha256Hash.slice(-6)}</span>
                       <button
                         type="button"
@@ -303,8 +312,12 @@ export const ProofVerificationView: React.FC = () => {
                         target="_blank"
                         rel="noreferrer"
                         className="text-blue-400 hover:underline inline-flex items-center gap-1"
+                        title="Canonical Devnet reference transaction demonstrating this guard class"
                       >
-                        <span>Devnet Tx: {formatAddress(vec.devnetTx, 6)}</span>
+                        <span>
+                          Reference Devnet {isBlocked ? 'Rejection' : 'Settlement'} TX:{' '}
+                          {formatAddress(vec.devnetTx, 6)}
+                        </span>
                         <ExternalLink className="w-3 h-3" />
                       </a>
                     )}

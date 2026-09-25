@@ -329,8 +329,15 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
     };
   });
 
+  const [showDemoReference, setShowDemoReference] = useState(false);
+
+  const isShowingDemoReference = dynamicTimelineItems.length === 0 && showDemoReference;
   const allTimelineItems =
-    dynamicTimelineItems.length > 0 ? dynamicTimelineItems : defaultTimelineItems;
+    dynamicTimelineItems.length > 0
+      ? dynamicTimelineItems
+      : showDemoReference
+      ? defaultTimelineItems
+      : [];
 
   const settledCount = allTimelineItems.filter(
     (i) => i.status === 'SETTLED' || i.status === 'ADAPTED'
@@ -418,11 +425,31 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
 
       {/* 2. SINGLE PRIMARY FOCAL POINT: CHRONOLOGICAL EVENT LOG */}
       <Card padding="md" className="space-y-4">
+        {isShowingDemoReference && (
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs">
+            <div className="flex items-center gap-2 text-amber-300 font-medium">
+              <span className="font-mono font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-500/40 text-[10px]">
+                DEMO ACTIVITY
+              </span>
+              <span>
+                Canonical Devnet Reference Examples — Not current session activity
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowDemoReference(false)}
+              className="text-xs font-mono text-amber-300 hover:text-white underline cursor-pointer"
+            >
+              Hide Demo Examples
+            </button>
+          </div>
+        )}
+
         {/* Quiet Summary Bar */}
         <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-sentinel-border">
           <div className="flex flex-wrap items-center gap-4 text-xs">
             <span className="text-sentinel-textMuted">
-              Total Events:{' '}
+              {isShowingDemoReference ? 'Demo Reference Events:' : 'Session Events:'}{' '}
               <strong className="font-mono text-white tabular-nums">
                 {allTimelineItems.length}
               </strong>
@@ -449,7 +476,25 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
 
         {/* Chronological Event Rows */}
         <div className="divide-y divide-sentinel-border border border-sentinel-border rounded-xl overflow-hidden bg-sentinel-surfaceMuted/25">
-          {filteredItems.length === 0 ? (
+          {dynamicTimelineItems.length === 0 && !showDemoReference ? (
+            <div className="p-8 text-center space-y-3">
+              <div className="text-sm font-semibold text-white">
+                No activity recorded in this session yet
+              </div>
+              <p className="text-xs text-sentinel-textMuted max-w-md mx-auto leading-relaxed">
+                Run an autonomous cycle on the Agent surface to generate verifiable trade evaluations, policy checks, and settlement receipts.
+              </p>
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowDemoReference(true)}
+                  className="px-3.5 py-1.5 rounded-lg bg-sentinel-surface hover:bg-sentinel-surfaceElevated border border-sentinel-border text-xs text-sentinel-textMuted hover:text-white font-medium cursor-pointer transition sentinel-interactive sentinel-focus"
+                >
+                  View Canonical Devnet Demo Examples (4)
+                </button>
+              </div>
+            </div>
+          ) : filteredItems.length === 0 ? (
             <div className="p-8 text-center space-y-2.5">
               <div className="text-xs font-semibold text-white">
                 No matching activity records
@@ -530,7 +575,11 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
 
                   <div className="flex items-center gap-2.5 self-end sm:self-auto">
                     <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-sentinel-border bg-sentinel-surface text-sentinel-textSubtle">
-                      {item.isRealDevnetTx ? 'Devnet Tx' : 'Simulated'}
+                      {isShowingDemoReference
+                        ? 'Demo Reference'
+                        : item.isRealDevnetTx
+                        ? 'Devnet Tx'
+                        : 'Simulated'}
                     </span>
                     <Badge
                       variant={

@@ -424,7 +424,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
             {
               step: '01',
               title: 'Propose',
-              desc: 'Agent proposes a trade from live market signals.',
+              desc: 'Agent proposes a trade from market signals.',
             },
             {
               step: '02',
