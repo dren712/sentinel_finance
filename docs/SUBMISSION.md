@@ -217,9 +217,9 @@ Tested in [`packages/sdk/tests/adversarial-security.test.ts`](file:///Users/dars
 
 ---
 
-## 7. Official 3-Minute Pitch Video Script (Colosseum Structure)
+## 7. Product Pitch Structure
 
-Our pitch video is structured precisely under the 3-minute Colosseum guideline ([`docs/PITCH_VIDEO_SCRIPT.md`](file:///Users/darshangaikwad/Desktop/stocklana/docs/PITCH_VIDEO_SCRIPT.md)):
+Our pitch is structured concisely under the standard hackathon narrative:
 
 * **0:00–0:20 | The Problem**: The delegation dilemma. Standard wallet delegation checks *if the agent can sign*, never *what financial state results*. Rogue drift, hallucinations, and liquidations.
 * **0:20–0:40 | The Sentinel Idea**: Authoritative financial postconditions at the state-transition boundary. Agent proposes any trade; Anchor atomically reverts any invariant breach.
