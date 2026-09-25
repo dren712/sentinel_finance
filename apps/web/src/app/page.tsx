@@ -648,27 +648,113 @@ export default function Home() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-12">
         {/* Institutional Market Regime & Session Context Bar (shown in app views) */}
         {activeTab !== 'overview' && (
-          <MarketRegimeBanner onNavigateToProof={() => setActiveTab('proof')} pythFreshnessSec={8} />
+          <div className="space-y-3 mb-6">
+            <MarketRegimeBanner onNavigateToProof={() => setActiveTab('proof')} pythFreshnessSec={8} />
+
+            {/* Cross-Surface Verification Scenario Launcher (Phase 13) */}
+            <div className="px-3.5 py-2.5 rounded-xl bg-sentinel-surface border border-sentinel-border flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 text-xs font-mono">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-sentinel-textSubtle">
+                  Guided Verification Scenarios:
+                </span>
+                <button
+                  type="button"
+                  disabled={isRunningDemo}
+                  onClick={handleRunDemo}
+                  className={`px-2.5 py-1 rounded border text-[11px] font-semibold transition cursor-pointer ${
+                    selectedHeroScenario === 'FLAGSHIP' && demoStep > 0
+                      ? 'bg-blue-500/20 border-blue-500 text-blue-300'
+                      : 'bg-sentinel-surfaceMuted border-sentinel-border text-sentinel-textMuted hover:text-white'
+                  }`}
+                >
+                  1. Flagship ($15k → $5k)
+                </button>
+                <button
+                  type="button"
+                  disabled={isRunningDemo}
+                  onClick={handleRunPreStocksDemo}
+                  className={`px-2.5 py-1 rounded border text-[11px] font-semibold transition cursor-pointer ${
+                    selectedHeroScenario === 'PRESTOCKS' && demoStep > 0
+                      ? 'bg-purple-500/20 border-purple-500 text-purple-300'
+                      : 'bg-sentinel-surfaceMuted border-sentinel-border text-sentinel-textMuted hover:text-white'
+                  }`}
+                >
+                  2. PreStocks (20% Cap)
+                </button>
+                <button
+                  type="button"
+                  disabled={isRunningDemo}
+                  onClick={handleRunMeteoraDemo}
+                  className={`px-2.5 py-1 rounded border text-[11px] font-semibold transition cursor-pointer ${
+                    selectedHeroScenario === 'METEORA' && demoStep > 0
+                      ? 'bg-amber-500/20 border-amber-500 text-amber-300'
+                      : 'bg-sentinel-surfaceMuted border-sentinel-border text-sentinel-textMuted hover:text-white'
+                  }`}
+                >
+                  3. Meteora DBC (Slippage)
+                </button>
+                <button
+                  type="button"
+                  disabled={isRunningDemo}
+                  onClick={handleRunPythDemo}
+                  className={`px-2.5 py-1 rounded border text-[11px] font-semibold transition cursor-pointer ${
+                    selectedHeroScenario === 'PYTH' && demoStep > 0
+                      ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
+                      : 'bg-sentinel-surfaceMuted border-sentinel-border text-sentinel-textMuted hover:text-white'
+                  }`}
+                >
+                  4. Pyth (Stale Quote Guard)
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 self-start lg:self-auto">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('agent')}
+                  className="text-[11px] text-blue-400 hover:text-blue-300 hover:underline cursor-pointer"
+                >
+                  Agent Console →
+                </button>
+                <span className="text-sentinel-textSubtle">·</span>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('activity')}
+                  className="text-[11px] text-purple-400 hover:text-purple-300 hover:underline cursor-pointer"
+                >
+                  Audit Trail ({evidenceList.length || 4}) →
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Dynamic Demo Stepper Banner */}
         {demoStep > 0 && (
-          <div className="mb-6 p-4 rounded-xl bg-blue-950/40 border border-blue-500/40 shadow-lg animate-in fade-in slide-in-from-top-4 duration-200">
-            <div className="flex items-center justify-between mb-2.5">
+          <div className="mb-6 p-4 rounded-xl bg-sentinel-surfaceElevated border border-sentinel-borderStrong shadow-lg animate-in fade-in slide-in-from-top-4 duration-200">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-blue-400 animate-ping" />
+                <span className="w-2 h-2 rounded-full bg-blue-400 animate-ping" />
                 <span className="font-bold text-xs font-mono uppercase tracking-wider text-blue-300">
                   {demoTitle}
                 </span>
               </div>
-              <span className="text-xs font-mono font-semibold text-blue-400">
-                Step {demoStep} of {totalDemoSteps}
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-mono font-semibold text-blue-400 tabular-nums">
+                  Step {demoStep} of {totalDemoSteps}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('activity')}
+                  className="px-2.5 py-0.5 rounded bg-blue-500/15 border border-blue-500/40 text-[11px] font-mono text-blue-300 hover:text-white cursor-pointer"
+                >
+                  Inspect Live Evidence →
+                </button>
+              </div>
             </div>
             <p className="text-xs sm:text-sm font-medium text-white mb-3 font-mono leading-relaxed">
               {demoMessage}
             </p>
-            <div className={`grid grid-cols-2 ${totalDemoSteps === 4 ? 'sm:grid-cols-4' : 'sm:grid-cols-5'} gap-2 text-[10px] font-mono`}>
+            <div className={`grid grid-cols-2 ${totalDemoSteps === 4 ? 'sm:grid-cols-4' : 'sm:grid-cols-5'} gap-2 text-[10px] font-mono tabular-nums`}>
               {demoTitle.includes('Pyth') ? (
                 <>
                   <div className={`p-2 rounded border text-center transition-all ${demoStep >= 1 ? 'bg-amber-900/50 border-amber-400 text-white font-semibold' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
@@ -681,7 +767,7 @@ export default function Home() {
                     3. Security Refusal
                   </div>
                   <div className={`p-2 rounded border text-center transition-all ${demoStep >= 4 ? 'bg-emerald-950/70 border-emerald-400 text-emerald-300 font-semibold shadow-sm' : 'bg-slate-900/40 border-slate-800 text-slate-500'}`}>
-                    4. Pull Update & Settle
+                    4. Pull Update &amp; Settle
                   </div>
                 </>
               ) : totalDemoSteps === 4 ? (

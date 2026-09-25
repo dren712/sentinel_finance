@@ -22,6 +22,8 @@ import { APP_CONFIG, getExplorerAddressUrl, getExplorerTxUrl } from '@/lib/confi
 import { formatAddress } from '@/lib/formatters';
 import { SourceBadge } from './ui/SourceBadge';
 import { PageHeader } from './ui/PageHeader';
+import { Card, CardHeader } from './ui/Card';
+import { Badge } from './ui/Badge';
 
 interface AdversarialVector {
   id: string;
@@ -202,6 +204,33 @@ export const ProofVerificationView: React.FC = () => {
     },
   ];
 
+  const devnetLedger = [
+    {
+      label: 'Initialize Policy & Vault PDA',
+      instruction: 'initialize_policy',
+      tx: APP_CONFIG.devnetTransactions.initializePolicyTx,
+      verdict: 'CONFIRMED',
+    },
+    {
+      label: 'Reject Non-Compliant Intent ($15k NVDAx)',
+      instruction: 'reject_bad_trade',
+      tx: APP_CONFIG.devnetTransactions.rejectBadTradeTx,
+      verdict: 'BLOCKED_ON_CHAIN',
+    },
+    {
+      label: 'Settle Adapted Compliant Trade ($5k NVDAx)',
+      instruction: 'execute_guarded_trade',
+      tx: APP_CONFIG.devnetTransactions.executeValidTradeTx,
+      verdict: 'SETTLED',
+    },
+    {
+      label: 'Anchor PROVN Cryptographic Receipt',
+      instruction: 'record_evidence',
+      tx: APP_CONFIG.devnetTransactions.recordEvidenceTx,
+      verdict: 'SEALED',
+    },
+  ];
+
   const filteredVectors = vectors.filter((v) => {
     if (selectedFilter === 'ALL') return true;
     return v.category === selectedFilter;
@@ -215,136 +244,236 @@ export const ProofVerificationView: React.FC = () => {
         title="Sentinel Enforcement is Observable"
         subtitle="We prove system security not by showing that a transaction succeeded, but by proving the dangerous things Sentinel refuses to execute."
         actions={
-          <div className="flex items-center gap-2 bg-sentinel-surface p-2 rounded-lg border border-sentinel-border font-mono text-xs">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-            <span className="text-white font-bold">120 / 120 Tests Passing</span>
-            <span className="text-sentinel-textSubtle">•</span>
-            <span className="text-blue-400 font-semibold">11 Negative Proofs Active</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <SourceBadge source="SOLANA" detail="Devnet Program" />
+            <SourceBadge source="PROVN" detail="11/11 Negative Vectors" />
+            <Badge variant="success" dot>
+              120 / 120 Tests Passing
+            </Badge>
           </div>
         }
       />
 
       {/* 2. On-Chain Anchor State & Canonical PDAs */}
-      <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-5 sm:p-6 space-y-4 font-mono text-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-sentinel-border">
-          <div className="flex items-center gap-2">
-            <Database className="w-4 h-4 text-purple-400" />
-            <span className="font-extrabold text-white uppercase tracking-wider text-xs">
-              Authoritative Solana Devnet State
-            </span>
-          </div>
-          <span className="text-[11px] text-sentinel-textMuted font-sans">
-            Zero off-chain state authority · Deterministic PDA bindings
-          </span>
-        </div>
+      <Card padding="md" className="space-y-4">
+        <CardHeader
+          category="AUTHORITATIVE SOLANA DEVNET STATE"
+          title="Deterministic Anchor PDAs & Program Authority"
+          subtitle="Zero off-chain state authority — every policy boundary, agent permission, and vault custody account is PDA-bound."
+          action={<SourceBadge source="SOLANA" detail="Anchor Verified" />}
+        />
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-[11px]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 font-mono text-[11px]">
           {/* Program ID */}
-          <div className="bg-slate-900/70 p-3 rounded-lg border border-slate-800 space-y-1">
-            <span className="text-[10px] text-sentinel-textSubtle block uppercase font-bold">
-              Anchor Program ID
-            </span>
-            <div className="font-bold text-white truncate" title={APP_CONFIG.sentinelProgramId}>
-              {formatAddress(APP_CONFIG.sentinelProgramId, 4)}
+          <div className="bg-sentinel-surfaceMuted p-3.5 rounded-lg border border-sentinel-border space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-sentinel-textSubtle uppercase font-bold">
+                Anchor Program ID
+              </span>
+              <Badge variant="success">Bytecode ✓</Badge>
             </div>
-            <div className="text-[10px] flex items-center justify-between text-purple-400">
+            <div className="font-bold text-white truncate tabular-nums" title={APP_CONFIG.sentinelProgramId}>
+              {formatAddress(APP_CONFIG.sentinelProgramId, 6)}
+            </div>
+            <div className="text-[10px] flex items-center justify-between pt-0.5">
               <a
                 href={getExplorerAddressUrl(APP_CONFIG.sentinelProgramId)}
                 target="_blank"
                 rel="noreferrer"
-                className="hover:underline flex items-center gap-1"
+                className="text-purple-400 hover:text-purple-300 hover:underline inline-flex items-center gap-1"
               >
-                <span>Explorer ↗</span>
+                <span>Solana Explorer</span>
+                <ExternalLink className="w-3 h-3" />
               </a>
-              <span className="text-emerald-400 font-semibold">✓ Verified Bytecode</span>
+              <button
+                type="button"
+                onClick={() => copyToClipboard(APP_CONFIG.sentinelProgramId, 'prog-id')}
+                className="text-sentinel-textSubtle hover:text-white cursor-pointer"
+              >
+                {copiedKey === 'prog-id' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+              </button>
             </div>
           </div>
 
           {/* Policy PDA */}
-          <div className="bg-slate-900/70 p-3 rounded-lg border border-slate-800 space-y-1">
-            <span className="text-[10px] text-sentinel-textSubtle block uppercase font-bold">
-              Policy Account PDA
-            </span>
-            <div className="font-bold text-white truncate" title={APP_CONFIG.policyPda}>
-              {formatAddress(APP_CONFIG.policyPda, 4)}
+          <div className="bg-sentinel-surfaceMuted p-3.5 rounded-lg border border-sentinel-border space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-sentinel-textSubtle uppercase font-bold">
+                Policy Account PDA
+              </span>
+              <span className="text-[10px] text-sentinel-textMuted">60 Bytes</span>
             </div>
-            <div className="text-[10px] flex items-center justify-between text-blue-400">
+            <div className="font-bold text-white truncate tabular-nums" title={APP_CONFIG.policyPda}>
+              {formatAddress(APP_CONFIG.policyPda, 6)}
+            </div>
+            <div className="text-[10px] flex items-center justify-between pt-0.5">
               <a
                 href={getExplorerAddressUrl(APP_CONFIG.policyPda)}
                 target="_blank"
                 rel="noreferrer"
-                className="hover:underline flex items-center gap-1"
+                className="text-blue-400 hover:text-blue-300 hover:underline inline-flex items-center gap-1"
               >
-                <span>[b&quot;policy&quot;, owner] ↗</span>
+                <span>[b&quot;policy&quot;, owner]</span>
+                <ExternalLink className="w-3 h-3" />
               </a>
-              <span className="text-slate-400 font-mono">60 Bytes</span>
+              <button
+                type="button"
+                onClick={() => copyToClipboard(APP_CONFIG.policyPda, 'pol-pda')}
+                className="text-sentinel-textSubtle hover:text-white cursor-pointer"
+              >
+                {copiedKey === 'pol-pda' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+              </button>
             </div>
           </div>
 
           {/* Agent PDA */}
-          <div className="bg-slate-900/70 p-3 rounded-lg border border-slate-800 space-y-1">
-            <span className="text-[10px] text-sentinel-textSubtle block uppercase font-bold">
-              Agent Account PDA (Robo-01)
-            </span>
-            <div className="font-bold text-white truncate" title={APP_CONFIG.agentPda}>
-              {formatAddress(APP_CONFIG.agentPda, 4)}
+          <div className="bg-sentinel-surfaceMuted p-3.5 rounded-lg border border-sentinel-border space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-sentinel-textSubtle uppercase font-bold">
+                Agent PDA (Robo-01)
+              </span>
+              <Badge variant="info">Authorized</Badge>
             </div>
-            <div className="text-[10px] flex items-center justify-between text-blue-400">
+            <div className="font-bold text-white truncate tabular-nums" title={APP_CONFIG.agentPda}>
+              {formatAddress(APP_CONFIG.agentPda, 6)}
+            </div>
+            <div className="text-[10px] flex items-center justify-between pt-0.5">
               <a
                 href={getExplorerAddressUrl(APP_CONFIG.agentPda)}
                 target="_blank"
                 rel="noreferrer"
-                className="hover:underline flex items-center gap-1"
+                className="text-blue-400 hover:text-blue-300 hover:underline inline-flex items-center gap-1"
               >
-                <span>[b&quot;agent&quot;, owner, id] ↗</span>
+                <span>[b&quot;agent&quot;, owner, id]</span>
+                <ExternalLink className="w-3 h-3" />
               </a>
-              <span className="text-emerald-400 font-semibold">✓ Authorized</span>
+              <button
+                type="button"
+                onClick={() => copyToClipboard(APP_CONFIG.agentPda, 'agt-pda')}
+                className="text-sentinel-textSubtle hover:text-white cursor-pointer"
+              >
+                {copiedKey === 'agt-pda' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+              </button>
             </div>
           </div>
 
           {/* Vault PDA */}
-          <div className="bg-slate-900/70 p-3 rounded-lg border border-slate-800 space-y-1">
-            <span className="text-[10px] text-sentinel-textSubtle block uppercase font-bold">
-              Portfolio Vault PDA
-            </span>
-            <div className="font-bold text-white truncate" title={APP_CONFIG.vaultPda}>
-              {formatAddress(APP_CONFIG.vaultPda, 4)}
+          <div className="bg-sentinel-surfaceMuted p-3.5 rounded-lg border border-sentinel-border space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-sentinel-textSubtle uppercase font-bold">
+                Portfolio Vault PDA
+              </span>
+              <span className="text-[10px] text-sentinel-textMuted">549 Bytes</span>
             </div>
-            <div className="text-[10px] flex items-center justify-between text-emerald-400">
+            <div className="font-bold text-white truncate tabular-nums" title={APP_CONFIG.vaultPda}>
+              {formatAddress(APP_CONFIG.vaultPda, 6)}
+            </div>
+            <div className="text-[10px] flex items-center justify-between pt-0.5">
               <a
                 href={getExplorerAddressUrl(APP_CONFIG.vaultPda)}
                 target="_blank"
                 rel="noreferrer"
-                className="hover:underline flex items-center gap-1"
+                className="text-emerald-400 hover:text-emerald-300 hover:underline inline-flex items-center gap-1"
               >
-                <span>[b&quot;vault&quot;, owner] ↗</span>
+                <span>[b&quot;vault&quot;, owner]</span>
+                <ExternalLink className="w-3 h-3" />
               </a>
-              <span className="text-slate-400 font-mono">549 Bytes</span>
+              <button
+                type="button"
+                onClick={() => copyToClipboard(APP_CONFIG.vaultPda, 'vlt-pda')}
+                className="text-sentinel-textSubtle hover:text-white cursor-pointer"
+              >
+                {copiedKey === 'vlt-pda' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+              </button>
             </div>
           </div>
         </div>
-      </div>
+      </Card>
 
-      {/* 3. Adversarial Cases: 11 Attack Vectors */}
-      <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-5 sm:p-6 space-y-4 font-mono text-xs">
+      {/* 3. Canonical Devnet Transaction Signatures */}
+      <Card padding="md" className="space-y-4">
+        <CardHeader
+          category="ON-CHAIN SETTLEMENT & REJECTION PROOFS"
+          title="Verifiable Solana Devnet Transaction Ledger"
+          subtitle="Direct links to confirmed Devnet instruction executions demonstrating initialization, postcondition rejection, and adapted settlement."
+          action={<Badge variant="neutral">4 Canonical Signatures</Badge>}
+        />
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 font-mono text-xs">
+          {devnetLedger.map((item) => (
+            <div
+              key={item.instruction}
+              className="p-3.5 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border flex flex-col justify-between gap-2"
+            >
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <span className="text-[10px] font-bold text-purple-300 uppercase">
+                    {item.instruction}
+                  </span>
+                  <Badge
+                    variant={
+                      item.verdict === 'BLOCKED_ON_CHAIN'
+                        ? 'danger'
+                        : item.verdict === 'SETTLED'
+                        ? 'success'
+                        : 'info'
+                    }
+                  >
+                    {item.verdict}
+                  </Badge>
+                </div>
+                <p className="text-xs font-sans text-white font-medium">{item.label}</p>
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-sentinel-border/60 text-[11px]">
+                <a
+                  href={getExplorerTxUrl(item.tx)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-blue-400 hover:text-blue-300 hover:underline inline-flex items-center gap-1 tabular-nums"
+                >
+                  <span>{formatAddress(item.tx, 6)}</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(item.tx, item.instruction)}
+                  className="text-sentinel-textSubtle hover:text-white cursor-pointer"
+                  title="Copy transaction signature"
+                >
+                  {copiedKey === item.instruction ? (
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {/* 4. Adversarial Cases: 11 Attack Vectors + 1 Compliant Adaptation */}
+      <Card padding="md" className="space-y-4 font-mono text-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-sentinel-border">
           <div>
             <div className="flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 text-rose-400" />
               <span className="font-extrabold text-white uppercase tracking-wider text-xs">
-                Adversarial Proof Suite (Negative Proofs)
+                Adversarial Proof Suite (11 Negative Vectors + 1 Compliant Control)
               </span>
             </div>
             <p className="text-[11px] text-sentinel-textMuted font-sans mt-0.5">
-              11 attack vectors tested against the live Anchor program and invariant evaluator.
+              Click any vector to inspect the exact malicious payload, Anchor invariant defense, and deterministic SHA-256 preimage.
             </p>
           </div>
 
           {/* Filter Pills */}
-          <div className="flex items-center gap-1 bg-sentinel-surfaceMuted p-1 rounded-lg border border-sentinel-border text-xs">
+          <div className="flex flex-wrap items-center gap-1 bg-sentinel-surfaceMuted p-1 rounded-lg border border-sentinel-border text-xs">
             {(['ALL', 'INVARIANT', 'PDA_SECURITY', 'ORACLE_MARKET'] as const).map((cat) => (
               <button
                 key={cat}
+                type="button"
                 onClick={() => setSelectedFilter(cat)}
                 className={`px-2.5 py-1 rounded text-[11px] font-semibold transition cursor-pointer sentinel-interactive ${
                   selectedFilter === cat
@@ -352,7 +481,7 @@ export const ProofVerificationView: React.FC = () => {
                     : 'text-sentinel-textMuted hover:text-white'
                 }`}
               >
-                {cat === 'ALL' ? 'All (12)' : cat === 'INVARIANT' ? 'Invariants' : cat === 'PDA_SECURITY' ? 'PDAs' : 'Oracle & Venue'}
+                {cat === 'ALL' ? 'All (12)' : cat === 'INVARIANT' ? 'Invariants (7)' : cat === 'PDA_SECURITY' ? 'PDA Security (3)' : 'Oracle & Venue (2)'}
               </button>
             ))}
           </div>
@@ -389,19 +518,13 @@ export const ProofVerificationView: React.FC = () => {
                   </div>
 
                   <div className="flex items-center gap-2.5 self-end sm:self-auto">
-                    <span className="text-[10px] text-sentinel-textSubtle font-sans hidden md:inline">
+                    <span className="text-[10px] text-sentinel-textSubtle font-mono hidden md:inline">
                       {v.errorCode}
                     </span>
 
-                    <span
-                      className={`px-2.5 py-0.5 rounded text-xs font-bold ${
-                        isApproved
-                          ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                          : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
-                      }`}
-                    >
+                    <Badge variant={isApproved ? 'success' : 'danger'}>
                       {v.status} ✓
-                    </span>
+                    </Badge>
 
                     {isExpanded ? (
                       <ChevronUp className="w-4 h-4 text-sentinel-textSubtle" />
@@ -413,7 +536,7 @@ export const ProofVerificationView: React.FC = () => {
 
                 {/* Expanded Forensic Detail */}
                 {isExpanded && (
-                  <div className="px-4 pb-4 pt-1 bg-sentinel-surfaceMuted/50 border-t border-sentinel-border/40 space-y-3 animate-in fade-in duration-150">
+                  <div className="px-4 pb-4 pt-2 bg-sentinel-surfaceMuted/50 border-t border-sentinel-border/40 space-y-3 animate-in fade-in duration-150">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px]">
                       {/* Attack Payload */}
                       <div className="bg-slate-950/70 p-3 rounded-lg border border-slate-800 space-y-1">
@@ -436,13 +559,14 @@ export const ProofVerificationView: React.FC = () => {
                     <div className="p-3 rounded-lg bg-black/50 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[10px]">
                       <div className="flex items-center gap-2 truncate">
                         <span className="text-sentinel-textSubtle">PROVN SHA-256:</span>
-                        <span className="text-purple-300 font-mono truncate">{v.sha256Hash}</span>
+                        <span className="text-purple-300 font-mono truncate tabular-nums">{v.sha256Hash}</span>
                         <button
+                          type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             copyToClipboard(v.sha256Hash, v.id);
                           }}
-                          className="text-slate-400 hover:text-white"
+                          className="text-slate-400 hover:text-white cursor-pointer"
                           title="Copy SHA-256 preimage"
                         >
                           {copiedKey === v.id ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
@@ -468,7 +592,7 @@ export const ProofVerificationView: React.FC = () => {
             );
           })}
         </div>
-      </div>
+      </Card>
     </div>
   );
 };
