@@ -38,7 +38,7 @@ interface AgentViewProps {
   isRunningTrade: boolean;
   adaptationResult?: AutonomousAdaptationResult | null;
   loopState?: AgentLoopState | null;
-  onRunAdaptation?: () => void;
+  onRunAdaptation?: (llmProvider?: 'DEMO' | 'OPENAI') => void;
   isRunningAdaptation?: boolean;
 }
 
@@ -58,6 +58,8 @@ export const AgentView: React.FC<AgentViewProps> = ({
 }) => {
   const [internalVenue, setInternalVenue] = useState<ExecutionVenueType>('METEORA_DBC');
   const activeVenue = externalVenue ?? internalVenue;
+  const [llmProvider, setLlmProvider] = useState<'DEMO' | 'OPENAI'>('DEMO');
+  const [isLlmConnectorOpen, setIsLlmConnectorOpen] = useState(true);
 
   const handleVenueChange = (venue: ExecutionVenueType) => {
     setInternalVenue(venue);
@@ -203,6 +205,27 @@ export const AgentView: React.FC<AgentViewProps> = ({
         subtitle="Sentinel Robo-01 proposes trades, checks the 4 on-chain execution invariants, resizes oversized orders, and settles."
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1 bg-sentinel-surface p-1 rounded-lg border border-sentinel-border text-xs font-mono">
+              {(['DEMO', 'OPENAI'] as const).map((prov) => (
+                <button
+                  key={prov}
+                  type="button"
+                  onClick={() => setLlmProvider(prov)}
+                  className={`px-2.5 py-1 rounded-md transition font-semibold cursor-pointer ${
+                    llmProvider === prov
+                      ? 'bg-sentinel-surfaceElevated text-white border border-sentinel-border shadow-xs'
+                      : 'text-sentinel-textMuted hover:text-white'
+                  }`}
+                  title={
+                    prov === 'DEMO'
+                      ? 'Deterministic Demo LLM Provider'
+                      : 'OpenAI GPT-4o Tool Dispatcher (with deterministic fallback)'
+                  }
+                >
+                  {prov === 'DEMO' ? 'LLM: Demo' : 'LLM: OpenAI'}
+                </button>
+              ))}
+            </div>
             <button
               type="button"
               onClick={() => setIsManualOpen(!isManualOpen)}
@@ -212,7 +235,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
             </button>
             <button
               type="button"
-              onClick={onRunAdaptation}
+              onClick={() => onRunAdaptation?.(llmProvider)}
               disabled={isRunningAdaptation}
               className="sentinel-btn-physical px-4 py-2 rounded-lg bg-sentinel-accent hover:bg-sentinel-accentHover text-white text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 sentinel-interactive sentinel-focus"
             >
@@ -389,6 +412,141 @@ export const AgentView: React.FC<AgentViewProps> = ({
                 Receipt SHA-256: <span className="text-white">0x{evidenceHash.slice(0, 12)}…{evidenceHash.slice(-6)}</span>
               </div>
             )}
+          </div>
+        )}
+      </Card>
+
+      {/* ========================================================================= */}
+      {/* LLM INTELLIGENCE CONNECTOR & SANDBOXED TOOL DISPATCHER                    */}
+      {/* ========================================================================= */}
+      <Card padding="none" className="overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setIsLlmConnectorOpen(!isLlmConnectorOpen)}
+          className="w-full p-4 flex items-center justify-between text-left hover:bg-sentinel-surfaceMuted transition cursor-pointer"
+        >
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="w-2 h-2 rounded-full bg-blue-400" />
+            <span className="text-xs font-semibold text-white">
+              LLM Intelligence Connector &amp; Tool Dispatcher
+            </span>
+            <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-sentinel-surfaceMuted border border-sentinel-border text-blue-300">
+              {llmProvider === 'OPENAI'
+                ? 'OpenAI GPT-4o (Tool Dispatcher)'
+                : 'DemoProvider (Deterministic)'}
+            </span>
+            <span className="text-[11px] font-mono text-sentinel-textSubtle hidden sm:inline">
+              LLM → TradeIntentDraftSchema (Zod) → Sentinel Policy Guard
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-sentinel-textSubtle">
+            <span>{isLlmConnectorOpen ? 'Hide Connector' : 'Inspect Connector'}</span>
+            {isLlmConnectorOpen ? (
+              <ChevronUp className="w-4 h-4" />
+            ) : (
+              <ChevronDown className="w-4 h-4" />
+            )}
+          </div>
+        </button>
+
+        {isLlmConnectorOpen && (
+          <div className="p-5 border-t border-sentinel-border bg-sentinel-surfaceMuted/35 space-y-4 text-xs">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+              {/* Left: Provider & Authority Boundary */}
+              <div className="lg:col-span-5 space-y-3">
+                <div>
+                  <span className="text-[11px] font-mono uppercase tracking-wider text-sentinel-textSubtle block">
+                    Active Intelligence Provider
+                  </span>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    {(['DEMO', 'OPENAI'] as const).map((prov) => (
+                      <button
+                        key={prov}
+                        type="button"
+                        onClick={() => setLlmProvider(prov)}
+                        className={`px-3 py-1.5 rounded-lg border text-xs font-mono font-semibold cursor-pointer transition ${
+                          llmProvider === prov
+                            ? 'bg-sentinel-surfaceElevated border-sentinel-accent text-white'
+                            : 'bg-sentinel-surface border-sentinel-border text-sentinel-textMuted hover:text-white'
+                        }`}
+                      >
+                        {prov === 'DEMO'
+                          ? 'DemoProvider (Deterministic)'
+                          : 'OpenAI GPT-4o (Function Calling)'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <p className="text-xs text-sentinel-textMuted leading-relaxed">
+                  The LLM has <strong className="text-white">zero signing authority</strong> and{' '}
+                  <strong className="text-white">zero direct RPC access</strong>. It can only invoke 6 sandboxed read/simulation tools and emit an untrusted{' '}
+                  <span className="font-mono text-white">TradeIntentDraft</span> validated by Zod before Sentinel evaluates policy guarantees.
+                </p>
+
+                {/* 6 Sandboxed Agent Tools */}
+                <div>
+                  <span className="text-[11px] font-mono uppercase tracking-wider text-sentinel-textSubtle block mb-1.5">
+                    6 Sandboxed Agent Tools (Read &amp; Pre-Flight Only)
+                  </span>
+                  <div className="flex flex-wrap gap-1.5 font-mono text-[11px]">
+                    {[
+                      'getPortfolio()',
+                      'getPolicy()',
+                      'getAssetPrice()',
+                      'getMarketHealth()',
+                      'simulateTrade()',
+                      'getLastRejection()',
+                    ].map((toolName) => (
+                      <span
+                        key={toolName}
+                        className="px-2 py-0.5 rounded bg-sentinel-surface border border-sentinel-border text-sentinel-textMuted"
+                      >
+                        {toolName}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right: Structured TradeIntentDraft JSON Output */}
+              <div className="lg:col-span-7">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] font-mono uppercase tracking-wider text-sentinel-textSubtle">
+                    Validated TradeIntentDraft Payload (Zod Schema)
+                  </span>
+                  <span className="text-[10px] font-mono text-emerald-400">
+                    ✓ TradeIntentDraftSchema Validated
+                  </span>
+                </div>
+                <pre className="p-3.5 rounded-xl bg-sentinel-surface border border-sentinel-border font-mono text-[11px] text-sentinel-text overflow-x-auto leading-relaxed">
+                  {JSON.stringify(
+                    {
+                      provider: llmProvider === 'OPENAI' ? 'OpenAIProvider (gpt-4o)' : 'DemoProvider (Deterministic)',
+                      initialDraft: {
+                        action: 'BUY',
+                        asset: targetSymbol,
+                        amountUsd: initialAmountUsd,
+                        rationale:
+                          initialDecision?.intent.strategyRationale ||
+                          `Increase ${targetSymbol} position to capture momentum signal`,
+                      },
+                      sentinelVerdict: breachedRuleNames.length > 0 ? 'REJECTED_BY_POLICY_GUARD' : 'APPROVED',
+                      adaptedDraftAfterRejection: {
+                        action: 'BUY',
+                        asset: targetSymbol,
+                        amountUsd: adaptedAmountUsd,
+                        rationale:
+                          settledDecision?.intent.strategyRationale ||
+                          `Resized via calculate_compliant_headroom to ${formatCurrency(adaptedAmountUsd)} (${targetSymbol} ${adaptedAssetPct.toFixed(1)}% ≤ ${maxSingleAssetPct.toFixed(0)}%, Cash ${adaptedCashPct.toFixed(1)}% ≥ ${minCashReservePct.toFixed(0)}%)`,
+                      },
+                    },
+                    null,
+                    2
+                  )}
+                </pre>
+              </div>
+            </div>
           </div>
         )}
       </Card>

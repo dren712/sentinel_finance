@@ -87,7 +87,7 @@ export default function Home() {
     fetch(`/api/policy/${encodeURIComponent(targetWallet)}`)
       .then((res) => res.json())
       .then((data) => {
-        const hydratedPolicy = data?.rawPolicy || data?.policy;
+        const hydratedPolicy = data?.policy;
         if (data?.success && hydratedPolicy) {
           setPolicy((prev) => ({
             ...prev,
@@ -520,7 +520,7 @@ export default function Home() {
   };
 
   // Canonical single-authority 10-stage autonomous adaptation cycle via POST /api/agent/run
-  const handleRunAdaptation = async () => {
+  const handleRunAdaptation = async (llmProvider: 'DEMO' | 'OPENAI' = 'DEMO') => {
     setIsRunningAdaptation(true);
     const targetWallet =
       connected && publicKey ? publicKey.toBase58() : portfolio.owner || 'default';
@@ -532,6 +532,7 @@ export default function Home() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             wallet: targetWallet,
+            llmProvider,
             targetAsset: 'NVDAx',
             proposedAmountUsd: 15_000,
           }),

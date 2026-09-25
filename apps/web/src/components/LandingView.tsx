@@ -97,31 +97,38 @@ export const LandingView: React.FC<LandingViewProps> = ({
       {/* 1. HERO + SINGLE INTERACTIVE GUARANTEE SIMULATOR                          */}
       {/* ========================================================================= */}
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-start">
-        {/* Left Column: Quiet Robo-01 Signature + Human Financial Thesis */}
-        <div className="lg:col-span-5 space-y-6 pt-2">
-          <div className="flex items-center gap-4">
+        {/* Left Column: Signature Robo-01 Visual Centerpiece + Human Financial Thesis */}
+        <div className="lg:col-span-5 space-y-6 pt-1">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-5">
             <button
               type="button"
               onClick={onRunDemo}
-              title="Run 90-second autonomous demo"
-              className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl bg-sentinel-surface border border-sentinel-border flex items-center justify-center shrink-0 cursor-pointer sentinel-focus"
+              title="Click Robo-01 to launch guided autonomous demo"
+              className="relative w-40 h-40 sm:w-48 sm:h-48 rounded-2xl bg-sentinel-surface/80 border border-sentinel-border flex items-center justify-center shrink-0 cursor-pointer group hover:border-sentinel-borderStrong transition sentinel-focus shadow-xl"
             >
               <Image
                 src="/Sentinel_Logo.png"
-                alt="Sentinel Robo-01"
-                width={64}
-                height={64}
+                alt="Sentinel Robo-01 Autonomous Portfolio Agent"
+                width={184}
+                height={184}
                 priority
-                className="object-contain sentinel-robo-drift select-none"
+                className="w-36 h-36 sm:w-44 sm:h-44 object-contain sentinel-robo-drift select-none drop-shadow-[0_14px_28px_rgba(0,0,0,0.65)]"
               />
+              <span className="absolute bottom-2.5 right-2.5 text-[10px] font-mono px-2 py-0.5 rounded bg-sentinel-surfaceElevated/90 border border-sentinel-border text-sentinel-textMuted group-hover:text-white transition">
+                ROBO-01
+              </span>
             </button>
-            <div>
-              <div className="text-xs font-medium text-sentinel-textMuted">
-                Sentinel Robo-01 · Solana Portfolio Guard
+            <div className="space-y-1.5">
+              <div className="inline-flex items-center gap-1.5 text-xs font-mono text-emerald-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                <span>Sentinel Robo-01</span>
               </div>
-              <div className="text-xs text-sentinel-textSubtle mt-0.5">
-                Proposal authority only · Policy rules hold veto power
+              <div className="text-sm font-semibold text-white">
+                Solana Autonomous Portfolio Guard
               </div>
+              <p className="text-xs text-sentinel-textMuted leading-relaxed">
+                Holds proposal authority only. On-chain policy guarantees hold veto power over every trade.
+              </p>
             </div>
           </div>
 

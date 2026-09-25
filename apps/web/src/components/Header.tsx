@@ -79,28 +79,19 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           type="button"
           onClick={onNavigateToOverview}
-          className="flex items-center gap-3 text-left cursor-pointer group focus:outline-none shrink-0"
+          className="flex items-center gap-2.5 text-left cursor-pointer group focus:outline-none shrink-0"
         >
-          <div className="relative w-9 h-9 rounded-lg bg-sentinel-surfaceElevated border border-sentinel-border flex items-center justify-center shrink-0 p-1 group-hover:border-blue-500/40 transition-all shadow-xs">
-            <Image
-              src="/Sentinel_Logo.png"
-              alt="Sentinel Logo"
-              width={28}
-              height={28}
-              className="object-contain"
-            />
+          <div className="relative w-8 h-8 rounded-lg bg-sentinel-surfaceElevated border border-sentinel-border flex items-center justify-center shrink-0 group-hover:border-blue-500/40 transition-all">
+            <span className="font-mono font-bold text-sm text-blue-400">S</span>
           </div>
           <div>
             <div className="flex items-center gap-2">
               <span className="font-bold text-sm sm:text-base tracking-wider text-white group-hover:text-blue-300 transition-colors">
                 SENTINEL
               </span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-sentinel-surfaceElevated text-sentinel-textMuted font-medium border border-sentinel-border font-mono tracking-tight">
-                ROBO-01
-              </span>
             </div>
             <p className="text-[11px] text-sentinel-textSubtle hidden lg:block tracking-tight">
-              Outcome-Bounded Autonomous Portfolios on Solana
+              Outcome-Bounded Portfolios on Solana
             </p>
           </div>
         </button>
