@@ -36,6 +36,9 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { Badge } from './ui/Badge';
+import { Card, CardHeader } from './ui/Card';
+import { PageHeader } from './ui/PageHeader';
+import { SourceBadge } from './ui/SourceBadge';
 import { FlagshipEnforcementCard } from './ui/FlagshipEnforcementCard';
 import { SettlementGateCard } from './ui/SettlementGateCard';
 import { formatCurrency, formatPercent, formatAddress } from '@/lib/formatters';
@@ -179,90 +182,141 @@ export const AgentView: React.FC<AgentViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* 1. AGENT IDENTITY CARD (INSTITUTIONAL HEADER) */}
-      <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-5 sm:p-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-sentinel-border">
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-xl bg-blue-600/15 border border-blue-500/30 flex items-center justify-center text-blue-400">
-              <Bot className="w-6 h-6" />
+      {/* 1. PAGE HEADER & OPERATOR TELEMETRY STRIP */}
+      <PageHeader
+        category="AUTONOMOUS OPERATOR CONSOLE"
+        title="Sentinel Robo-01"
+        badge={
+          <Badge variant="success" size="sm" dot dotPulse>
+            ACTIVE
+          </Badge>
+        }
+        subtitle="Bounded autonomous operator executing real-time market observation, pre-flight invariant checks, and automatic headroom adaptation."
+        actions={
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Ed25519 Authority Pill */}
+            <div className="flex items-center gap-2 font-mono text-xs bg-sentinel-surface px-3 py-2 rounded-lg border border-sentinel-border">
+              <span className="text-sentinel-textSubtle">Authority:</span>
+              <span className="text-white font-semibold">
+                {formatAddress(agent.wallet.getPublicKeyString(), 4)}
+              </span>
+              <button
+                type="button"
+                onClick={copyAuthority}
+                className="p-0.5 hover:text-white text-sentinel-textSubtle transition cursor-pointer sentinel-interactive sentinel-focus rounded"
+                title="Copy Ed25519 Authority"
+                aria-label="Copy Ed25519 Authority"
+              >
+                {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              </button>
+              <a
+                href={getExplorerAddressUrl(agent.wallet.getPublicKeyString())}
+                target="_blank"
+                rel="noreferrer"
+                className="text-blue-400 hover:underline flex items-center gap-0.5 sentinel-interactive sentinel-focus rounded p-0.5"
+              >
+                <ExternalLink className="w-3 h-3" />
+              </a>
             </div>
-            <div>
-              <div className="flex items-center gap-2.5">
-                <h2 className="text-xl font-black tracking-tight text-white uppercase">
-                  SENTINEL ROBO-01
-                </h2>
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  ACTIVE
-                </span>
-              </div>
-              <p className="text-xs text-sentinel-textMuted mt-0.5 font-mono">
-                Strategy: <span className="text-white font-semibold">Balanced Growth</span> · Risk posture: <span className="text-white font-semibold">Moderate</span>
-              </p>
-            </div>
-          </div>
 
-          {/* Quick Authority Callout */}
-          <div className="flex items-center gap-2 font-mono text-xs self-start md:self-auto bg-sentinel-surfaceMuted px-3 py-1.5 rounded-lg border border-sentinel-border">
-            <span className="text-sentinel-textSubtle">Authority:</span>
-            <span className="text-white font-semibold">
-              {formatAddress(agent.wallet.getPublicKeyString(), 4)}
-            </span>
-            <button
-              onClick={copyAuthority}
-              className="p-1 hover:text-white text-sentinel-textSubtle transition cursor-pointer sentinel-interactive sentinel-focus rounded"
-              title="Copy Ed25519 Authority"
-              aria-label="Copy Ed25519 Authority"
-            >
-              {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            </button>
-            <a
-              href={getExplorerAddressUrl(agent.wallet.getPublicKeyString())}
-              target="_blank"
-              rel="noreferrer"
-              className="text-blue-400 hover:underline flex items-center gap-0.5 sentinel-interactive sentinel-focus rounded p-0.5"
-            >
-              <ExternalLink className="w-3 h-3" />
-            </a>
+            {/* Run Adaptation Button */}
+            {onRunAdaptation && (
+              <button
+                type="button"
+                onClick={onRunAdaptation}
+                disabled={isRunningAdaptation}
+                className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-xs disabled:opacity-50 transition cursor-pointer sentinel-interactive sentinel-focus"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isRunningAdaptation ? 'animate-spin' : ''}`} />
+                <span>{isRunningAdaptation ? 'Adapting Proposal...' : 'Run Autonomous Adaptation'}</span>
+              </button>
+            )}
           </div>
+        }
+      />
+
+      {/* 4-Pillar Operator Telemetry Strip */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs font-mono">
+        <div className="px-3.5 py-2.5 rounded-xl bg-sentinel-surface border border-sentinel-border flex items-center justify-between">
+          <span className="text-sentinel-textSubtle text-[11px]">MANDATE</span>
+          <span className="text-white font-semibold">Balanced Growth</span>
         </div>
-
-        {/* 4 Status Indicators - Clean Architectural Row */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 pt-4 text-xs font-mono">
-          <div className="px-3 py-2 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border flex items-center justify-between">
-            <span className="text-sentinel-textSubtle text-[11px]">MANDATE</span>
-            <span className="text-white font-semibold">Balanced Growth</span>
-          </div>
-          <div className="px-3 py-2 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border flex items-center justify-between">
-            <span className="text-sentinel-textSubtle text-[11px]">CADENCE</span>
-            <span className="text-white font-semibold">Block-by-Block</span>
-          </div>
-          <div className="px-3 py-2 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border flex items-center justify-between">
-            <span className="text-sentinel-textSubtle text-[11px]">ENFORCEMENT</span>
-            <span className="text-emerald-400 font-semibold">On-Chain Sentinel PDA</span>
-          </div>
-          <div className="px-3 py-2 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border flex items-center justify-between">
-            <span className="text-sentinel-textSubtle text-[11px]">VENUE</span>
-            <span className="text-blue-400 font-semibold truncate ml-2">
-              {activeVenue === 'METEORA_DBC' ? 'Meteora DBC' : activeVenue === 'PRESTOCKS_SECONDARY' ? 'PreStocks' : 'Simulator'}
-            </span>
-          </div>
+        <div className="px-3.5 py-2.5 rounded-xl bg-sentinel-surface border border-sentinel-border flex items-center justify-between">
+          <span className="text-sentinel-textSubtle text-[11px]">CADENCE</span>
+          <span className="text-white font-semibold">Block-by-Block</span>
+        </div>
+        <div className="px-3.5 py-2.5 rounded-xl bg-sentinel-surface border border-sentinel-border flex items-center justify-between">
+          <span className="text-sentinel-textSubtle text-[11px]">ENFORCEMENT</span>
+          <span className="text-emerald-400 font-semibold">On-Chain Sentinel PDA</span>
+        </div>
+        <div className="px-3.5 py-2.5 rounded-xl bg-sentinel-surface border border-sentinel-border flex items-center justify-between">
+          <span className="text-sentinel-textSubtle text-[11px]">ACTIVE VENUE</span>
+          <span className="text-blue-400 font-semibold truncate ml-2">
+            {activeVenue === 'METEORA_DBC' ? 'Meteora DBC' : activeVenue === 'PRESTOCKS_SECONDARY' ? 'PreStocks' : 'Simulator'}
+          </span>
         </div>
       </div>
 
-      {/* 2. CURRENT REASONING BOX (CLEAN INSTITUTIONAL STYLING) */}
-      <div className="bg-sentinel-surface border border-blue-500/30 rounded-xl p-5 sm:p-6 space-y-4 shadow-sm">
-        <div className="flex items-center justify-between pb-3 border-b border-sentinel-border">
-          <div className="flex items-center gap-2">
-            <Zap className="w-4 h-4 text-blue-400" />
-            <h3 className="text-xs font-bold text-white uppercase tracking-wider">
-              Current Reasoning &amp; Proposed Action
-            </h3>
+      {/* 2. AUTONOMOUS DECISION & ADAPTATION LOOP CARD */}
+      <Card variant="default" padding="md">
+        <CardHeader
+          category="AUTONOMOUS DECISION & ADAPTATION LOOP"
+          title="10-Stage Invariant Gate & Headroom Adaptation"
+          subtitle="When an autonomous proposal breaches policy bounds, Sentinel blocks execution on-chain and computes exact compliant headroom."
+          badge={<SourceBadge source="SOLANA" size="xs" />}
+        />
+
+        {/* 10-Stage Stepper */}
+        {loopState && (
+          <div className="mb-5 grid grid-cols-5 sm:grid-cols-10 gap-1">
+            {[
+              { label: 'OBSERVE', idx: 1 },
+              { label: 'FORMULATE', idx: 2 },
+              { label: 'PROPOSE', idx: 3 },
+              { label: 'CHECK', idx: 4 },
+              { label: 'REJECTED', idx: 5 },
+              { label: 'READ', idx: 6 },
+              { label: 'ADAPT', idx: 7 },
+              { label: 'REPROPOSE', idx: 8 },
+              { label: 'RECHECK', idx: 9 },
+              { label: 'SETTLE', idx: 10 },
+            ].map((step) => {
+              const isActive = loopState.stageIndex === step.idx;
+              const isComplete = loopState.stageIndex > step.idx;
+              return (
+                <div
+                  key={step.idx}
+                  className={`text-center py-1 px-0.5 rounded text-[9px] font-bold font-mono transition-all ${
+                    isActive
+                      ? 'bg-blue-600/40 text-blue-200 border border-blue-500/60 ring-1 ring-blue-400/30'
+                      : isComplete
+                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                      : 'bg-slate-900/80 text-slate-500 border border-slate-800'
+                  }`}
+                >
+                  {isComplete && <span className="mr-0.5">✓</span>}
+                  {step.label}
+                </div>
+              );
+            })}
           </div>
-          <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-blue-500/10 text-blue-400 border border-blue-500/20 font-semibold">
-            Real-Time Observation
-          </span>
-        </div>
+        )}
+
+        <FlagshipEnforcementCard
+          latestEvidence={adaptationResult?.step2SettledDecision?.evidenceRecord || null}
+          onRunAdaptation={onRunAdaptation}
+          isRunningAdaptation={isRunningAdaptation}
+        />
+      </Card>
+
+      {/* 3. CURRENT REASONING & COMPLIANT OPPORTUNITY */}
+      <Card variant="default" padding="md">
+        <CardHeader
+          category="REAL-TIME OBSERVATION"
+          title="Current Reasoning & Proposed Action"
+          subtitle="Live evaluation of compliant opportunities within active policy headroom."
+          badge={<SourceBadge source="PYTH" size="xs" />}
+        />
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Section 1: MARKET OBSERVATION */}
@@ -311,25 +365,23 @@ export const AgentView: React.FC<AgentViewProps> = ({
             <button
               type="button"
               onClick={() => setIsReviewOpen(true)}
-              className="w-full py-2 px-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition flex items-center justify-center gap-1.5 shadow-md cursor-pointer"
+              className="w-full py-2 px-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
             >
               <span>Review action</span>
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* ACTION REVIEW BOTTOM SHEET / MODAL */}
       {isReviewOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-          {/* Backdrop */}
           <div
             className="fixed inset-0 bg-black/65 backdrop-blur-sm transition-opacity"
             onClick={() => setIsReviewOpen(false)}
           />
 
-          {/* Modal Panel (Bottom-sheet on mobile, centered modal on desktop) */}
           <div className="relative w-full max-w-lg bg-sentinel-surface border border-sentinel-border rounded-t-2xl sm:rounded-2xl shadow-2xl p-6 z-10 space-y-5 animate-in fade-in slide-in-from-bottom-6">
             <div className="flex items-center justify-between pb-3 border-b border-sentinel-border">
               <div className="flex items-center gap-2.5">
@@ -344,7 +396,6 @@ export const AgentView: React.FC<AgentViewProps> = ({
               </button>
             </div>
 
-            {/* Order Summary */}
             <div className="bg-sentinel-surfaceMuted p-4 rounded-xl border border-sentinel-border space-y-2 text-xs font-mono">
               <div className="text-[10px] text-sentinel-textSubtle uppercase tracking-wider font-semibold">
                 ORDER SUMMARY
@@ -363,7 +414,6 @@ export const AgentView: React.FC<AgentViewProps> = ({
               </div>
             </div>
 
-            {/* Projected Allocation */}
             <div className="bg-sentinel-surfaceMuted p-4 rounded-xl border border-sentinel-border space-y-2 text-xs font-mono">
               <div className="text-[10px] text-sentinel-textSubtle uppercase tracking-wider font-semibold">
                 PROJECTED ALLOCATION
@@ -378,7 +428,6 @@ export const AgentView: React.FC<AgentViewProps> = ({
               </div>
             </div>
 
-            {/* 4 Invariant Checklist */}
             <div className="space-y-2 text-xs font-mono">
               <span className="text-[10px] text-sentinel-textSubtle uppercase tracking-wider font-semibold block">
                 INVARIANT VERIFICATION CHECKLIST
@@ -411,7 +460,6 @@ export const AgentView: React.FC<AgentViewProps> = ({
               </div>
             </div>
 
-            {/* Action Buttons */}
             <div className="pt-3 border-t border-sentinel-border flex items-center justify-between gap-3">
               <button
                 type="button"
@@ -425,7 +473,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
                 type="button"
                 onClick={handleApproveReviewedAction}
                 disabled={reviewedActionSettled}
-                className="flex-1 py-2.5 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 cursor-pointer disabled:opacity-50"
+                className="flex-1 py-2.5 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-xs cursor-pointer disabled:opacity-50"
               >
                 {reviewedActionSettled ? (
                   <>
@@ -444,104 +492,14 @@ export const AgentView: React.FC<AgentViewProps> = ({
         </div>
       )}
 
-      {/* 3. PHASE 8: AUTONOMOUS DECISION & ADAPTATION HERO CARD */}
-      <div className="bg-sentinel-surface border border-sentinel-border rounded-xl overflow-hidden shadow-sm">
-        {/* Header */}
-        <div className="p-5 sm:p-6 border-b border-sentinel-border">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center">
-                <Target className="w-6 h-6 text-blue-400" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2.5">
-                  <h3 className="text-base font-black tracking-wider text-white uppercase">
-                    SENTINEL ROBO
-                  </h3>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                    ● Autonomous
-                  </span>
-                </div>
-                <p className="text-xs text-blue-300/70 mt-0.5 font-mono">
-                  Strategy: <span className="text-blue-200 font-semibold">Balanced Growth</span>
-                </p>
-              </div>
-            </div>
-
-            {/* Run Adaptation Button */}
-            {onRunAdaptation && (
-              <button
-                type="button"
-                onClick={onRunAdaptation}
-                disabled={isRunningAdaptation}
-                className="px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-500/25 disabled:opacity-50 transition cursor-pointer self-start sm:self-auto"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isRunningAdaptation ? 'animate-spin' : ''}`} />
-                <span>{isRunningAdaptation ? 'Adapting Proposal...' : 'Run Autonomous Adaptation'}</span>
-              </button>
-            )}
-          </div>
-
-          {/* 10-Stage Stepper */}
-          {loopState && (
-            <div className="mt-4 grid grid-cols-5 sm:grid-cols-10 gap-1">
-              {[
-                { label: 'OBSERVE', idx: 1 },
-                { label: 'FORMULATE', idx: 2 },
-                { label: 'PROPOSE', idx: 3 },
-                { label: 'CHECK', idx: 4 },
-                { label: 'REJECTED', idx: 5 },
-                { label: 'READ', idx: 6 },
-                { label: 'ADAPT', idx: 7 },
-                { label: 'REPROPOSE', idx: 8 },
-                { label: 'RECHECK', idx: 9 },
-                { label: 'SETTLE', idx: 10 },
-              ].map((step) => {
-                const isActive = loopState.stageIndex === step.idx;
-                const isComplete = loopState.stageIndex > step.idx;
-                return (
-                  <div
-                    key={step.idx}
-                    className={`text-center py-1 px-0.5 rounded text-[9px] font-bold font-mono transition-all ${
-                      isActive
-                        ? 'bg-blue-600/40 text-blue-200 border border-blue-500/60 ring-1 ring-blue-400/30'
-                        : isComplete
-                        ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                        : 'bg-slate-900/80 text-slate-500 border border-slate-800'
-                    }`}
-                  >
-                    {isComplete && <span className="mr-0.5">✓</span>}
-                    {step.label}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Current Decision & Immaculate P18/P19 Enforcement Screen */}
-        <div className="p-5 sm:p-6 space-y-5">
-          <FlagshipEnforcementCard
-            latestEvidence={adaptationResult?.step2SettledDecision?.evidenceRecord || null}
-            onRunAdaptation={onRunAdaptation}
-            isRunningAdaptation={isRunningAdaptation}
-          />
-        </div>
-      </div>
-
       {/* 4. EXECUTION VENUE SELECTOR (HIGH-DENSITY COMPACT CARDS) */}
-      <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-4 sm:p-5 space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-sentinel-border pb-2.5">
-          <div className="flex items-center gap-2">
-            <Layers className="w-4 h-4 text-blue-400" />
-            <h3 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider">
-              Polymorphic Execution Venues
-            </h3>
-          </div>
-          <span className="px-2 py-0.5 rounded bg-blue-500/15 text-blue-300 text-[11px] font-mono font-bold border border-blue-500/30 self-start sm:self-auto">
-            Active: {activeVenue}
-          </span>
-        </div>
+      <Card variant="default" padding="md">
+        <CardHeader
+          category="SETTLEMENT ROUTING"
+          title="Polymorphic Execution Venues"
+          subtitle="Select the liquidity venue for autonomous order routing and pre-trade reserve checks."
+          badge={<Badge variant="accent" size="xs">ACTIVE: {activeVenue}</Badge>}
+        />
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
           {/* Venue 1: Meteora DBC */}
@@ -560,9 +518,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
                   <TrendingUp className="w-3.5 h-3.5 text-blue-400" />
                   Meteora DBC
                 </span>
-                <span className="px-1.5 py-0.2 rounded bg-blue-500/20 text-blue-400 font-mono text-[9px] font-bold">
-                  PUBLIC
-                </span>
+                <SourceBadge source="METEORA" size="xs" />
               </div>
               <p className="text-[11px] text-sentinel-textMuted line-clamp-1">
                 Dynamic bonding curve AMM for tokenized stocks (NVDAx, AAPLx, SPYx).
@@ -590,9 +546,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
                   <Building2 className="w-3.5 h-3.5 text-purple-400" />
                   PreStocks Vault
                 </span>
-                <span className="px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-400 font-mono text-[9px] font-bold">
-                  PRE-IPO
-                </span>
+                <SourceBadge source="PRESTOCKS" size="xs" />
               </div>
               <p className="text-[11px] text-sentinel-textMuted line-clamp-1">
                 Secondary order matching vault for private tech giants (SpaceX, OpenAI, Stripe).
@@ -620,9 +574,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
                   <Cpu className="w-3.5 h-3.5 text-amber-400" />
                   Local Simulator
                 </span>
-                <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-400 font-mono text-[9px] font-bold">
-                  SIMULATION
-                </span>
+                <SourceBadge source="SIMULATION" size="xs" />
               </div>
               <p className="text-[11px] text-sentinel-textMuted line-clamp-1">
                 Deterministic in-memory execution harness for air-gapped testing.
@@ -634,7 +586,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
             </div>
           </button>
         </div>
-      </div>
+      </Card>
 
       {/* 5. MANUAL TRADE PROPOSER & PRE-FLIGHT VERIFIER ENGINE (COLLAPSIBLE ACCORDION) */}
       <div className="bg-sentinel-surface border border-sentinel-border rounded-xl overflow-hidden shadow-xs">
