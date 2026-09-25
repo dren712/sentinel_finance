@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { EvidenceRecord } from '@sentinel/domain';
 import { APP_CONFIG, getExplorerTxUrl, getExplorerAddressUrl } from '@/lib/config';
+import { Badge } from './Badge';
+import { SourceBadge } from './SourceBadge';
 
 export interface DevnetLifecycleLinks {
   initializePolicyTx: string;
@@ -108,9 +110,7 @@ export const FlagshipEnforcementCard: React.FC<FlagshipEnforcementCardProps> = (
                 ROBO-01
               </span>
             </div>
-            <span className="text-[10px] px-2 py-0.5 rounded bg-sentinel-surfaceMuted text-sentinel-textSubtle border border-sentinel-border font-bold">
-              DEVNET
-            </span>
+            <SourceBadge source="SOLANA" detail="Devnet" size="xs" />
           </div>
 
           <div className="bg-sentinel-dangerSubtle border border-sentinel-danger/30 rounded-xl p-4 space-y-2">
@@ -242,11 +242,10 @@ export const FlagshipEnforcementCard: React.FC<FlagshipEnforcementCardProps> = (
               <span className="text-base sm:text-lg font-black tracking-widest text-white uppercase">
                 ROBO-01
               </span>
+              <Badge variant="info">Autonomous Operator</Badge>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] px-2.5 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700/80 uppercase tracking-wider font-bold">
-                SOLANA {APP_CONFIG.clusterLabel}
-              </span>
+              <SourceBadge source="SOLANA" detail={APP_CONFIG.clusterLabel} size="xs" />
               {onRunAdaptation && (
                 <button
                   type="button"
@@ -404,10 +403,10 @@ export const FlagshipEnforcementCard: React.FC<FlagshipEnforcementCardProps> = (
 
         <div className="space-y-5">
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-dashed border-sentinel-border pb-4">
+          <div className="flex items-center justify-between border-b border-dashed border-sentinel-border pb-4 gap-2">
             <div>
               <div className="flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
                 <span className="text-sm sm:text-base font-black tracking-widest text-white uppercase">
                   VERIFIED SENTINEL RECEIPT
                 </span>
@@ -416,9 +415,12 @@ export const FlagshipEnforcementCard: React.FC<FlagshipEnforcementCardProps> = (
                 Two-Tier PROVN Cryptographic State Commitment
               </p>
             </div>
-            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-              PROVN v2
-            </span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <SourceBadge source="PROVN" />
+              <Badge variant="success" dot>
+                v2
+              </Badge>
+            </div>
           </div>
 
           {/* Canonical Receipt Fields */}
