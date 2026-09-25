@@ -1,0 +1,45 @@
+name: Publish Docker Image to Docker Hub
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Docker image tag to publish (default: latest)'
+        required: false
+        default: 'latest'
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  push_to_registry:
+    name: Build & Push Multi-Arch Image to Docker Hub
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push to Docker Hub
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/sentinel-finance:${{ github.event.inputs.tag || 'latest' }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/sentinel-finance:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -6,6 +6,12 @@ apps/web/.next
 dist
 packages/*/dist
 programs/sentinel/target
+target
+.anchor
+.pnpm-store
+docs
+tests
+Sentinel_Logo.png
 .git
 .github
 .agents
@@ -17,3 +23,4 @@ yarn-debug.log*
 yarn-error.log*
 .DS_Store
 Thumbs.db
+
