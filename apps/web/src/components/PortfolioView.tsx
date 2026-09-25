@@ -82,6 +82,7 @@ import {
 } from 'lucide-react';
 import { Badge } from './ui/Badge';
 import { FinancialChart } from './ui/FinancialChart';
+import { InvariantSimulator } from './ui/InvariantSimulator';
 import { PriceProvenanceHover } from './ui/PriceProvenanceHover';
 import { HeroStoryCenterpiece, DemoScenarioKey } from './HeroStoryCenterpiece';
 import { formatCurrency, formatPercent, formatAddress } from '@/lib/formatters';
@@ -189,6 +190,7 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
 }) => {
   const [selectedAssetSymbol, setSelectedAssetSymbol] = useState<string | null>(null);
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
+  const [showPerformanceChart, setShowPerformanceChart] = useState(false);
 
   // Portfolio Builder State
   const [isBuilderOpen, setIsBuilderOpen] = useState(false);
@@ -327,170 +329,102 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
         demoStep={demoStep}
       />
 
-      {/* 1. INSTITUTIONAL PORTFOLIO HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-3 pt-1">
-        <div>
-          <span className="text-xs font-semibold text-sentinel-textSubtle tracking-wider uppercase">
-            Portfolio
-          </span>
-          <div className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white font-mono mt-1">
-            {formatCurrency(portfolio.totalValueUsd)}
+      {/* 1. INTERACTIVE INVARIANT RISK SIMULATOR ("TEST THE AGENT") */}
+      <InvariantSimulator
+        portfolio={portfolio}
+        policy={policy}
+      />
+
+      {/* 2. INSTITUTIONAL PORTFOLIO CONTEXT & FINANCIAL HEALTH STRIP */}
+      <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 font-mono text-xs shadow-lg">
+        <div className="flex flex-wrap items-center gap-6">
+          <div>
+            <span className="text-[10px] text-sentinel-textSubtle uppercase tracking-wider block font-sans">
+              Total Portfolio NAV
+            </span>
+            <span className="text-2xl font-black text-white tabular-nums tracking-tight">
+              {formatCurrency(portfolio.totalValueUsd)}
+            </span>
           </div>
-          <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs text-sentinel-textMuted font-mono">
-            <span className="text-sentinel-textSubtle" title={portfolio.owner}>
-              Wallet: <span className="text-white">{formatAddress(portfolio.owner, 4)}</span>
+
+          <div className="h-8 w-px bg-sentinel-border hidden sm:block" />
+
+          <div>
+            <span className="text-[10px] text-sentinel-textSubtle uppercase tracking-wider block font-sans">
+              Sentinel Guarantees
             </span>
-            <span>·</span>
-            <span>
-              Oracle:{' '}
-              <span className="text-purple-400 font-semibold">
-                {Object.values(marketPrices || {})[0]?.isSimulation === false
-                  ? 'Pyth Hermes Live'
-                  : 'Pyth Benchmark'}
+            <span className="text-sm font-bold text-emerald-400 flex items-center gap-1.5 mt-1">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              {checksPassed} / {totalChecks} Active (Healthy)
+            </span>
+          </div>
+
+          <div className="h-8 w-px bg-sentinel-border hidden sm:block" />
+
+          <div>
+            <span className="text-[10px] text-sentinel-textSubtle uppercase tracking-wider block font-sans">
+              USDC Cash Floor
+            </span>
+            <span className="text-sm font-bold text-white mt-1 block">
+              {(portfolio.stablecoinExposureBps / 100).toFixed(1)}%
+              <span className="text-sentinel-textMuted font-normal text-xs ml-1">
+                (min {(policy.minStablecoinBps / 100).toFixed(0)}%)
               </span>
             </span>
-            <span>·</span>
-            <span className="inline-flex items-center gap-1.5 text-emerald-400 font-semibold">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Sentinel Robo active
+          </div>
+
+          <div className="h-8 w-px bg-sentinel-border hidden sm:block" />
+
+          <div>
+            <span className="text-[10px] text-sentinel-textSubtle uppercase tracking-wider block font-sans">
+              Single Asset Cap
             </span>
-            <span>·</span>
-            {portfolio.source === 'ON_CHAIN_PROJECTION' ? (
-              <span
-                title="Authoritatively projected from live on-chain SPL Token accounts via Solana RPC"
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono"
-              >
-                <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                ON-CHAIN PROJECTION (SPL RPC)
+            <span className="text-sm font-bold text-white mt-1 block">
+              ≤ {(policy.maxSingleAssetBps / 100).toFixed(0)}%
+              <span className="text-emerald-400 font-semibold text-xs ml-1">
+                (Safe)
               </span>
-            ) : (
-              <span
-                title="Simulated projection: balances generated for mathematical demonstration"
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-500/10 border border-amber-500/30 text-amber-400 font-mono"
-              >
-                <Sliders className="w-3 h-3 text-amber-400" />
-                SIMULATED PROJECTION
-              </span>
-            )}
+            </span>
+          </div>
+
+          <div className="h-8 w-px bg-sentinel-border hidden lg:block" />
+
+          <div className="hidden lg:block">
+            <span className="text-[10px] text-sentinel-textSubtle uppercase tracking-wider block font-sans">
+              Vault Authority PDA
+            </span>
+            <span className="text-xs font-semibold text-purple-400 mt-1 block">
+              {formatAddress(sentinelPda, 4)}
+            </span>
           </div>
         </div>
 
-        {/* Action Button: Build Your Portfolio Drawer */}
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        {/* Action Controls */}
+        <div className="flex items-center gap-2 self-start md:self-auto">
           <button
-            onClick={() => setIsBuilderOpen(!isBuilderOpen)}
-            className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-sentinel-surface hover:bg-sentinel-surfaceElevated border border-sentinel-border text-white sentinel-interactive sentinel-focus transition cursor-pointer"
+            type="button"
+            onClick={() => setShowPerformanceChart(!showPerformanceChart)}
+            className="px-3 py-1.5 rounded-lg border border-sentinel-border bg-sentinel-surfaceMuted hover:bg-sentinel-surfaceElevated text-sentinel-text font-semibold text-xs transition cursor-pointer sentinel-interactive sentinel-focus"
           >
-            <Sliders className="w-3.5 h-3.5 text-purple-400" />
+            {showPerformanceChart ? 'Hide Performance Chart' : 'Show Performance Chart'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsBuilderOpen(!isBuilderOpen)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 font-semibold text-xs transition cursor-pointer sentinel-interactive sentinel-focus"
+          >
+            <Sliders className="w-3.5 h-3.5" />
             <span>{isBuilderOpen ? 'Close Builder' : 'Asset Allocator'}</span>
           </button>
         </div>
       </div>
 
-      {/* 2. AREA CURVE FINANCIAL CHART */}
-      <FinancialChart currentValueUsd={portfolio.totalValueUsd} />
-
-      {/* 3. TWO STATUS CARDS (SIDE-BY-SIDE) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Card 1: SENTINEL */}
-        <div
-          onClick={onNavigateToAgent}
-          tabIndex={0}
-          role="button"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              onNavigateToAgent?.();
-            }
-          }}
-          className="bg-sentinel-surface border border-sentinel-border hover:border-sentinel-accent/40 rounded-xl p-5 sentinel-interactive sentinel-focus transition cursor-pointer group"
-        >
-          <div className="flex items-center justify-between pb-3 border-b border-sentinel-border/50">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-sentinel-textSubtle uppercase tracking-wider">
-                SENTINEL
-              </span>
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 font-mono">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Active
-              </span>
-            </div>
-            <div className="text-xs text-sentinel-textSubtle group-hover:text-blue-400 transition flex items-center gap-1 font-mono">
-              <span>Robo-01</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </div>
-          </div>
-
-          <div className="mt-3.5 space-y-1">
-            <div className="text-base font-bold text-white">
-              Balanced Growth
-            </div>
-            <p className="text-xs text-sentinel-textMuted leading-relaxed">
-              Guarantees enforced on Solana Devnet with detached Ed25519 agent signatures.
-            </p>
-          </div>
-
-          <div className="mt-4 pt-3 border-t border-sentinel-border/40 flex items-center justify-between text-xs font-mono">
-            <span className="text-sentinel-textSubtle">Mandate:</span>
-            <span className="text-blue-400 font-semibold">Max Growth · Non-Bypass Guard</span>
-          </div>
+      {/* 3. OPTIONAL / EXPANDABLE AREA CURVE FINANCIAL CHART */}
+      {showPerformanceChart && (
+        <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+          <FinancialChart currentValueUsd={portfolio.totalValueUsd} />
         </div>
-
-        {/* Card 2: PROTECTION */}
-        <div
-          onClick={onNavigateToProtection}
-          tabIndex={0}
-          role="button"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              onNavigateToProtection?.();
-            }
-          }}
-          className="bg-sentinel-surface border border-sentinel-border hover:border-emerald-500/40 rounded-xl p-5 sentinel-interactive sentinel-focus transition cursor-pointer group"
-        >
-          <div className="flex items-center justify-between pb-3 border-b border-sentinel-border/50">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-sentinel-textSubtle uppercase tracking-wider">
-                PROTECTION
-              </span>
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 font-mono">
-                {checksPassed} / {totalChecks} Healthy
-              </span>
-            </div>
-            <div className="text-xs text-sentinel-textSubtle group-hover:text-emerald-400 transition flex items-center gap-1 font-mono">
-              <span>View Policy</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </div>
-          </div>
-
-          <div className="mt-3.5 grid grid-cols-2 gap-3 text-xs font-mono">
-            <div>
-              <span className="text-sentinel-textSubtle block text-[11px]">USDC RESERVE FLOOR</span>
-              <span className="text-white font-bold text-sm block mt-0.5">
-                {(portfolio.stablecoinExposureBps / 100).toFixed(1)}%
-                <span className="text-sentinel-textMuted font-normal text-xs ml-1">
-                  (min {(policy.minStablecoinBps / 100).toFixed(0)}%)
-                </span>
-              </span>
-            </div>
-            <div>
-              <span className="text-sentinel-textSubtle block text-[11px]">CONCENTRATION CAP</span>
-              <span className="text-white font-bold text-sm block mt-0.5">
-                ≤ {(policy.maxSingleAssetBps / 100).toFixed(0)}%
-                <span className="text-emerald-400 font-semibold text-xs ml-1">
-                  (Safe)
-                </span>
-              </span>
-            </div>
-          </div>
-
-          <div className="mt-4 pt-3 border-t border-sentinel-border/40 flex items-center justify-between text-xs font-mono">
-            <span className="text-sentinel-textSubtle">PDA Authority:</span>
-            <span className="text-purple-400 font-semibold">{formatAddress(sentinelPda, 4)}</span>
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* 4. EXPANDABLE PORTFOLIO BUILDER STUDIO (Phase 11) */}
       {isBuilderOpen && (
