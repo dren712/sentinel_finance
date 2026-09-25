@@ -81,7 +81,7 @@ export const Header: React.FC<HeaderProps> = ({
           onClick={onNavigateToOverview}
           className="flex items-center gap-3 text-left cursor-pointer group focus:outline-none"
         >
-          <div className="relative w-10 h-10 rounded-[4px] bg-sentinel-surfaceElevated border border-sentinel-border flex items-center justify-center shrink-0 p-1 group-hover:border-sentinel-accent transition-colors shadow-sm">
+          <div className="relative w-10 h-10 rounded-xl bg-purple-950/40 border border-purple-500/40 flex items-center justify-center shrink-0 p-1 group-hover:border-cyan-400 transition-all shadow-md group-hover:shadow-purple-500/20">
             <Image
               src="/Sentinel_Logo.png"
               alt="Sentinel Logo"
@@ -91,42 +91,42 @@ export const Header: React.FC<HeaderProps> = ({
             />
           </div>
           <div>
-            <div className="flex items-center gap-2 font-mono">
-              <span className="font-bold text-sm tracking-wider text-sentinel-text group-hover:text-sentinel-accent transition-colors">
-                [ SENTINEL ]
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-base sm:text-lg tracking-wider text-sentinel-text group-hover:text-cyan-300 transition-colors">
+                SENTINEL
               </span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-[2px] bg-sentinel-surfaceElevated text-sentinel-accent font-semibold border border-sentinel-border">
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-purple-500/15 text-purple-300 font-semibold border border-purple-500/30 font-mono">
                 ROBO-01
               </span>
             </div>
-            <p className="text-[10px] font-mono uppercase tracking-wider text-sentinel-textMuted hidden sm:block">
-              Financial Control System · Solana
+            <p className="text-[11px] text-sentinel-textMuted hidden sm:block">
+              Outcome-Bounded Autonomous Portfolios on Solana
             </p>
           </div>
         </button>
 
         {/* Action Controls & Top Right */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           {/* Interactive Source Status Badge (Actual State & Cluster Source) */}
           <button
             type="button"
             onClick={onToggleMode}
-            className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-[4px] border text-xs font-mono font-medium sentinel-interactive sentinel-focus transition cursor-pointer ${
+            className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs font-mono font-medium sentinel-interactive sentinel-focus transition cursor-pointer ${
               isOnChainState || mode === 'LIVE'
-                ? 'bg-sentinel-surfaceElevated border-sentinel-success/50 text-sentinel-success hover:bg-sentinel-surface'
-                : 'bg-sentinel-surfaceElevated border-sentinel-border text-sentinel-textMuted hover:text-sentinel-text hover:border-sentinel-borderStrong'
+                ? 'bg-emerald-950/50 border-emerald-500/50 text-emerald-300 hover:bg-emerald-900/60 shadow-sm shadow-emerald-950'
+                : 'bg-amber-950/50 border-amber-500/40 text-amber-300 hover:bg-amber-900/50'
             }`}
             title={`Source Status: ${sourceStatusLabel} (${pythSource}). Click to switch execution mode.`}
           >
             <span className="relative flex h-2 w-2">
               <span
                 className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                  isOnChainState || mode === 'LIVE' ? 'bg-emerald-400' : 'bg-slate-400'
+                  isOnChainState || mode === 'LIVE' ? 'bg-emerald-400' : 'bg-amber-400'
                 }`}
               />
               <span
                 className={`relative inline-flex rounded-full h-2 w-2 ${
-                  isOnChainState || mode === 'LIVE' ? 'bg-emerald-500' : 'bg-slate-500'
+                  isOnChainState || mode === 'LIVE' ? 'bg-emerald-500' : 'bg-amber-500'
                 }`}
               />
             </span>
@@ -141,16 +141,16 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 onClick={onRunDemo}
                 disabled={isRunningDemo}
-                className="px-3 py-1.5 rounded-l-[4px] bg-sentinel-accent hover:bg-sentinel-accentHover text-sentinel-bg font-mono font-bold text-xs flex items-center gap-1.5 disabled:opacity-50 sentinel-interactive sentinel-focus cursor-pointer border-r border-blue-400"
+                className="px-3 py-2 rounded-l-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs flex items-center gap-1.5 shadow-sm disabled:opacity-50 sentinel-interactive sentinel-focus cursor-pointer border-r border-blue-700"
                 title="Run Flagship 5-Step Autonomous Demo"
               >
-                <Play className={`w-3.5 h-3.5 fill-current ${isRunningDemo ? 'animate-spin' : ''}`} />
-                <span>{isRunningDemo ? 'Demo Running...' : 'DEMO SCENARIOS'}</span>
+                <Play className={`w-3.5 h-3.5 ${isRunningDemo ? 'animate-spin' : ''}`} />
+                <span>{isRunningDemo ? 'Demo Running...' : 'Demo Scenarios'}</span>
               </button>
               <button
                 onClick={() => setIsDemoMenuOpen(!isDemoMenuOpen)}
                 disabled={isRunningDemo}
-                className="px-2 py-1.5 rounded-r-[4px] bg-sentinel-accent hover:bg-sentinel-accentHover text-sentinel-bg font-mono font-bold text-xs flex items-center disabled:opacity-50 sentinel-interactive sentinel-focus cursor-pointer"
+                className="px-2 py-2 rounded-r-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs flex items-center shadow-sm disabled:opacity-50 sentinel-interactive sentinel-focus cursor-pointer"
                 title="Select Demo Scenario (Flagship, PreStocks $10K, Meteora $5K)"
               >
                 <ChevronDown className="w-3.5 h-3.5" />
@@ -159,7 +159,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Demo Scenarios Dropdown Menu */}
             {isDemoMenuOpen && (
-              <div className="absolute right-0 mt-2 w-72 bg-sentinel-surface border border-sentinel-border rounded-[4px] shadow-2xl z-50 p-2 text-xs font-mono">
+              <div className="absolute right-0 mt-2 w-72 bg-sentinel-surface border border-sentinel-border rounded-xl shadow-2xl z-50 p-2 text-xs font-mono">
                 <div className="text-[10px] text-sentinel-textSubtle uppercase tracking-wider px-2.5 py-1.5 font-bold">
                   Select Demo Scenario
                 </div>

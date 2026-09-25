@@ -37,20 +37,20 @@ export const Navigation: React.FC<NavigationProps> = ({
   evidenceCount,
 }) => {
   const tabs: TabItem[] = [
-    { id: 'overview', label: '§ 01 OVERVIEW', icon: Sparkles },
-    { id: 'portfolio', label: '§ 02 PORTFOLIO', icon: PieChart },
-    { id: 'agent', label: '§ 03 AGENT', icon: Bot },
-    { id: 'protection', label: '§ 04 POLICY', icon: ShieldCheck },
-    { id: 'proof', label: '§ 05 PROOFS', icon: CheckCircle2, count: 11 },
-    { id: 'activity', label: '§ 06 ACTIVITY', icon: FileCheck, count: evidenceCount },
+    { id: 'overview', label: 'Overview', icon: Sparkles },
+    { id: 'portfolio', label: 'Portfolio', icon: PieChart },
+    { id: 'agent', label: 'Agent', icon: Bot },
+    { id: 'protection', label: 'Protection', icon: ShieldCheck },
+    { id: 'proof', label: 'Verification', icon: CheckCircle2, count: 11 },
+    { id: 'activity', label: 'Activity', icon: FileCheck, count: evidenceCount },
   ];
 
   return (
     <>
       {/* Desktop Navigation (Top Tab Bar) */}
-      <div className="border-b border-sentinel-border bg-sentinel-bg/95 backdrop-blur sticky top-16 z-30 hidden md:block">
+      <div className="border-b border-sentinel-border bg-sentinel-bg/90 backdrop-blur sticky top-16 z-30 hidden md:block">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <nav className="flex space-x-1.5 py-2">
+          <nav className="flex space-x-2 py-2.5">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -58,16 +58,16 @@ export const Navigation: React.FC<NavigationProps> = ({
                 <button
                   key={tab.id}
                   onClick={() => onSelectTab(tab.id)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-[4px] text-xs font-mono font-semibold tracking-wider sentinel-interactive sentinel-focus cursor-pointer ${
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold tracking-wide sentinel-interactive sentinel-focus cursor-pointer ${
                     isActive
-                      ? 'bg-sentinel-surfaceElevated text-sentinel-text border border-sentinel-accent/50 shadow-xs'
-                      : 'text-sentinel-textMuted hover:text-sentinel-text hover:bg-sentinel-surface border border-transparent'
+                      ? 'bg-sentinel-surfaceElevated text-sentinel-text border border-sentinel-accent/40 shadow-xs'
+                      : 'text-sentinel-textMuted hover:text-sentinel-text hover:bg-sentinel-surface'
                   }`}
                 >
-                  <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-sentinel-accent' : 'text-sentinel-textSubtle'}`} />
+                  <Icon className={`w-4 h-4 ${isActive ? 'text-sentinel-accent' : 'text-sentinel-textSubtle'}`} />
                   <span>{tab.label}</span>
                   {tab.count !== undefined && tab.count > 0 && (
-                    <span className="px-1.5 py-0.2 rounded-[2px] bg-sentinel-surfaceMuted text-sentinel-textMuted text-[10px] font-mono tabular-nums border border-sentinel-border">
+                    <span className="px-1.5 py-0.2 rounded-full bg-sentinel-surfaceMuted text-sentinel-textMuted text-[10px] font-mono tabular-nums border border-sentinel-border">
                       {tab.count}
                     </span>
                   )}
