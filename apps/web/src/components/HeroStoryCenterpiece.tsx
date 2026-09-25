@@ -15,9 +15,6 @@ import {
   ChevronRight,
   TrendingDown,
   TrendingUp,
-  Activity,
-  Building2,
-  Database,
 } from 'lucide-react';
 import { PortfolioSnapshot, FinancialPolicy, EvidenceRecord } from '@sentinel/domain';
 import { formatCurrency, formatPercent } from '@/lib/formatters';
@@ -149,36 +146,32 @@ export const HeroStoryCenterpiece: React.FC<HeroStoryCenterpieceProps> = ({
       <div className="mt-4 p-3.5 rounded-xl bg-sentinel-surfaceMuted/90 border border-sentinel-border relative z-10 font-mono">
         <div className="flex items-center justify-between text-[10px] text-sentinel-textSubtle uppercase tracking-wider mb-2.5">
           <span className="font-bold text-sentinel-text">Sentinel State Pipeline</span>
-          <span className="text-sentinel-accent font-semibold">Outcome-Bounded Autonomy</span>
+          <span className="text-sentinel-accent font-semibold">Solana Invariant Gate</span>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 text-center text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 text-center text-xs">
           <div className="p-2 rounded-lg bg-sentinel-surface border border-sentinel-border">
-            <span className="text-[9px] text-sentinel-textSubtle block uppercase">1. AI Proposes</span>
-            <span className="font-bold text-sentinel-text truncate block">Robo-01</span>
-          </div>
-          <div className="p-2 rounded-lg bg-purple-950/20 border border-purple-500/30">
-            <span className="text-[9px] text-purple-300 block uppercase">2. Pyth Oracle</span>
-            <span className="font-bold text-purple-400 truncate block">Price Truth</span>
+            <span className="text-[10px] text-sentinel-textSubtle block uppercase">1. Agent</span>
+            <span className="font-bold text-sentinel-text">robo-01</span>
           </div>
           <div className="p-2 rounded-lg bg-sentinel-surface border border-sentinel-border">
-            <span className="text-[9px] text-sentinel-textSubtle block uppercase">3. Post-State</span>
-            <span className="font-bold text-amber-400 truncate block">Projected</span>
+            <span className="text-[10px] text-sentinel-textSubtle block uppercase">2. Intent</span>
+            <span className="font-bold text-rose-400">BUY $15K</span>
           </div>
-          <div className="p-2 rounded-lg bg-blue-950/20 border border-blue-500/30">
-            <span className="text-[9px] text-blue-300 block uppercase">4. PreStocks</span>
-            <span className="font-bold text-blue-400 truncate block">Asset Check</span>
+          <div className="p-2 rounded-lg bg-sentinel-surface border border-sentinel-border">
+            <span className="text-[10px] text-sentinel-textSubtle block uppercase">3. Sentinel</span>
+            <span className="font-bold text-amber-400">Post-State</span>
           </div>
-          <div className="p-2 rounded-lg bg-amber-950/20 border border-amber-500/30">
-            <span className="text-[9px] text-amber-300 block uppercase">5. Meteora DBC</span>
-            <span className="font-bold text-amber-400 truncate block">Liquidity Depth</span>
+          <div className="p-2 rounded-lg bg-rose-950/30 border border-rose-500/30">
+            <span className="text-[10px] text-rose-300 block uppercase">4. Blocked</span>
+            <span className="font-bold text-rose-400">3 Breaches</span>
           </div>
-          <div className="p-2 rounded-lg bg-emerald-950/20 border border-emerald-500/30">
-            <span className="text-[9px] text-emerald-300 block uppercase">6. Solana Devnet</span>
-            <span className="font-bold text-emerald-400 truncate block">Anchor Gate</span>
+          <div className="p-2 rounded-lg bg-sentinel-surface border border-sentinel-border">
+            <span className="text-[10px] text-sentinel-textSubtle block uppercase">5. Adapted</span>
+            <span className="font-bold text-emerald-400">BUY $5K</span>
           </div>
-          <div className="p-2 rounded-lg bg-emerald-950/30 border border-emerald-500/40">
-            <span className="text-[9px] text-emerald-300 block uppercase">7. PROVN Proof</span>
-            <span className="font-bold text-emerald-400 truncate block">Receipt Sealed</span>
+          <div className="p-2 rounded-lg bg-emerald-950/30 border border-emerald-500/30">
+            <span className="text-[10px] text-emerald-300 block uppercase">6. Proof</span>
+            <span className="font-bold text-emerald-400">PROVN v2</span>
           </div>
         </div>
       </div>
@@ -890,7 +883,7 @@ export const HeroStoryCenterpiece: React.FC<HeroStoryCenterpieceProps> = ({
               <button
                 type="button"
                 onClick={onNavigateToDecisions}
-                className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-mono text-xs font-bold transition flex items-center gap-1.5 shadow-md shrink-0 cursor-pointer sentinel-interactive sentinel-focus"
+                className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-mono text-xs font-bold transition flex items-center gap-1.5 shadow-md shrink-0 cursor-pointer"
               >
                 <span>View Oracle Evidence</span>
                 <ChevronRight className="w-3.5 h-3.5" />
@@ -899,89 +892,6 @@ export const HeroStoryCenterpiece: React.FC<HeroStoryCenterpieceProps> = ({
           </div>
         </div>
       )}
-
-      {/* EXPLICIT SECTION: BUILT FOR THE TOKENIZED-STOCK STACK */}
-      <div className="mt-6 pt-5 border-t border-slate-800/80 font-mono text-xs relative z-10">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400">
-              BUILT FOR THE TOKENIZED-STOCK STACK
-            </span>
-            <span className="px-1.5 py-0.2 rounded bg-purple-500/15 text-purple-300 text-[10px] font-semibold border border-purple-500/30">
-              Stocklana Ecosystem
-            </span>
-          </div>
-          <span className="text-[11px] text-slate-500 font-sans">
-            How Sentinel orchestrates partner infrastructure into verifiable postcondition gates
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-          {/* Pyth */}
-          <div className="p-3.5 rounded-xl bg-slate-950/80 border border-purple-500/25 space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-white flex items-center gap-1.5">
-                <Activity className="w-3.5 h-3.5 text-purple-400" />
-                Pyth Network
-              </span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 font-semibold">
-                Market Integrity
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-400 font-sans leading-relaxed">
-              Provides real-time dual-feed truth (NVDAx / AAPLx). Rejects trades if quote age &gt; 60s or basis deviation &gt; 250 bps.
-            </p>
-          </div>
-
-          {/* PreStocks */}
-          <div className="p-3.5 rounded-xl bg-slate-950/80 border border-blue-500/25 space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-white flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5 text-blue-400" />
-                PreStocks
-              </span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-blue-500/20 text-blue-300 font-semibold">
-                Pre-IPO Assets
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-400 font-sans leading-relaxed">
-              Tokenized private equity universe (SpaceX, OpenAI, Stripe). Enforces a 20% portfolio cap to insulate from illiquid assets.
-            </p>
-          </div>
-
-          {/* Meteora */}
-          <div className="p-3.5 rounded-xl bg-slate-950/80 border border-amber-500/25 space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-white flex items-center gap-1.5">
-                <Zap className="w-3.5 h-3.5 text-amber-400" />
-                Meteora DBC
-              </span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-semibold">
-                Liquidity &amp; Execution
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-400 font-sans leading-relaxed">
-              Executes trades across dynamic bonding curves. Enforces 150 bps slippage limit and verifies pool depth before ticket creation.
-            </p>
-          </div>
-
-          {/* Solana */}
-          <div className="p-3.5 rounded-xl bg-slate-950/80 border border-emerald-500/25 space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-white flex items-center gap-1.5">
-                <Database className="w-3.5 h-3.5 text-emerald-400" />
-                Solana Devnet
-              </span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-semibold">
-                Settlement &amp; Enforcement
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-400 font-sans leading-relaxed">
-              Authoritative Anchor program PDAs. Reverts invalid trades atomically and seals tamper-proof PROVN SHA-256 receipts.
-            </p>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };

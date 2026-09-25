@@ -246,11 +246,9 @@ export const AgentView: React.FC<AgentViewProps> = ({
           <div className="bg-sentinel-surfaceMuted p-3 rounded-lg border border-sentinel-border">
             <span className="text-sentinel-textSubtle block text-[10px]">EXECUTION VENUE</span>
             <span className="text-blue-400 font-semibold mt-0.5 block truncate">
-              {activeVenue === 'METEORA_DBC' ? 'Meteora DBC (Eo7Wj...)' : activeVenue === 'PRESTOCKS_SECONDARY' ? 'PreStocks Vault' : 'Simulator'}
+              {activeVenue === 'METEORA_DBC' ? 'Meteora DBC' : activeVenue === 'PRESTOCKS_SECONDARY' ? 'PreStocks' : 'Simulator'}
             </span>
-            <span className="text-[10px] text-sentinel-textMuted">
-              {activeVenue === 'METEORA_DBC' ? 'Dynamic Bonding Curve' : 'Secondary Tokenized Market'}
-            </span>
+            <span className="text-[10px] text-sentinel-textMuted">Tokenized SPL DEX</span>
           </div>
         </div>
       </div>
@@ -675,33 +673,25 @@ export const AgentView: React.FC<AgentViewProps> = ({
                 onChange={(e) => setSelectedAsset(e.target.value)}
                 className="w-full bg-sentinel-surfaceMuted border border-sentinel-border rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
               >
-                <optgroup label="Tokenized Public Equities (Pyth Oracle + Meteora DBC)">
+                <optgroup label="Tokenized Public Equities (Meteora DBC)">
                   {availableAssets
                     .filter((a) => !('isPreIpo' in a) && !('isAgentToken' in a))
                     .map((a) => (
                       <option key={a.symbol} value={a.symbol}>
-                        {a.symbol} (${a.priceUsd.toFixed(2)}) · Pyth Dual-Feed
+                        {a.symbol} (${a.priceUsd.toFixed(2)})
                       </option>
                     ))}
                 </optgroup>
-                <optgroup label="Pre-IPO Unicorn Equities (PreStocks Secondary Vault)">
+                <optgroup label="Pre-IPO Unicorn Equities (PreStocks)">
                   {availableAssets
                     .filter((a) => 'isPreIpo' in a)
                     .map((a) => (
                       <option key={a.symbol} value={a.symbol}>
-                        {a.symbol} (${a.priceUsd.toFixed(2)}) · PreStocks Eligible
+                        {a.symbol} (${a.priceUsd.toFixed(2)}) · Pre-IPO
                       </option>
                     ))}
                 </optgroup>
               </select>
-              <div className="mt-1 text-[10px] font-mono text-sentinel-textMuted flex items-center justify-between">
-                <span>
-                  {isPreIpoSelected ? 'PreStocks · Eligible (409A)' : 'Pyth Feed · 12s Freshness'}
-                </span>
-                <span className="text-blue-400">
-                  {isPreIpoSelected ? 'Secondary Vault' : 'Meteora DBC Pool'}
-                </span>
-              </div>
             </div>
 
             {/* Direction */}

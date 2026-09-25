@@ -28,8 +28,6 @@ import { AgentView } from '@/components/AgentView';
 import { GuaranteesView } from '@/components/GuaranteesView';
 import { ActivityView } from '@/components/ActivityView';
 import { TransactionModal, TxLifecycleStep, TxDetails } from '@/components/ui/TransactionModal';
-import { SponsorInfrastructureStrip, SponsorPillarKey } from '@/components/ui/SponsorInfrastructureStrip';
-import { SponsorDetailDrawer } from '@/components/ui/SponsorDetailDrawer';
 import { APP_CONFIG, getExplorerAddressUrl, deriveSentinelDomainPdas } from '@/lib/config';
 import { formatAddress } from '@/lib/formatters';
 
@@ -58,15 +56,6 @@ export default function Home() {
   const [totalDemoSteps, setTotalDemoSteps] = useState<number>(5);
   const [walletBalanceSol, setWalletBalanceSol] = useState<number | null>(null);
   const [selectedHeroScenario, setSelectedHeroScenario] = useState<DemoScenarioKey>('FLAGSHIP');
-
-  // Sponsor Proof & Technical Detail Drawer state
-  const [sponsorDrawerOpen, setSponsorDrawerOpen] = useState(false);
-  const [selectedSponsorPillar, setSelectedSponsorPillar] = useState<SponsorPillarKey>('PYTH');
-
-  const handleOpenSponsorDetail = (pillar: SponsorPillarKey) => {
-    setSelectedSponsorPillar(pillar);
-    setSponsorDrawerOpen(true);
-  };
 
   const activePdas = useMemo(
     () => deriveSentinelDomainPdas(portfolio.owner, APP_CONFIG.sentinelProgramId),
@@ -646,20 +635,6 @@ export default function Home() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-12">
-        {/* Contextual Sponsor Proof / Infrastructure Strip */}
-        <SponsorInfrastructureStrip
-          onOpenSponsorDetail={handleOpenSponsorDetail}
-          pythFreshnessSec={12}
-          pythConfidenceUsd={0.04}
-          activeVenueName={
-            selectedVenue === 'METEORA_DBC'
-              ? 'Meteora DBC'
-              : selectedVenue === 'PRESTOCKS_SECONDARY'
-              ? 'PreStocks'
-              : 'Simulator'
-          }
-        />
-
         {/* Dynamic Demo Stepper Banner */}
         {demoStep > 0 && (
           <div className="mb-6 p-4 rounded-xl bg-blue-950/40 border border-blue-500/40 shadow-lg animate-in fade-in slide-in-from-top-4 duration-200">
@@ -844,16 +819,6 @@ export default function Home() {
         step={txStep}
         details={txDetails}
         onClose={() => setTxModalOpen(false)}
-      />
-
-      {/* Sentinel Stack Sponsor Proof & Detail Drawer */}
-      <SponsorDetailDrawer
-        isOpen={sponsorDrawerOpen}
-        onClose={() => setSponsorDrawerOpen(false)}
-        initialTab={selectedSponsorPillar}
-        onRunPythDemo={handleRunPythDemo}
-        onRunPreStocksDemo={handleRunPreStocksDemo}
-        onRunMeteoraDemo={handleRunMeteoraDemo}
       />
 
       {/* Clean Institutional Footer with Dynamic Cluster Identifier */}
