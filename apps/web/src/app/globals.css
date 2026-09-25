@@ -3,30 +3,30 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 241, 245, 249;
-  --background-rgb: 9, 11, 16;
+  --foreground-rgb: 244, 246, 248;
+  --background-rgb: 8, 10, 14;
 
-  /* Locked Sentinel Named Design Tokens */
-  --sentinel-bg: #090B10;
-  --sentinel-surface: #111622;
-  --sentinel-surface-elevated: #161D2C;
-  --sentinel-surface-muted: #0D111A;
-  --sentinel-border: #1E2638;
-  --sentinel-border-strong: #2D3952;
-  --sentinel-text: #F1F5F9;
-  --sentinel-text-muted: #94A3B8;
-  --sentinel-text-subtle: #64748B;
-  --sentinel-accent: #2563EB;
-  --sentinel-accent-hover: #1D4ED8;
-  --sentinel-accent-subtle: rgba(37, 99, 235, 0.12);
-  --sentinel-success: #10B981;
-  --sentinel-success-subtle: rgba(16, 185, 129, 0.12);
-  --sentinel-danger: #F43F5E;
-  --sentinel-danger-subtle: rgba(244, 63, 94, 0.12);
-  --sentinel-warning: #F59E0B;
-  --sentinel-warning-subtle: rgba(245, 158, 11, 0.12);
-  --sentinel-devnet: #A855F7;
-  --sentinel-devnet-subtle: rgba(168, 85, 247, 0.12);
+  /* Locked Sentinel Financial Control System Tokens */
+  --sentinel-bg: #080A0E;
+  --sentinel-surface: #0F131A;
+  --sentinel-surface-elevated: #151A22;
+  --sentinel-surface-muted: #0B0E14;
+  --sentinel-border: #242B36;
+  --sentinel-border-strong: #333D4D;
+  --sentinel-text: #F4F6F8;
+  --sentinel-text-muted: #8B95A3;
+  --sentinel-text-subtle: #5A6577;
+  --sentinel-accent: #6EA8FF;
+  --sentinel-accent-hover: #5A95EC;
+  --sentinel-accent-subtle: rgba(110, 168, 255, 0.12);
+  --sentinel-success: #45D39C;
+  --sentinel-success-subtle: rgba(69, 211, 156, 0.12);
+  --sentinel-danger: #FF5C6C;
+  --sentinel-danger-subtle: rgba(255, 92, 108, 0.12);
+  --sentinel-warning: #E7A93B;
+  --sentinel-warning-subtle: rgba(231, 169, 59, 0.12);
+  --sentinel-oracle: #8B9BFF;
+  --sentinel-oracle-subtle: rgba(139, 155, 255, 0.12);
 }
 
 body {
@@ -81,136 +81,104 @@ body {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #090b10;
+  background: #080A0E;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1e2638;
-  border-radius: 3px;
+  background: #242B36;
+  border-radius: 2px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #2d3952;
+  background: #333D4D;
 }
 
 /* Solana Wallet Adapter UI overrides for institutional polish */
 .wallet-adapter-button {
-  background-color: #111622 !important;
-  border: 1px solid #1e2638 !important;
-  color: #f1f5f9 !important;
+  background-color: #0F131A !important;
+  border: 1px solid #242B36 !important;
+  color: #F4F6F8 !important;
   font-size: 0.75rem !important;
   font-weight: 600 !important;
-  border-radius: 0.5rem !important;
-  height: 36px !important;
-  padding: 0 14px !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  border-radius: 4px !important;
+  height: 34px !important;
+  padding: 0 12px !important;
   transition: all 0.15s ease-in-out !important;
 }
 
 .wallet-adapter-button:hover {
-  background-color: #161d2c !important;
-  border-color: #2d3952 !important;
+  background-color: #151A22 !important;
+  border-color: #333D4D !important;
 }
 
 .wallet-adapter-modal-wrapper {
-  background: #111622 !important;
-  border: 1px solid #1e2638 !important;
-  border-radius: 0.75rem !important;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5) !important;
+  background: #0F131A !important;
+  border: 1px solid #242B36 !important;
+  border-radius: 6px !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.7) !important;
 }
 
 .wallet-adapter-modal-button-close {
-  background: #161d2c !important;
+  background: #151A22 !important;
+  border-radius: 4px !important;
 }
 
 .wallet-adapter-modal-title {
-  color: #f1f5f9 !important;
+  color: #F4F6F8 !important;
   font-weight: 700 !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
 }
 
-/* Fun & Beautiful Sentinel Animations */
-@keyframes float {
+/* Sentinel Control System: Restrained Telemetry Animations */
+@keyframes telemetryPulse {
   0%, 100% {
-    transform: translateY(0px) rotate(0deg);
+    opacity: 1;
+    transform: scale(1);
   }
   50% {
-    transform: translateY(-12px) rotate(1deg);
+    opacity: 0.35;
+    transform: scale(0.92);
   }
 }
 
-@keyframes pulseGlow {
-  0%, 100% {
-    opacity: 0.45;
-    filter: blur(28px);
-    transform: scale(0.98);
-  }
-  50% {
-    opacity: 0.85;
-    filter: blur(40px);
-    transform: scale(1.04);
-  }
-}
-
-@keyframes orbitSpin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes orbitSpinReverse {
-  from {
-    transform: rotate(360deg);
-  }
-  to {
-    transform: rotate(0deg);
-  }
-}
-
-@keyframes radarSweep {
+@keyframes stateTransitionFlash {
   0% {
-    transform: rotate(0deg);
+    background-color: rgba(110, 168, 255, 0.2);
   }
   100% {
-    transform: rotate(360deg);
+    background-color: transparent;
   }
 }
 
-@keyframes neonShimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
+.animate-telemetry-pulse {
+  animation: telemetryPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-.animate-float {
-  animation: float 5s ease-in-out infinite;
+.animate-state-flash {
+  animation: stateTransitionFlash 1s ease-out;
 }
 
-.animate-pulse-glow {
-  animation: pulseGlow 4s ease-in-out infinite;
-}
-
-.animate-orbit {
-  animation: orbitSpin 20s linear infinite;
-}
-
-.animate-orbit-reverse {
-  animation: orbitSpinReverse 25s linear infinite;
-}
-
-.animate-radar-sweep {
-  animation: radarSweep 4s linear infinite;
-}
-
-.neon-gradient-text {
-  background: linear-gradient(135deg, #14F195 0%, #00E5FF 40%, #9945FF 80%, #EC4899 100%);
+/* High-contrast crisp typography (replaces multi-color neon) */
+.sentinel-title-gradient {
+  background: linear-gradient(180deg, #FFFFFF 0%, #D1D5DB 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
-.neon-border-glow {
-  box-shadow: 0 0 25px -5px rgba(153, 69, 255, 0.3), 0 0 15px -3px rgba(20, 241, 149, 0.25);
+/* Hairline technical divider */
+.sentinel-hairline {
+  border-color: #242B36;
+}
+
+/* Sharp control panel */
+.sentinel-panel {
+  background-color: #0F131A;
+  border: 1px solid #242B36;
+  border-radius: 4px;
+}
+
+.sentinel-card {
+  background-color: #151A22;
+  border: 1px solid #242B36;
+  border-radius: 4px;
 }
 
