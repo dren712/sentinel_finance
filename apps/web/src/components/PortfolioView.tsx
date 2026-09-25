@@ -79,7 +79,9 @@ import {
   Activity,
 } from 'lucide-react';
 import { Badge } from './ui/Badge';
+import { Card, CardHeader } from './ui/Card';
 import { PageHeader } from './ui/PageHeader';
+import { SourceBadge } from './ui/SourceBadge';
 import { FinancialChart } from './ui/FinancialChart';
 import { PriceProvenanceHover } from './ui/PriceProvenanceHover';
 import { formatCurrency, formatPercent, formatAddress } from '@/lib/formatters';
@@ -617,30 +619,105 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
         </div>
       )}
 
-      {/* 5. CLEAN HOLDINGS TABLE */}
-      <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-5 sm:p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 mb-3 border-b border-sentinel-border">
-          <div>
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-              Holdings
-            </h3>
-            <p className="text-xs text-sentinel-textMuted mt-0.5">
-              Select any asset to inspect Pyth feed freshness, basis deviation, and policy headroom.
-            </p>
+      {/* 4B. MACRO ASSET-CLASS ALLOCATION ENVELOPES */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 font-mono text-xs">
+        {/* Public Equities Envelope */}
+        <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-4 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+              <Building2 className="w-3.5 h-3.5 text-blue-400" />
+              Public Equities
+            </span>
+            <SourceBadge source="METEORA" size="xs" />
           </div>
-          <span className="text-xs font-mono text-sentinel-textSubtle">
-            {portfolio.assets.length} Assets · 100.00% NAV
-          </span>
+          <div className="flex items-baseline justify-between">
+            <span className="text-lg font-extrabold text-white tabular-nums">
+              {formatCurrency(assetClassReport.publicEquities.valueUsd)}
+            </span>
+            <span className={`text-xs font-bold tabular-nums ${assetClassReport.publicEquities.passed ? 'text-blue-400' : 'text-rose-400'}`}>
+              {(assetClassReport.publicEquities.exposureBps / 100).toFixed(1)}% / ≤ {(assetClassReport.publicEquities.maxBps / 100).toFixed(0)}% Cap
+            </span>
+          </div>
+          <div className="w-full bg-sentinel-surfaceMuted h-1.5 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full ${assetClassReport.publicEquities.passed ? 'bg-blue-500' : 'bg-rose-500'}`}
+              style={{ width: `${Math.min(100, (assetClassReport.publicEquities.exposureBps / assetClassReport.publicEquities.maxBps) * 100)}%` }}
+            />
+          </div>
         </div>
+
+        {/* Pre-IPO Unicorns Envelope */}
+        <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-4 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+              <Rocket className="w-3.5 h-3.5 text-purple-400" />
+              Pre-IPO Unicorns
+            </span>
+            <SourceBadge source="PRESTOCKS" size="xs" />
+          </div>
+          <div className="flex items-baseline justify-between">
+            <span className="text-lg font-extrabold text-white tabular-nums">
+              {formatCurrency(assetClassReport.preIpo.valueUsd)}
+            </span>
+            <span className={`text-xs font-bold tabular-nums ${assetClassReport.preIpo.passed ? 'text-purple-400' : 'text-rose-400'}`}>
+              {(assetClassReport.preIpo.exposureBps / 100).toFixed(1)}% / ≤ {(assetClassReport.preIpo.maxBps / 100).toFixed(0)}% Cap
+            </span>
+          </div>
+          <div className="w-full bg-sentinel-surfaceMuted h-1.5 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full ${assetClassReport.preIpo.passed ? 'bg-purple-500' : 'bg-rose-500'}`}
+              style={{ width: `${Math.min(100, (assetClassReport.preIpo.exposureBps / assetClassReport.preIpo.maxBps) * 100)}%` }}
+            />
+          </div>
+        </div>
+
+        {/* USDC Cash Reserve Envelope */}
+        <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-4 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+              <Lock className="w-3.5 h-3.5 text-emerald-400" />
+              USDC Cash Reserve
+            </span>
+            <SourceBadge source="PYTH" size="xs" />
+          </div>
+          <div className="flex items-baseline justify-between">
+            <span className="text-lg font-extrabold text-white tabular-nums">
+              {formatCurrency(assetClassReport.stable.valueUsd)}
+            </span>
+            <span className={`text-xs font-bold tabular-nums ${assetClassReport.stable.passed ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {(assetClassReport.stable.exposureBps / 100).toFixed(1)}% / ≥ {(assetClassReport.stable.minBps / 100).toFixed(0)}% Floor
+            </span>
+          </div>
+          <div className="w-full bg-sentinel-surfaceMuted h-1.5 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full ${assetClassReport.stable.passed ? 'bg-emerald-500' : 'bg-rose-500'}`}
+              style={{ width: `${Math.min(100, (assetClassReport.stable.exposureBps / 10000) * 200)}%` }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* 5. CLEAN HOLDINGS TABLE */}
+      <Card variant="default" padding="md">
+        <CardHeader
+          category="TOKENIZED EQUITY & LIQUIDITY POSITIONS"
+          title="Portfolio Holdings"
+          subtitle="Select any asset to inspect Pyth Hermès dual-feed freshness, basis deviation, PreStocks 409A attestations, and policy headroom."
+          action={
+            <span className="text-xs font-mono text-sentinel-textSubtle px-2.5 py-1 rounded bg-sentinel-surfaceMuted border border-sentinel-border">
+              {portfolio.assets.length} Assets · 100.00% NAV
+            </span>
+          }
+        />
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-sentinel-border text-sentinel-textSubtle text-xs font-semibold">
+              <tr className="border-b border-sentinel-border text-sentinel-textSubtle text-xs font-semibold font-mono uppercase tracking-wider">
                 <th className="pb-3 font-medium">Asset</th>
-                <th className="pb-3 font-medium">Value</th>
+                <th className="pb-3 font-medium">Position Value &amp; Price</th>
                 <th className="pb-3 font-medium">Allocation</th>
-                <th className="pb-3 font-medium">Pyth Dual-Feed &amp; Tracking</th>
+                <th className="pb-3 font-medium">Oracle &amp; Venue Provenance</th>
                 <th className="pb-3 font-medium text-right">Sentinel</th>
               </tr>
             </thead>
@@ -675,7 +752,7 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
                     <td className="py-3.5">
                       <div className="flex items-center gap-3">
                         <div
-                          className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs"
+                          className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs font-mono shrink-0"
                           style={{
                             backgroundColor: `${getAssetColor(asset.symbol)}20`,
                             color: getAssetColor(asset.symbol),
@@ -686,19 +763,13 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
                         </div>
                         <div>
                           <div className="font-semibold text-white flex items-center gap-1.5">
-                            <span>{asset.symbol}</span>
+                            <span className="font-mono">{asset.symbol}</span>
                             {asset.isStablecoin ? (
-                              <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                                Cash Reserve
-                              </span>
+                              <Badge variant="success" size="xs">Cash Reserve</Badge>
                             ) : getAssetCategory(asset.symbol) === 'PRE_IPO' ? (
-                              <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-semibold bg-purple-500/15 text-purple-400 border border-purple-500/30">
-                                Pre-IPO
-                              </span>
+                              <Badge variant="devnet" size="xs">Pre-IPO</Badge>
                             ) : (
-                              <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/30">
-                                Public
-                              </span>
+                              <Badge variant="accent" size="xs">Public</Badge>
                             )}
                           </div>
                           <div className="text-[11px] text-sentinel-textMuted">{asset.name}</div>
@@ -706,14 +777,17 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
                       </div>
                     </td>
 
-                    {/* Value */}
-                    <td className="py-3.5">
+                    {/* Value & Hover Provenance */}
+                    <td className="py-3.5" onClick={(e) => e.stopPropagation()}>
                       <div className="font-mono font-semibold text-white tabular-nums">
                         {formatCurrency(asset.valueUsd)}
                       </div>
-                      <div className="text-[11px] font-mono text-sentinel-textMuted">
-                        ${asset.priceUsd.toFixed(2)}
-                      </div>
+                      <PriceProvenanceHover
+                        priceUsd={asset.priceUsd}
+                        marketPrice={mPrice}
+                        showSubtext={false}
+                        className="text-[11px] text-sentinel-textMuted hover:text-blue-400 transition"
+                      />
                     </td>
 
                     {/* Allocation */}
@@ -736,18 +810,18 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
                     {/* Pyth Dual-Feed & Tracking */}
                     <td className="py-3.5">
                       {asset.isStablecoin ? (
-                        <div className="font-mono text-xs space-y-0.5">
-                          <div className="text-white font-semibold flex items-center gap-1">
-                            <span>$1.00</span>
-                            <span className="text-[9px] px-1 py-0.2 rounded bg-purple-500/20 text-purple-300">Pyth</span>
+                        <div className="font-mono text-xs space-y-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-white font-semibold">$1.00</span>
+                            <SourceBadge source="PYTH" size="xs" />
                           </div>
                           <div className="text-[10px] text-sentinel-textMuted">Par Fixed · 0.00% dev</div>
                         </div>
                       ) : getAssetCategory(asset.symbol) === 'PRE_IPO' ? (
-                        <div className="font-mono text-xs space-y-0.5">
-                          <div className="text-white font-semibold flex items-center gap-1">
-                            <span>${asset.priceUsd.toFixed(2)}</span>
-                            <span className="text-[9px] px-1 py-0.2 rounded bg-purple-500/20 text-purple-300">PreStocks</span>
+                        <div className="font-mono text-xs space-y-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-white font-semibold">${asset.priceUsd.toFixed(2)}</span>
+                            <SourceBadge source="PRESTOCKS" size="xs" />
                           </div>
                           <div className="text-[10px] text-sentinel-textMuted">409A Certified · 0.00% dev</div>
                         </div>
@@ -760,15 +834,10 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
                             <span className="font-semibold text-white">
                               ${mPrice?.underlyingPriceUsd?.toFixed(2) ?? asset.priceUsd.toFixed(2)}
                             </span>
-                            <span className="text-[9px] px-1 py-0.2 rounded bg-purple-500/20 text-purple-300">Pyth</span>
+                            <SourceBadge source="PYTH" size="xs" />
                           </div>
-                          <div className="text-white text-[11px] flex items-center gap-1.5">
-                            <span className="text-sentinel-textMuted">{asset.symbol}:</span>
-                            <span className="font-semibold text-white">${asset.priceUsd.toFixed(2)}</span>
-                            <span className="text-[9px] px-1 py-0.2 rounded bg-blue-500/20 text-blue-300">Pyth</span>
-                          </div>
-                          <div className="flex items-center gap-1 text-[10px]">
-                            <span className="text-sentinel-textSubtle">Dev:</span>
+                          <div className="flex items-center gap-1 text-[10px] pt-0.5">
+                            <span className="text-sentinel-textSubtle">Tracking Dev:</span>
                             <span
                               className={`font-semibold ${
                                 (mPrice?.trackingErrorBps ?? 12) <= (policy.maxTrackingErrorBps ?? 250)
@@ -811,7 +880,7 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
             </tbody>
           </table>
         </div>
-      </div>
+      </Card>
 
       {/* 6. SLIDE-OVER ASSET DETAIL DRAWER (MODAL / DRAWER) */}
       {selectedAsset && (
@@ -1058,9 +1127,23 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
               </div>
             </div>
 
-            {/* Close Button */}
-            <div className="pt-4 border-t border-sentinel-border mt-6">
+            {/* Drawer Footer Actions */}
+            <div className="pt-4 border-t border-sentinel-border mt-6 flex flex-col sm:flex-row items-center gap-2.5">
+              {onNavigateToAgent && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedAssetSymbol(null);
+                    onNavigateToAgent();
+                  }}
+                  className="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                >
+                  <Cpu className="w-3.5 h-3.5" />
+                  <span>Propose Trade on Agent Console →</span>
+                </button>
+              )}
               <button
+                type="button"
                 onClick={() => setSelectedAssetSymbol(null)}
                 className="w-full py-2.5 rounded-lg bg-sentinel-surfaceMuted hover:bg-sentinel-surfaceElevated border border-sentinel-border text-white text-xs font-semibold transition cursor-pointer"
               >
