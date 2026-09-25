@@ -2,7 +2,7 @@
   <img src="./docs/assets/Sentinel_logo.png" alt="Sentinel Robo" width="300" />
 </p>
 
-<h1 align="center">Sentinel Robo</h1>
+<h1 align="center">Sentinel Finance — Sentinel Robo</h1>
 
 <p align="center">
   <strong>Outcome-bounded autonomy for tokenized portfolios on Solana.</strong><br>
@@ -10,12 +10,13 @@
 </p>
 
 <p align="center">
+  <a href="https://sentinel-finance-production-4560.up.railway.app/"><img src="https://img.shields.io/badge/Live_App-Railway_Production-00C49F?logo=railway&logoColor=white" alt="Live App"></a>
   <a href="https://explorer.solana.com/address/3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK?cluster=devnet"><img src="https://img.shields.io/badge/Solana-Devnet_Live-9945FF?logo=solana&logoColor=white" alt="Solana Devnet"></a>
   <a href="https://pyth.network"><img src="https://img.shields.io/badge/Pyth_Hermes-Dual--Feed_Live-E6DAFE?logo=pyth&logoColor=black" alt="Pyth Network"></a>
   <a href="./docs/SPONSORS.md#2-prestocks-prestocksapiclient--pre-ipo-exposure-ceiling"><img src="https://img.shields.io/badge/PreStocks-Certified_Pre--IPO-8A2BE2" alt="PreStocks"></a>
   <a href="./docs/SPONSORS.md#3-meteora-meteoradbcmarketqualityverifier--pool-pda-derivation"><img src="https://img.shields.io/badge/Meteora-DBC_Pool_PDAs-FE5F55" alt="Meteora"></a>
   <a href="./docs/VERIFICATION.md"><img src="https://img.shields.io/badge/PROVN-Two--Tier_Receipts-00C49F" alt="PROVN"></a>
-  <a href="./docs/SECURITY.md"><img src="https://img.shields.io/badge/Security-11_Vectors_Enforced-2563EB" alt="Security Matrix"></a>
+  <a href="./docs/SECURITY.md"><img src="https://img.shields.io/badge/Security-11_Adversarial_Vectors-2563EB" alt="Security Matrix"></a>
 </p>
 
 <p align="center">
@@ -23,6 +24,7 @@
 </p>
 
 <p align="center">
+  <a href="https://sentinel-finance-production-4560.up.railway.app/">Live Hosted App</a> ·
   <a href="./docs/TECHNICAL.md">Technical Docs</a> ·
   <a href="./docs/DEMO.md">Demo Walkthrough</a> ·
   <a href="https://explorer.solana.com/address/3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK?cluster=devnet">Solana Explorer</a> ·
@@ -49,7 +51,26 @@ Trade    —   → $15K     MAX   $10K  ✕
 `Robo-01` reads the structured rejection, recalculates exact compliant headroom, and adapts to:
 `BUY NVDAx $5,000` (`NVDAx 20% → 25.0%`, `USDC 25% → 20.0%`).
 
-**`✓ APPROVED & SETTLED`** — State transition commits on Solana Devnet with a PROVN SHA-256 receipt ([Devnet TX `59KCBronda...`](https://explorer.solana.com/tx/59KCBrondaKxhKmTqeib4cMGFZRh1mRQW815GUeazmAK5PYwD3Vomy957XreERfXmsLQKDc3XibcjURPnWJVmqUd?cluster=devnet)).
+**`✓ APPROVED & SETTLED`** — Sentinel's on-chain `VaultAccount` state transition commits on Solana Devnet with a PROVN SHA-256 receipt ([Devnet TX `59KCBronda...`](https://explorer.solana.com/tx/59KCBrondaKxhKmTqeib4cMGFZRh1mRQW815GUeazmAK5PYwD3Vomy957XreERfXmsLQKDc3XibcjURPnWJVmqUd?cluster=devnet)). No external Meteora/PreStocks DEX swap is performed in the current Devnet build.
+
+---
+
+## Real on Devnet vs. Demo / Simulation
+
+To provide complete technical transparency for judges, code auditors, and reviewers:
+
+| Dimension | Real On Solana Devnet (Authoritative) | Interactive Demo / Simulation Layer |
+| :--- | :--- | :--- |
+| **Anchor Program** | Deployed Solana program (`3gh1Cc2Q...`) enforcing `execute_guarded_trade` atomic postconditions | Client-side what-if projection simulator on Overview |
+| **Account State** | On-chain `PolicyAccount`, `AgentAccount`, `VaultAccount`, `PromiseAccount`, `EvidenceAccount` PDAs | Simulated preview headroom calculations |
+| **Policy Updates** | Signed by user's browser wallet (Phantom/Solflare) committing on Devnet RPC via Anchor | Local UI candidate state prior to on-chain signing |
+| **Flagship Rejection** | Real rejected $15K Devnet transaction ([TX `2haBLUK...`](https://explorer.solana.com/tx/2haBLUKavXYzqa6nTtDMNaNNUu4ax5rqSnYmQKMAxCwJeqzaUw4tPSSMtDdynbWjqSW32EgqmHxaeHj4eGWsTjCD?cluster=devnet)) | Preflight client-side rejection preview |
+| **Flagship Settlement** | Real $5K guarded `VaultAccount` state transition ([TX `59KCBronda...`](https://explorer.solana.com/tx/59KCBrondaKxhKmTqeib4cMGFZRh1mRQW815GUeazmAK5PYwD3Vomy957XreERfXmsLQKDc3XibcjURPnWJVmqUd?cluster=devnet)) | Target allocation slider projection curves |
+| **Evidence Proofs** | PROVN SHA-256 on-chain evidence transaction ([TX `3pvsnpVZ...`](https://explorer.solana.com/tx/3pvsnpVZ7A2f2ESd8jeHjbMbTYFsPv7g7RstKnNzBRpiR4mdUtCkQY5RQEPSb1fL8934sArLRp9KRDNXzFfT19Lw?cluster=devnet)) | Two-tier evidence receipt inspection drawer |
+| **Price Feeds** | Pyth Hermes v2 sub-second price streaming in `LIVE` mode (`https://hermes.pyth.network`) | Injected 140s stale-quote demo scenario |
+| **Sponsor Scenarios** | Meteora DBC deterministic pool PDA derivations; PreStocks 409A NAV normalization | Simulated shallow DBC pool impact (`1.7% > 1.0%`) & $30K OPENAIx breach |
+| **LLM Provider** | OpenAI GPT-4o function-calling supported when `OPENAI_API_KEY` is configured | Deterministic `DemoProvider` running on the hosted deployment |
+| **Persistence** | Railway Managed PostgreSQL read model (`agent_runs`, `decisions`, `executions`, `evidence_index`) | In-memory read model fallback when running locally without a database |
 
 ---
 
@@ -68,28 +89,29 @@ Trade    —   → $15K     MAX   $10K  ✕
 ```text
                         ┌─────────────────────────────┐
                         │     SENTINEL WEB (Docker)   │
-                        │  Next.js UI + BFF REST API  │
+                        │  Next.js 15 UI + BFF API    │
                         │  @sentinel/sdk & @domain    │
                         └──────┬───────────────┬──────┘
-                               │               │
-          SOLANA_RPC_URL       ▼               ▼       DATABASE_URL
-   ┌───────────────────────────────┐       ┌───────────────────────────────┐
-   │      SOLANA DEVNET (TRUTH)    │       │   POSTGRESQL (READ HISTORY)   │
-   │  Program: 3gh1Cc...WEvAJK     │       │  1. agent_runs                │
-   │  • PolicyAccount PDA          │       │  2. decisions                 │
-   │  • AgentAccount PDA           │       │  3. executions                │
-   │  • VaultAccount PDA           │       │  4. portfolio_snapshots       │
-   │  • PromiseAccount PDA         │       │  5. evidence_index            │
-   │  • EvidenceAccount PDA        │       └───────────────────────────────┘
-   └───────────────────────────────┘
+                                │               │
+           SOLANA_RPC_URL       ▼               ▼       DATABASE_URL
+    ┌───────────────────────────────┐       ┌───────────────────────────────┐
+    │      SOLANA DEVNET (TRUTH)    │       │   POSTGRESQL (READ HISTORY)   │
+    │  Program: 3gh1Cc...WEvAJK     │       │  1. agent_runs                │
+    │  • PolicyAccount PDA          │       │  2. decisions                 │
+    │  • AgentAccount PDA           │       │  3. executions                │
+    │  • VaultAccount PDA           │       │  4. portfolio_snapshots       │
+    │  • PromiseAccount PDA         │       │  5. evidence_index            │
+    │  • EvidenceAccount PDA        │       └───────────────────────────────┘
+    └───────────────────────────────┘
 ```
 
 - **`CURRENT DEVNET` (Implemented & Live)**:
   - Browser wallet signs `PolicyAccount` PDA updates (`POST /api/policy/:wallet` prepares unsigned Anchor tx; server never signs user policy changes).
   - `PythLivePriceProvider` queries Pyth Hermes v2 (`https://hermes.pyth.network`); `PreStocksApiClient` normalizes Pre-IPO NAVs server-side; `MeteoraDBCMarketQualityVerifier` validates deterministic pool PDAs pre-trade.
-  - Anchor `execute_trade` verifies postconditions on-chain and mutates `VaultAccount` + `PromiseAccount` state on Solana Devnet, followed by `record_evidence` (`EvidenceAccount` PDA).
+  - Anchor `execute_guarded_trade` verifies postconditions on-chain and mutates `VaultAccount` + `PromiseAccount` state on Solana Devnet, followed by `record_evidence` (`EvidenceAccount` PDA).
+  - Current Devnet settlement mutates Sentinel's `VaultAccount` ledger on-chain; it does **not** perform an external DEX swap CPI into a Meteora pool on Devnet.
 - **`TARGET ARCHITECTURE` (Post-Hackathon Roadmap)**:
-  - Direct on-chain Cross-Program Invocation (CPI) from Sentinel `execute_trade` into Meteora DBC / PreStocks secondary liquidity pools with post-CPI SPL token vault balance assertions.
+  - Direct on-chain Cross-Program Invocation (CPI) from Sentinel `execute_guarded_trade` into Meteora DBC / PreStocks secondary liquidity pools with post-CPI SPL token vault balance assertions.
 
 ---
 
@@ -113,14 +135,16 @@ Trade    —   → $15K     MAX   $10K  ✕
 | :--- | :--- | :--- |
 | **Pyth Network** | `PythLivePriceProvider` fetches live Hermes v2 prices/confidence/age (`NVDAx`/`NVDA`, `AAPLx`/`AAPL`, `SPYx`/`SPY`) and enforces fail-closed staleness (`≤ 60s`) & dual-feed peg deviation (`≤ 100 bps`) guards. | [docs/SPONSORS.md](./docs/SPONSORS.md#1-pyth-network-pythlivepriceprovider--dual-feed-tracking) |
 | **PreStocks** | Server-side `PreStocksApiClient` normalizes certified Pre-IPO assets (`OPENAIx`, `SPACEXx`, `STRIPEx`, `ANTHROPICx`) into an isolated universe and enforces the `Pre-IPO ≤ 20%` portfolio exposure ceiling. | [docs/SPONSORS.md](./docs/SPONSORS.md#2-prestocks-prestocksapiclient--pre-ipo-exposure-ceiling) |
-| **Meteora** | Derives canonical Meteora DBC pool PDAs (`4bHACh...`) and verifies pool liquidity depth (`≥ $25,000`) and price impact (`≤ 200 bps`) before Sentinel authorizes execution. | [docs/SPONSORS.md](./docs/SPONSORS.md#3-meteora-meteoradbcmarketqualityverifier--pool-pda-derivation) |
+| **Meteora** | Derives canonical Meteora DBC pool PDAs (`4bHACh...`) and verifies pool liquidity depth (`≥ $25,000`) and price impact (`≤ 200 bps`) before Sentinel authorizes execution. *(Note: Devnet settlement occurs on the Sentinel VaultAccount after pre-trade Meteora verification rather than an on-chain Meteora swap CPI).* | [docs/SPONSORS.md](./docs/SPONSORS.md#3-meteora-meteoradbcmarketqualityverifier--pool-pda-derivation) |
 
 ---
 
 ## Tech Stack & Quick Start
 
 - **On-Chain**: Rust, Anchor (`0.30.1`), Solana Web3.js (`@solana/web3.js`).
-- **Packages**: `@sentinel/domain` (policy/valuation/PROVN), `@sentinel/sdk` (agent loop, LLM tool dispatcher, adapters), `@sentinel/web` (Next.js 14 App Router, Tailwind CSS, PostgreSQL `pg` read index).
+- **Packages**: `@sentinel/domain` (policy/valuation/PROVN), `@sentinel/sdk` (agent loop, LLM tool dispatcher, adapters), `@sentinel/web` (Next.js 15.5.25 App Router, Tailwind CSS, PostgreSQL `pg` read model).
+- **AI Integration**: OpenAI GPT-4o supported; hosted deployment currently runs `DemoProvider` deterministic fallback unless `OPENAI_API_KEY` is configured.
+- **Docker Image**: Multi-arch (`linux/amd64` + `linux/arm64`) image published at [`darshan712/sentinel-finance:latest`](https://hub.docker.com/r/darshan712/sentinel-finance).
 
 ```bash
 # 1. Install, build, and run locally
@@ -135,10 +159,10 @@ curl http://localhost:3000/api/health
 
 ---
 
-## Testing & Verification (`120 Automated Tests + Devnet Gate`)
+## Testing & Verification (`144 Automated Tests Passing + Solana Devnet Gate`)
 
 ```bash
-# Run all 120 unit & 11-vector adversarial security tests
+# Run all 144 unit, domain, SDK, and 11-vector adversarial security tests
 pnpm test
 
 # Run live Solana Devnet P22/P23 verification gate

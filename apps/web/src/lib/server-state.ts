@@ -135,10 +135,10 @@ function createRealDevnetOrFallbackAdapter(client: SentinelClient): ExecutionAda
         return {
           ...fallbackResult,
           venueType: 'SOLANA',
-          venueName: 'Solana Devnet (Verified Sentinel Guard)',
+          venueName: 'Simulated Execution Fallback (Devnet Agent RPC Offline)',
           cluster: APP_CONFIG.cluster,
-          transactionSignature: APP_CONFIG.devnetTransactions.executeValidTradeTx,
-          isSimulation: false,
+          transactionSignature: undefined,
+          isSimulation: true,
         };
       }
     },
@@ -192,10 +192,10 @@ export async function ensureSeededDevnetHistory(
     agent_id: 'robo-01',
     wallet_address: owner,
     scenario: 'flagship',
-    llm_provider: 'OpenAIProvider',
+    llm_provider: 'DemoProvider (Canonical Seed)',
     stage: 'SETTLED',
     status: 'COMPLETED',
-    summary: 'Verified on Solana Devnet: $15,000 BUY NVDAx blocked by Sentinel -> adapted to $5,000 BUY NVDAx and settled on-chain.',
+    summary: 'Canonical Devnet Evidence: $15,000 BUY NVDAx blocked by Sentinel -> adapted to $5,000 BUY NVDAx and settled on-chain.',
     created_at: now - 120_000,
   });
 
@@ -225,7 +225,7 @@ export async function ensureSeededDevnetHistory(
     decision_id: dec1Id,
     run_id: seedRunId,
     wallet_address: owner,
-    model_provider: 'OpenAIProvider',
+    model_provider: 'DemoProvider (Canonical Seed)',
     structured_intent_json: {
       action: badIntent.direction,
       asset: badIntent.assetSymbol,
@@ -252,7 +252,7 @@ export async function ensureSeededDevnetHistory(
     decision_id: dec1Id,
     wallet_address: owner,
     venue_type: 'SOLANA',
-    venue_name: 'Solana Devnet (Sentinel Atomic Revert)',
+    venue_name: 'Solana Devnet (Canonical Seed Rejection)',
     transaction_signature: APP_CONFIG.devnetTransactions.rejectBadTradeTx,
     executed_amount_usd: 0,
     executed_price_usd: 120,
@@ -280,7 +280,8 @@ export async function ensureSeededDevnetHistory(
     decision_id: dec2Id,
     run_id: seedRunId,
     wallet_address: owner,
-    model_provider: 'OpenAIProvider',
+    model_provider: 'DemoProvider (Canonical Seed)',
+
     structured_intent_json: {
       action: goodIntent.direction,
       asset: goodIntent.assetSymbol,
@@ -583,10 +584,12 @@ export async function runServerAgentCycle(params: {
   const step1 = result.step1RejectedDecision;
   const step2 = result.step2SettledDecision;
 
-  // Ensure rejected step1 carries the canonical on-chain Devnet rejection proof signature if simulated preflight rejected it
-  if (!step1.evidenceRecord.transactionSignature || step1.evidenceRecord.transactionSignature.startsWith('REVERT_')) {
-    step1.evidenceRecord.transactionSignature = APP_CONFIG.devnetTransactions.rejectBadTradeTx;
+  // For simulated preflight rejections, keep signature undefined and mark as simulation
+  if (!step1.executionResult?.transactionSignature) {
+    step1.evidenceRecord.isSimulation = true;
+    step1.evidenceRecord.transactionSignature = undefined;
   }
+
 
   await store.db.recordAgentRun({
     run_id: result.cycleId,
@@ -636,12 +639,23 @@ export async function runServerAgentCycle(params: {
     created_at: now - 1000,
   });
 
-  const settledSignature =
-    step2.executionResult?.transactionSignature ||
-    step2.evidenceRecord.transactionSignature ||
-    APP_CONFIG.devnetTransactions.executeValidTradeTx;
+  const isStep1Simulation = Boolean(
+    step1.evidenceRecord.isSimulation || !step1.executionResult?.transactionSignature
+  );
+  if (isStep1Simulation && (!step1.evidenceRecord.transactionSignature || step1.evidenceRecord.transactionSignature.startsWith('REVERT_'))) {
+    step1.evidenceRecord.transactionSignature = undefined;
+  }
+
+  const isSimulatedExecution = Boolean(
+    step2.executionResult?.isSimulation || !step2.executionResult?.transactionSignature
+  );
+
+  const settledSignature = isSimulatedExecution
+    ? undefined
+    : (step2.executionResult?.transactionSignature || step2.evidenceRecord.transactionSignature);
 
   step2.evidenceRecord.transactionSignature = settledSignature;
+  step2.evidenceRecord.isSimulation = isSimulatedExecution;
 
   await store.db.recordDecision({
     decision_id: dec2Id,
@@ -671,12 +685,14 @@ export async function runServerAgentCycle(params: {
     decision_id: dec1Id,
     wallet_address: walletAddress,
     venue_type: 'SOLANA',
-    venue_name: 'Solana Devnet (Sentinel Postcondition Guard)',
+    venue_name: isStep1Simulation
+      ? 'Solana Devnet Simulation (Preflight Rejection)'
+      : 'Solana Devnet (Sentinel Atomic Revert)',
     transaction_signature: step1.evidenceRecord.transactionSignature,
     executed_amount_usd: 0,
     executed_price_usd: step1.intent.referencePriceUsd,
     cluster: APP_CONFIG.clusterLabel,
-    is_simulation: false,
+    is_simulation: isStep1Simulation,
     created_at: now - 1000,
   });
 
@@ -685,14 +701,17 @@ export async function runServerAgentCycle(params: {
     decision_id: dec2Id,
     wallet_address: walletAddress,
     venue_type: step2.executionResult?.venueType ?? 'SOLANA',
-    venue_name: step2.executionResult?.venueName ?? 'Solana Devnet',
+    venue_name: isSimulatedExecution
+      ? 'Solana Devnet Simulation (Postcondition Verified)'
+      : (step2.executionResult?.venueName ?? 'Solana Devnet'),
     transaction_signature: settledSignature,
     executed_amount_usd: step2.intent.tradeAmountUsd,
     executed_price_usd: step2.intent.referencePriceUsd,
     cluster: APP_CONFIG.clusterLabel,
-    is_simulation: Boolean(step2.executionResult?.isSimulation ?? false),
+    is_simulation: isSimulatedExecution,
     created_at: now,
   });
+
 
   await store.db.recordPortfolioSnapshot(store.portfolio);
   await store.db.recordEvidenceIndex(step1.evidenceRecord, dec1Id, walletAddress);

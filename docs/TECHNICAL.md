@@ -7,7 +7,9 @@ Autonomous AI agents operate in probabilistic space: they ingest signals, reason
 Sentinel places an **atomic state-transition boundary** between the autonomous agent (`Robo-01`) and capital execution on Solana:
 
 1. **Deterministic Account Locking**: Every portfolio invariant (`PolicyAccount`), vault balance state (`VaultAccount`), agent mandate (`AgentAccount`), and trade commitment (`PromiseAccount`) lives in deterministic Program Derived Addresses (PDAs) owned by the Sentinel Anchor program (`3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK`).
-2. **Pre-State vs. Post-State Invariant Verification**: Sentinel evaluates the *resulting portfolio state* (`post_state`) before any state transition commits. If any single invariant fails (`Concentration > 25%`, `USDC Reserve < 20%`, `Pre-IPO Exposure > 20%`, `Trade Size > $10K`, `Pyth Quote Age > 60s`), the transaction reverts atomically (`0` tokens moved).
+2. **Two-Tier Pre-State vs. Post-State Verification**: Sentinel enforces a strict defense-in-depth model across two layers before any state transition commits:
+   - **On-Chain Anchor Guard (`execute_guarded_trade`)**: Enforces single-stock concentration cap (`post_asset_bps <= max_single_asset_bps`), stablecoin reserve floor (`post_stablecoin_bps >= min_stablecoin_bps`), max trade size (`trade_amount_usd <= max_trade_value_usd`), max slippage (`max_slippage_bps`), and agent authorization / promise binding. If any on-chain check fails, the transaction reverts atomically on Solana (`0` tokens moved).
+   - **Off-Chain Pre-Trade Verifiers (`Sentinel SDK`)**: Asserts Pyth oracle freshness (`quote_age <= 60s`), confidence intervals, and tracking error; PreStocks pre-IPO universe allocation (`exposure <= 20%`); and Meteora DBC pool depth (`liquidity >= $25k`) and price impact (`<= 200 bps`).
 3. **Structured Error Feedback for Reactive Adaptation**: Anchor error codes (`6000`–`6009`) and SDK postcondition diagnostics return the exact mathematical headroom (`maxCompliantAmountUsd`) so the agent can adapt (`$15,000 → $5,000`) and settle within the same decision cycle.
 
 ---
@@ -32,8 +34,8 @@ To ensure technical accuracy for code reviewers and judges, Sentinel explicitly 
 │   ├─ AgentAccount PDA     (initialize_agent)                            │
 │   ├─ VaultAccount PDA     (initialize_vault / sync_vault)               │
 │   ├─ PromiseAccount PDA   (create_promise)                              │
-│   ├─ Trade Execution      (execute_trade — enforces postconditions &    │
-│   │                        mutates VaultAccount PDA state on-chain)     │
+│   ├─ Trade Execution      (execute_guarded_trade — enforces             │
+│   │                        postconditions & mutates VaultAccount state) │
 │   └─ EvidenceAccount PDA  (record_evidence — anchors SHA-256 receipt)   │
 └─────────────────────────────────────────────────────────────────────────┘
 
@@ -41,13 +43,14 @@ To ensure technical accuracy for code reviewers and judges, Sentinel explicitly 
 │                    TARGET PRODUCTION ARCHITECTURE                       │
 ├─────────────────────────────────────────────────────────────────────────┤
 │ Direct On-Chain CPI Settlement                                          │
-│   └─ Sentinel `execute_trade` invokes Meteora DBC / PreStocks secondary │
-│      vault swap via Cross-Program Invocation (CPI) and verifies actual  │
-│      SPL token vault balance deltas post-CPI in the same instruction.   │
+│   └─ Sentinel `execute_guarded_trade` invokes Meteora DBC / PreStocks   │
+│      secondary vault swap via Cross-Program Invocation (CPI) and        │
+│      verifies actual SPL token vault balance deltas post-CPI.           │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-> **Important Note on Devnet Settlement**: On Current Devnet, `execute_trade` executes a real Anchor instruction on Solana Devnet that verifies all `PolicyAccount` and `VaultAccount` invariants on-chain and mutates `VaultAccount` + `PromiseAccount` state, after the SDK verifies Meteora DBC pool quality and Pyth Hermes oracle freshness pre-trade. It does **not** perform a live SPL token CPI swap into a Meteora pool on Devnet.
+> **Important Note on Devnet Settlement**: On Current Devnet, `execute_guarded_trade` executes a real Anchor instruction on Solana Devnet that verifies all `PolicyAccount` and `VaultAccount` invariants on-chain and mutates `VaultAccount` + `PromiseAccount` state, after the SDK verifies Meteora DBC pool quality and Pyth Hermes oracle freshness pre-trade. It mutates the Sentinel Vault ledger on-chain and does **not** perform a live SPL token CPI swap into an external DEX pool on Devnet.
+
 
 ---
 
@@ -67,9 +70,10 @@ The deployed Anchor program (`programs/sentinel/src/lib.rs`) exposes six core in
 4. **`create_promise`**:
    - **Signer**: Delegated Agent Signer (`Robo-01`).
    - **State**: Commits `intent_hash`, `policy_hash`, `pre_state_hash`, `proposed_post_state_hash`, `asset_symbol`, `trade_amount_usd`, and `is_buy` into `PromiseAccount` (`["promise", vault, promise_id]`).
-5. **`execute_trade`**:
+5. **`execute_guarded_trade`**:
    - **Signer**: Delegated Agent Signer (`Robo-01`).
    - **Verification**: Asserts `policy.is_active`, `agent.is_authorized`, `agent.agent_signer == signer`, `trade_amount_usd <= max_trade_value_usd`, `post_asset_bps <= max_single_asset_bps`, and `post_stablecoin_bps >= min_stablecoin_bps`.
+
    - **Outcome**: If any check fails, returns `SentinelError` (`6000`–`6009`) and aborts atomically. If all checks pass, updates `VaultAccount` balances and marks `PromiseAccount.status = Executed`.
 6. **`record_evidence`**:
    - **Signer**: Delegated Agent Signer (`Robo-01`).
