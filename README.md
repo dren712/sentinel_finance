@@ -35,6 +35,18 @@
 
 ---
 
+## About Sentinel
+
+**Sentinel is an outcome-bounded execution firewall for autonomous AI agents on Solana.**
+
+While AI agents excel at market research and trade formulation, they operate in probabilistic space. Prompts, fine-tuning, and off-chain wrappers cannot provide deterministic guarantees against catastrophic risk. Sentinel places a deterministic, on-chain state-transition boundary between agent intelligence and financial settlement:
+
+- **Autonomous Intelligence:** The agent (`Robo-01`) is free to analyze signals and formulate complex trade intents across tokenized equities (`NVDAx`, `AAPLx`, `SPYx`) and certified Pre-IPO assets (`PreStocks`).
+- **Deterministic Postconditions:** Every proposed trade is evaluated against hard portfolio invariants—single-asset concentration caps, stablecoin reserve floors, trade size ceilings, Pyth dual-feed freshness, and Meteora pool liquidity depth.
+- **Atomic Enforcement & Adaptation:** Any invariant violation reverts atomically on Solana before capital moves. The agent receives structured headroom diagnostics, recalculates compliant trade parameters, and settles on-chain with verifiable PROVN cryptographic receipts.
+
+---
+
 ## The 30-Second Demo
 
 `Robo-01` proposes:
