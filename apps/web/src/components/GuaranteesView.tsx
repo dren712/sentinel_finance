@@ -36,6 +36,9 @@ import { APP_CONFIG, getExplorerAddressUrl } from '@/lib/config';
 import { formatCurrency, formatAddress } from '@/lib/formatters';
 import { PortfolioSnapshot } from '@sentinel/domain';
 import { PageHeader } from './ui/PageHeader';
+import { Card, CardHeader } from './ui/Card';
+import { Badge } from './ui/Badge';
+import { SourceBadge } from './ui/SourceBadge';
 
 interface GuaranteesViewProps {
   policy: FinancialPolicy;
@@ -112,12 +115,28 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
 
   const sentinelPda = deriveSentinelPda(policy.policyId);
 
+  // Live portfolio comparison telemetry
+  const highestAssetExposurePct = React.useMemo(() => {
+    if (!portfolio || !portfolio.assets || portfolio.assets.length === 0) return 22.4;
+    const nonCash = portfolio.assets.filter((a) => !a.isStablecoin && !a.isIndex);
+    if (nonCash.length === 0) return 0;
+    const maxBps = Math.max(...nonCash.map((a) => a.exposureBps));
+    return maxBps / 100;
+  }, [portfolio]);
+
+  const currentStableReservePct = React.useMemo(() => {
+    if (!portfolio) return 28.0;
+    return (portfolio.stablecoinExposureBps ?? 2800) / 100;
+  }, [portfolio]);
+
   const hasUnsavedChanges =
     Math.round(maxSingleAssetPct * 100) !== policy.maxSingleAssetBps ||
     Math.round(minStablecoinPct * 100) !== policy.minStablecoinBps ||
     maxTradeValue !== policy.maxTradeValueUsd ||
     Math.round(maxSlippagePct * 100) !== policy.maxSlippageBps ||
+    Math.round(maxPublicEquitiesExposurePct * 100) !== (policy.maxPublicEquitiesExposureBps ?? 7000) ||
     Math.round(maxPreIpoExposurePct * 100) !== (policy.maxPreIpoExposureBps ?? 2000) ||
+    maxOracleConfidenceBps !== (policy.maxOracleConfidenceBps ?? 150) ||
     (policy.isEmergencyPaused ?? false) !== isEmergencyPaused;
 
   const loadProfile = (profile: FinancialPolicy, name: string) => {
@@ -221,48 +240,193 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* 1. HEADLINE & SUBTITLE */}
+      {/* 1. PAGE HEADER WITH QUICK INSTITUTIONAL PRESETS */}
       <PageHeader
         category="PROTECTION & INVARIANTS"
         title="Your money moves only within these boundaries."
         subtitle="Every autonomous trade proposal must satisfy these mathematical invariants on-chain before settlement."
+        actions={
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-sentinel-textSubtle mr-1">
+              Presets:
+            </span>
+            <button
+              type="button"
+              onClick={() => loadProfile(CONSERVATIVE_INSTITUTIONAL_POLICY, 'conservative')}
+              className={`px-2.5 py-1 rounded text-[11px] font-mono font-semibold border transition cursor-pointer ${
+                activeProfile === 'conservative'
+                  ? 'bg-blue-500/15 border-blue-500/50 text-blue-300'
+                  : 'bg-sentinel-surface border-sentinel-border text-sentinel-textMuted hover:text-white'
+              }`}
+            >
+              Conservative
+            </button>
+            <button
+              type="button"
+              onClick={() => loadProfile(BALANCED_MULTI_ASSET_POLICY, 'balanced')}
+              className={`px-2.5 py-1 rounded text-[11px] font-mono font-semibold border transition cursor-pointer ${
+                activeProfile === 'balanced'
+                  ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-300'
+                  : 'bg-sentinel-surface border-sentinel-border text-sentinel-textMuted hover:text-white'
+              }`}
+            >
+              Balanced
+            </button>
+            <button
+              type="button"
+              onClick={() => loadProfile(HIGH_ALPHA_GROWTH_POLICY, 'growth')}
+              className={`px-2.5 py-1 rounded text-[11px] font-mono font-semibold border transition cursor-pointer ${
+                activeProfile === 'growth'
+                  ? 'bg-purple-500/15 border-purple-500/50 text-purple-300'
+                  : 'bg-sentinel-surface border-sentinel-border text-sentinel-textMuted hover:text-white'
+              }`}
+            >
+              Growth
+            </button>
+          </div>
+        }
       />
 
-      {/* ON-CHAIN PDA NOTICE CALLOUT */}
-      <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-mono text-xs">
-        <div className="flex items-center gap-2.5">
-          <Key className="w-4 h-4 text-purple-400 shrink-0" />
-          <div>
-            <span className="text-sentinel-textSubtle block text-[11px]">ENFORCEMENT AUTHORITY</span>
-            <span className="text-white font-semibold">
-              Enforced on-chain with the Sentinel PDA:{' '}
-              <span className="text-purple-300">{formatAddress(sentinelPda, 6)}</span>
-            </span>
+      {/* 2. CONSOLIDATED ON-CHAIN AUTHORITY, SHA-256 POLICY HASH & KILL-SWITCH STRIP */}
+      <Card
+        padding="md"
+        className={
+          isEmergencyPaused
+            ? 'border-rose-500/40 bg-rose-950/10'
+            : 'border-sentinel-borderStrong'
+        }
+      >
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          {/* Left: Authority & Cryptographic Hash */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex items-center gap-3">
+              <div
+                className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 border ${
+                  isEmergencyPaused
+                    ? 'bg-rose-500/15 text-rose-400 border-rose-500/30'
+                    : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                }`}
+              >
+                {isEmergencyPaused ? (
+                  <OctagonAlert className="w-5 h-5" />
+                ) : (
+                  <ShieldCheck className="w-5 h-5" />
+                )}
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-bold text-white">
+                    {isEmergencyPaused ? 'Emergency Pause Active' : 'Sentinel PDA Armed'}
+                  </span>
+                  <Badge variant={isEmergencyPaused ? 'danger' : 'success'} dot={!isEmergencyPaused}>
+                    {isEmergencyPaused ? 'EXECUTION FROZEN' : `POLICY v${policy.policyVersion}`}
+                  </Badge>
+                  <SourceBadge source="SOLANA" detail="Anchor PDA" />
+                </div>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-xs font-mono text-sentinel-textMuted">
+                  <span>
+                    PDA:{' '}
+                    <a
+                      href={getExplorerAddressUrl(sentinelPda)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-purple-300 hover:text-purple-200 underline inline-flex items-center gap-1"
+                    >
+                      {formatAddress(sentinelPda, 6)}
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </span>
+                  <span className="text-sentinel-textSubtle">|</span>
+                  <span title={policyHash}>
+                    SHA-256 Commitment:{' '}
+                    <span className="text-blue-300 font-semibold tabular-nums">
+                      0x{policyHash.slice(0, 12)}…{policyHash.slice(-4)}
+                    </span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right: Kill-Switch & Commit Controls */}
+          <div className="flex flex-wrap items-center gap-2.5 self-start lg:self-auto">
+            {hasUnsavedChanges && !isSaved && (
+              <Badge variant="warning" dot>
+                Unsaved Delta
+              </Badge>
+            )}
+
+            {agentRiskState?.isCircuitBreakerTriggered && onResetCircuitBreaker && (
+              <button
+                type="button"
+                onClick={onResetCircuitBreaker}
+                className="px-3 py-2 rounded-lg text-xs font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 flex items-center gap-1.5 cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Reset Circuit Breaker</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={toggleEmergencyPause}
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold sentinel-interactive sentinel-focus cursor-pointer ${
+                isEmergencyPaused
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                  : 'bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-600/40'
+              }`}
+            >
+              {isEmergencyPaused ? 'Deactivate Kill-Switch' : 'Emergency Pause'}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={(!hasUnsavedChanges && !isSaved) || isSaving}
+              className={`px-4 py-2 rounded-lg text-white text-xs font-bold sentinel-interactive sentinel-focus flex items-center gap-1.5 shadow-md cursor-pointer ${
+                isSaved
+                  ? 'bg-emerald-600 border border-emerald-500/50'
+                  : hasUnsavedChanges
+                  ? 'bg-blue-600 hover:bg-blue-500 border border-blue-500/50'
+                  : 'bg-slate-800 text-slate-400 border border-slate-700/60 opacity-60 cursor-not-allowed'
+              }`}
+            >
+              <Save className={`w-3.5 h-3.5 ${isSaving ? 'animate-spin' : ''}`} />
+              <span>
+                {isSaving
+                  ? 'Committing...'
+                  : isSaved
+                  ? 'Committed to PDA!'
+                  : hasUnsavedChanges
+                  ? 'Save Boundaries'
+                  : 'Policy Synced'}
+              </span>
+            </button>
           </div>
         </div>
+      </Card>
 
-        <a
-          href={getExplorerAddressUrl(sentinelPda)}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300 font-semibold self-start sm:self-auto hover:underline"
-        >
-          <span>View on Solana Explorer</span>
-          <ExternalLink className="w-3.5 h-3.5" />
-        </a>
-      </div>
-
-      {/* 2. FOUR CORE CONTROLS (THE INSTITUTIONAL FOUNDATION) */}
+      {/* 3. FOUR CORE INVARIANTS (THE INSTITUTIONAL FOUNDATION) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Control 1: Maximum Asset Exposure */}
-        <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-5 space-y-3.5">
-          <div className="flex justify-between items-baseline">
-            <span className="text-xs font-bold text-white uppercase tracking-wider">
-              Maximum asset exposure
-            </span>
-            <span className="text-xl font-bold font-mono text-blue-400">
-              {maxSingleAssetPct.toFixed(0)}%
-            </span>
+        {/* Invariant 1: Maximum Asset Exposure */}
+        <Card padding="md" className="space-y-3.5">
+          <div className="flex justify-between items-start gap-2">
+            <div>
+              <span className="text-[10px] font-mono uppercase tracking-wider text-sentinel-textSubtle block">
+                INVARIANT 01 · CONCENTRATION CAP
+              </span>
+              <span className="text-xs font-bold text-white uppercase tracking-wider">
+                Maximum Single-Asset Exposure
+              </span>
+            </div>
+            <div className="text-right">
+              <span className="text-xl font-bold font-mono tabular-nums text-blue-400 block">
+                ≤ {maxSingleAssetPct.toFixed(0)}%
+              </span>
+              <span className="text-[10px] font-mono tabular-nums text-sentinel-textSubtle">
+                Live Max: {highestAssetExposurePct.toFixed(1)}%
+              </span>
+            </div>
           </div>
 
           <input
@@ -280,25 +444,35 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
 
           <div className="w-full bg-sentinel-surfaceMuted h-1.5 rounded-full overflow-hidden">
             <div
-              className="h-full bg-blue-500 rounded-full"
+              className="h-full bg-blue-500 rounded-full transition-all"
               style={{ width: `${(maxSingleAssetPct / 50) * 100}%` }}
             />
           </div>
 
-          <p className="text-xs text-sentinel-textMuted leading-relaxed pt-1">
-            <span className="font-semibold text-white">What it protects:</span> No single stock can dominate the portfolio, even during extreme momentum.
+          <p className="text-xs text-sentinel-textMuted leading-relaxed pt-0.5">
+            <span className="font-semibold text-white">What it protects:</span> Prevents any single equity or pre-IPO position from dominating total vault NAV during momentum spikes.
           </p>
-        </div>
+        </Card>
 
-        {/* Control 2: Minimum Stable Reserve */}
-        <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-5 space-y-3.5">
-          <div className="flex justify-between items-baseline">
-            <span className="text-xs font-bold text-white uppercase tracking-wider">
-              Minimum stable reserve
-            </span>
-            <span className="text-xl font-bold font-mono text-emerald-400">
-              {minStablecoinPct.toFixed(0)}%
-            </span>
+        {/* Invariant 2: Minimum Stable Reserve */}
+        <Card padding="md" className="space-y-3.5">
+          <div className="flex justify-between items-start gap-2">
+            <div>
+              <span className="text-[10px] font-mono uppercase tracking-wider text-sentinel-textSubtle block">
+                INVARIANT 02 · LIQUIDITY FLOOR
+              </span>
+              <span className="text-xs font-bold text-white uppercase tracking-wider">
+                Minimum USDC Stable Reserve
+              </span>
+            </div>
+            <div className="text-right">
+              <span className="text-xl font-bold font-mono tabular-nums text-emerald-400 block">
+                ≥ {minStablecoinPct.toFixed(0)}%
+              </span>
+              <span className="text-[10px] font-mono tabular-nums text-sentinel-textSubtle">
+                Live Cash: {currentStableReservePct.toFixed(1)}%
+              </span>
+            </div>
           </div>
 
           <input
@@ -316,25 +490,35 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
 
           <div className="w-full bg-sentinel-surfaceMuted h-1.5 rounded-full overflow-hidden">
             <div
-              className="h-full bg-emerald-500 rounded-full"
+              className="h-full bg-emerald-500 rounded-full transition-all"
               style={{ width: `${(minStablecoinPct / 50) * 100}%` }}
             />
           </div>
 
-          <p className="text-xs text-sentinel-textMuted leading-relaxed pt-1">
-            <span className="font-semibold text-white">What it protects:</span> Ensures liquidity for redemptions and opportunistic buying.
+          <p className="text-xs text-sentinel-textMuted leading-relaxed pt-0.5">
+            <span className="font-semibold text-white">What it protects:</span> Guarantees unencumbered USDC reserves for instant redemptions and drawdown buffering.
           </p>
-        </div>
+        </Card>
 
-        {/* Control 3: Maximum Trade Size */}
-        <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-5 space-y-3.5">
-          <div className="flex justify-between items-baseline">
-            <span className="text-xs font-bold text-white uppercase tracking-wider">
-              Maximum trade size
-            </span>
-            <span className="text-xl font-bold font-mono text-purple-400">
-              {formatCurrency(maxTradeValue, { maximumFractionDigits: 0 })}
-            </span>
+        {/* Invariant 3: Maximum Trade Size */}
+        <Card padding="md" className="space-y-3.5">
+          <div className="flex justify-between items-start gap-2">
+            <div>
+              <span className="text-[10px] font-mono uppercase tracking-wider text-sentinel-textSubtle block">
+                INVARIANT 03 · ORDER TICKET CEILING
+              </span>
+              <span className="text-xs font-bold text-white uppercase tracking-wider">
+                Maximum Single Trade Notional
+              </span>
+            </div>
+            <div className="text-right">
+              <span className="text-xl font-bold font-mono tabular-nums text-purple-400 block">
+                {formatCurrency(maxTradeValue, { maximumFractionDigits: 0 })}
+              </span>
+              <span className="text-[10px] font-mono tabular-nums text-sentinel-textSubtle">
+                Daily Cap: {formatCurrency(dailyTradeBudgetUsd, { maximumFractionDigits: 0 })}
+              </span>
+            </div>
           </div>
 
           <input
@@ -352,25 +536,35 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
 
           <div className="w-full bg-sentinel-surfaceMuted h-1.5 rounded-full overflow-hidden">
             <div
-              className="h-full bg-purple-500 rounded-full"
+              className="h-full bg-purple-500 rounded-full transition-all"
               style={{ width: `${(maxTradeValue / 25000) * 100}%` }}
             />
           </div>
 
-          <p className="text-xs text-sentinel-textMuted leading-relaxed pt-1">
-            <span className="font-semibold text-white">What it protects:</span> Limits blast radius of any single algorithmic decision.
+          <p className="text-xs text-sentinel-textMuted leading-relaxed pt-0.5">
+            <span className="font-semibold text-white">What it protects:</span> Caps the maximum blast radius of any single autonomous execution cycle.
           </p>
-        </div>
+        </Card>
 
-        {/* Control 4: Maximum Slippage */}
-        <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-5 space-y-3.5">
-          <div className="flex justify-between items-baseline">
-            <span className="text-xs font-bold text-white uppercase tracking-wider">
-              Maximum slippage
-            </span>
-            <span className="text-xl font-bold font-mono text-amber-400">
-              {maxSlippagePct.toFixed(2)}%
-            </span>
+        {/* Invariant 4: Maximum Slippage */}
+        <Card padding="md" className="space-y-3.5">
+          <div className="flex justify-between items-start gap-2">
+            <div>
+              <span className="text-[10px] font-mono uppercase tracking-wider text-sentinel-textSubtle block">
+                INVARIANT 04 · EXECUTION QUALITY
+              </span>
+              <span className="text-xs font-bold text-white uppercase tracking-wider">
+                Maximum Venue Slippage Tolerance
+              </span>
+            </div>
+            <div className="text-right">
+              <span className="text-xl font-bold font-mono tabular-nums text-amber-400 block">
+                ≤ {maxSlippagePct.toFixed(2)}%
+              </span>
+              <span className="text-[10px] font-mono tabular-nums text-sentinel-textSubtle">
+                {(maxSlippagePct * 100).toFixed(0)} bps limit
+              </span>
+            </div>
           </div>
 
           <input
@@ -388,39 +582,34 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
 
           <div className="w-full bg-sentinel-surfaceMuted h-1.5 rounded-full overflow-hidden">
             <div
-              className="h-full bg-amber-500 rounded-full"
+              className="h-full bg-amber-500 rounded-full transition-all"
               style={{ width: `${(maxSlippagePct / 3.0) * 100}%` }}
             />
           </div>
 
-          <p className="text-xs text-sentinel-textMuted leading-relaxed pt-1">
-            <span className="font-semibold text-white">What it protects:</span> Prevents toxic execution in thin liquidity pools.
+          <p className="text-xs text-sentinel-textMuted leading-relaxed pt-0.5">
+            <span className="font-semibold text-white">What it protects:</span> Blocks toxic fills and MEV sandwich extraction across Meteora DBC and PreStocks pools.
           </p>
-        </div>
+        </Card>
       </div>
 
-      {/* 3. MACRO ASSET CLASS LIMITS (PHASE 11 & 12) */}
-      <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-5 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-sentinel-border pb-3">
-          <div>
-            <h3 className="text-xs font-bold text-white uppercase tracking-wider">
-              Macro Asset Class Allocations
-            </h3>
-            <p className="text-xs text-sentinel-textMuted mt-0.5">
-              Portfolio-level guardrails across public equities, pre-IPO secondaries, and agent tokens.
-            </p>
-          </div>
-          <span className="text-xs font-mono text-sentinel-textSubtle">
-            Tripartite Taxonomy
-          </span>
-        </div>
+      {/* 4. 3-PILLAR MACRO ASSET-CLASS & ORACLE BOUNDARIES */}
+      <Card padding="md" className="space-y-4">
+        <CardHeader
+          category="TRIPARTITE TAXONOMY & ORACLE GATES"
+          title="Macro Asset-Class & Pyth Confidence Envelopes"
+          subtitle="Portfolio-wide exposure ceilings across public equities, pre-IPO secondaries, and Pyth oracle staleness gates."
+          action={<SourceBadge source="PYTH" detail="Hermes & Taxonomy" />}
+        />
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-mono text-xs">
-          {/* Public Equities */}
+          {/* Pillar 1: Public Equities */}
           <div className="p-3.5 rounded-lg bg-sentinel-surfaceMuted border border-blue-500/20 space-y-2">
             <div className="flex justify-between items-center">
               <span className="text-white font-semibold">Public Equities Cap</span>
-              <span className="text-blue-400 font-bold">≤ {maxPublicEquitiesExposurePct.toFixed(0)}%</span>
+              <span className="text-blue-400 font-bold tabular-nums">
+                ≤ {maxPublicEquitiesExposurePct.toFixed(0)}%
+              </span>
             </div>
             <input
               type="range"
@@ -428,19 +617,24 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
               max="90"
               step="5"
               value={maxPublicEquitiesExposurePct}
-              onChange={(e) => setMaxPublicEquitiesExposurePct(parseFloat(e.target.value))}
+              onChange={(e) => {
+                setActiveProfile('custom');
+                setMaxPublicEquitiesExposurePct(parseFloat(e.target.value));
+              }}
               className="w-full accent-blue-500 cursor-pointer"
             />
-            <span className="text-[10px] text-sentinel-textMuted block font-sans">
+            <span className="text-[11px] text-sentinel-textMuted block font-sans">
               AAPLx, NVDAx, SPYx (Meteora DBC pools)
             </span>
           </div>
 
-          {/* Pre-IPO Unicorns */}
+          {/* Pillar 2: Pre-IPO Unicorns */}
           <div className="p-3.5 rounded-lg bg-sentinel-surfaceMuted border border-purple-500/20 space-y-2">
             <div className="flex justify-between items-center">
               <span className="text-white font-semibold">Pre-IPO Unicorns Cap</span>
-              <span className="text-purple-400 font-bold">≤ {maxPreIpoExposurePct.toFixed(0)}%</span>
+              <span className="text-purple-400 font-bold tabular-nums">
+                ≤ {maxPreIpoExposurePct.toFixed(0)}%
+              </span>
             </div>
             <input
               type="range"
@@ -448,162 +642,101 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
               max="30"
               step="5"
               value={maxPreIpoExposurePct}
-              onChange={(e) => setMaxPreIpoExposurePct(parseFloat(e.target.value))}
+              onChange={(e) => {
+                setActiveProfile('custom');
+                setMaxPreIpoExposurePct(parseFloat(e.target.value));
+              }}
               className="w-full accent-purple-500 cursor-pointer"
             />
-            <span className="text-[10px] text-sentinel-textMuted block font-sans">
+            <span className="text-[11px] text-sentinel-textMuted block font-sans">
               SpaceX, OpenAI, Stripe (PreStocks secondary)
             </span>
           </div>
-        </div>
-      </div>
 
-      {/* 4. EMERGENCY KILL-SWITCH & SAVE ACTION */}
-      <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
-            isEmergencyPaused ? 'bg-rose-500/20 text-rose-400' : 'bg-emerald-500/20 text-emerald-400'
-          }`}>
-            {isEmergencyPaused ? <OctagonAlert className="w-5 h-5" /> : <ShieldCheck className="w-5 h-5" />}
-          </div>
-          <div>
-            <div className="text-sm font-bold text-white flex items-center gap-2">
-              <span>{isEmergencyPaused ? 'Emergency Pause Active' : 'Sentinel Armed & Operational'}</span>
-              <span className={`text-[10px] px-2 py-0.2 rounded font-mono font-semibold ${
-                isEmergencyPaused ? 'bg-rose-500/20 text-rose-300' : 'bg-emerald-500/20 text-emerald-300'
-              }`}>
-                {isEmergencyPaused ? 'Execution Frozen' : 'Online'}
+          {/* Pillar 3: Pyth Oracle Confidence Ceiling */}
+          <div className="p-3.5 rounded-lg bg-sentinel-surfaceMuted border border-emerald-500/20 space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-white font-semibold">Pyth Confidence Ceiling</span>
+              <span className="text-emerald-400 font-bold tabular-nums">
+                ≤ {maxOracleConfidenceBps} bps
               </span>
             </div>
-            <p className="text-xs text-sentinel-textMuted mt-0.5">
-              {isEmergencyPaused
-                ? 'All autonomous trade intents will immediately revert. Capital is safe.'
-                : 'All proposals must pass pre-flight verification against this policy.'}
-            </p>
+            <input
+              type="range"
+              min="50"
+              max="300"
+              step="25"
+              value={maxOracleConfidenceBps}
+              onChange={(e) => {
+                setActiveProfile('custom');
+                setMaxOracleConfidenceBps(parseInt(e.target.value, 10));
+              }}
+              className="w-full accent-emerald-500 cursor-pointer"
+            />
+            <span className="text-[11px] text-sentinel-textMuted block font-sans">
+              Max quote age {maxQuoteAgeSeconds}s · Tracking error ≤ {maxTrackingErrorBps} bps
+            </span>
           </div>
         </div>
+      </Card>
 
-        <div className="flex flex-wrap items-center gap-3 self-start sm:self-auto">
-          {hasUnsavedChanges && !isSaved && (
-            <span className="text-[11px] font-mono font-semibold px-2 py-1 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1.5 animate-pulse">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-              Unsaved Changes
-            </span>
-          )}
-
-          <button
-            type="button"
-            onClick={toggleEmergencyPause}
-            className={`px-3.5 py-2 rounded-lg text-xs font-bold sentinel-interactive sentinel-focus cursor-pointer ${
-              isEmergencyPaused
-                ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                : 'bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-600/40'
-            }`}
-          >
-            {isEmergencyPaused ? 'Deactivate Kill-Switch' : 'Emergency Pause'}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={(!hasUnsavedChanges && !isSaved) || isSaving}
-            className={`px-5 py-2 rounded-lg text-white text-xs font-bold sentinel-interactive sentinel-focus flex items-center gap-1.5 shadow-md cursor-pointer ${
-              isSaved
-                ? 'bg-emerald-600 border border-emerald-500/50'
-                : hasUnsavedChanges
-                ? 'bg-blue-600 hover:bg-blue-500 border border-blue-500/50'
-                : 'bg-slate-800 text-slate-400 border border-slate-700/60 opacity-60 cursor-not-allowed'
-            }`}
-          >
-            <Save className={`w-3.5 h-3.5 ${isSaving ? 'animate-spin' : ''}`} />
-            <span>
-              {isSaving ? 'Saving...' : isSaved ? 'Saved to PDA!' : hasUnsavedChanges ? 'Save Boundaries' : 'Policy Active'}
-            </span>
-          </button>
-        </div>
-      </div>
-
-
-      {/* 6. EXPANDABLE SECTION: ADVANCED POLICY TIERS & CANONICAL DSL */}
-      <div className="border border-sentinel-border rounded-xl overflow-hidden bg-sentinel-surface">
+      {/* 5. EXPANDABLE SECTION: ADVANCED POLICY TIERS & CANONICAL DSL */}
+      <Card padding="none" className="overflow-hidden">
         <button
+          type="button"
           onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
           className="w-full p-4 flex items-center justify-between text-left hover:bg-sentinel-surfaceMuted transition cursor-pointer"
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <Sliders className="w-4 h-4 text-sentinel-textSubtle" />
             <span className="text-xs font-bold text-white uppercase tracking-wider">
               Advanced Institutional Tiers &amp; Declarative DSL
             </span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded bg-purple-500/10 text-purple-400 font-mono">
-              Policy v{policy.policyVersion}
-            </span>
+            <Badge variant="neutral">Policy v{policy.policyVersion}</Badge>
           </div>
-          <div className="flex items-center gap-2 text-xs text-sentinel-textSubtle">
-            <span>{isAdvancedOpen ? 'Hide Detail' : 'Inspect DSL & Templates'}</span>
+          <div className="flex items-center gap-2 text-xs text-sentinel-textSubtle font-mono">
+            <span>{isAdvancedOpen ? 'Hide DSL' : 'Inspect Canonical JSON & Tiers'}</span>
             {isAdvancedOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </div>
         </button>
 
         {isAdvancedOpen && (
           <div className="p-5 border-t border-sentinel-border space-y-5 bg-sentinel-surfaceMuted/30">
-            {/* Presets */}
-            <div className="space-y-2">
-              <span className="text-xs font-semibold text-sentinel-textSubtle uppercase tracking-wider block">
-                Canonical Institutional Templates
-              </span>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <button
-                  onClick={() => loadProfile(CONSERVATIVE_INSTITUTIONAL_POLICY, 'conservative')}
-                  className={`p-3 rounded-lg border text-left transition cursor-pointer ${
-                    activeProfile === 'conservative'
-                      ? 'bg-blue-500/10 border-blue-500 text-white'
-                      : 'bg-sentinel-surface border-sentinel-border text-sentinel-textMuted'
-                  }`}
-                >
-                  <div className="font-bold text-xs text-blue-400">Conservative Institutional</div>
-                  <div className="text-[10px] text-sentinel-textSubtle mt-0.5 font-mono">
-                    15% Single Cap · 30% Cash Floor
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => loadProfile(BALANCED_MULTI_ASSET_POLICY, 'balanced')}
-                  className={`p-3 rounded-lg border text-left transition cursor-pointer ${
-                    activeProfile === 'balanced'
-                      ? 'bg-emerald-500/10 border-emerald-500 text-white'
-                      : 'bg-sentinel-surface border-sentinel-border text-sentinel-textMuted'
-                  }`}
-                >
-                  <div className="font-bold text-xs text-emerald-400">Balanced Multi-Asset</div>
-                  <div className="text-[10px] text-sentinel-textSubtle mt-0.5 font-mono">
-                    25% Single Cap · 20% Cash Floor
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => loadProfile(HIGH_ALPHA_GROWTH_POLICY, 'growth')}
-                  className={`p-3 rounded-lg border text-left transition cursor-pointer ${
-                    activeProfile === 'growth'
-                      ? 'bg-purple-500/10 border-purple-500 text-white'
-                      : 'bg-sentinel-surface border-sentinel-border text-sentinel-textMuted'
-                  }`}
-                >
-                  <div className="font-bold text-xs text-purple-400">High-Alpha Growth</div>
-                  <div className="text-[10px] text-sentinel-textSubtle mt-0.5 font-mono">
-                    35% Single Cap · 15% Cash Floor
-                  </div>
-                </button>
+            {/* Extended Tier Telemetry Summary */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-xs">
+              <div className="p-3 rounded-lg bg-sentinel-surface border border-sentinel-border">
+                <span className="text-[10px] text-sentinel-textSubtle block uppercase">Sector Exposure</span>
+                <span className="text-sm font-bold text-white tabular-nums">≤ {maxSectorExposurePct.toFixed(0)}%</span>
+              </div>
+              <div className="p-3 rounded-lg bg-sentinel-surface border border-sentinel-border">
+                <span className="text-[10px] text-sentinel-textSubtle block uppercase">Issuer Exposure</span>
+                <span className="text-sm font-bold text-white tabular-nums">≤ {maxIssuerExposurePct.toFixed(0)}%</span>
+              </div>
+              <div className="p-3 rounded-lg bg-sentinel-surface border border-sentinel-border">
+                <span className="text-[10px] text-sentinel-textSubtle block uppercase">Min Pool Depth</span>
+                <span className="text-sm font-bold text-white tabular-nums">
+                  {formatCurrency(minLiquidityUsd, { maximumFractionDigits: 0 })}
+                </span>
+              </div>
+              <div className="p-3 rounded-lg bg-sentinel-surface border border-sentinel-border">
+                <span className="text-[10px] text-sentinel-textSubtle block uppercase">Circuit Breaker</span>
+                <span className="text-sm font-bold text-white tabular-nums">{maxConsecutiveFailures} Rejects</span>
               </div>
             </div>
 
             {/* DSL JSON */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-sentinel-textSubtle uppercase tracking-wider">
-                  Raw Canonical Policy DSL (SHA-256 Hashed)
-                </span>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-sentinel-textSubtle uppercase tracking-wider">
+                    Raw Canonical Policy DSL
+                  </span>
+                  <span className="text-[11px] font-mono text-blue-300">
+                    SHA-256: 0x{policyHash}
+                  </span>
+                </div>
                 <button
+                  type="button"
                   onClick={copyToClipboard}
                   className="px-2.5 py-1 rounded bg-sentinel-surface hover:bg-sentinel-surfaceElevated border border-sentinel-border text-xs text-white flex items-center gap-1 cursor-pointer font-mono"
                 >
@@ -618,7 +751,7 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
             </div>
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 };
