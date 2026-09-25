@@ -1,9 +1,9 @@
 import React from 'react';
 
-interface StatProps {
+export interface StatProps {
   label: string;
-  value: string;
-  subtext?: string;
+  value: React.ReactNode;
+  subtext?: React.ReactNode;
   delta?: string;
   deltaPositive?: boolean;
   icon?: React.ComponentType<{ className?: string }>;
@@ -18,20 +18,20 @@ export const Stat: React.FC<StatProps> = ({
   delta,
   deltaPositive,
   icon: Icon,
-  iconColor = 'text-sentinel-accent',
+  iconColor = 'text-blue-400',
   className = '',
 }) => {
   return (
     <div
       className={`bg-sentinel-surface border border-sentinel-border rounded-xl p-5 relative overflow-hidden flex flex-col justify-between ${className}`}
     >
-      <div className="flex items-center justify-between text-sentinel-textSubtle text-xs font-semibold tracking-wider">
+      <div className="flex items-center justify-between text-sentinel-textSubtle text-[11px] font-mono font-semibold uppercase tracking-wider">
         <span>{label}</span>
         {Icon && <Icon className={`w-4 h-4 ${iconColor}`} />}
       </div>
 
       <div className="mt-3">
-        <div className="text-2xl sm:text-3xl font-bold tracking-tight text-sentinel-text tabular-nums">
+        <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white font-mono tabular-nums">
           {value}
         </div>
       </div>
@@ -40,7 +40,7 @@ export const Stat: React.FC<StatProps> = ({
         <div className="mt-2.5 flex items-center gap-2 text-xs">
           {delta && (
             <span
-              className={`font-semibold font-mono px-1.5 py-0.2 rounded text-[11px] ${
+              className={`font-semibold font-mono px-1.5 py-0.2 rounded text-[11px] tabular-nums ${
                 deltaPositive
                   ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                   : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
@@ -49,7 +49,7 @@ export const Stat: React.FC<StatProps> = ({
               {delta}
             </span>
           )}
-          {subtext && <span className="text-sentinel-textMuted">{subtext}</span>}
+          {subtext && <span className="text-sentinel-textMuted text-xs">{subtext}</span>}
         </div>
       )}
     </div>

@@ -79,6 +79,7 @@ import {
   Activity,
 } from 'lucide-react';
 import { Badge } from './ui/Badge';
+import { PageHeader } from './ui/PageHeader';
 import { FinancialChart } from './ui/FinancialChart';
 import { PriceProvenanceHover } from './ui/PriceProvenanceHover';
 import { formatCurrency, formatPercent, formatAddress } from '@/lib/formatters';
@@ -314,50 +315,45 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
   return (
     <div className="space-y-6">
       {/* PORTFOLIO CAPITAL & ALLOCATION CONTEXT */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-            Portfolio Capital &amp; Asset Allocation
-          </h2>
-          <p className="text-xs sm:text-sm text-sentinel-textMuted mt-0.5">
-            Real-time tokenized equity positions, Pyth oracle valuation, and macro asset-class compliance.
-          </p>
-        </div>
-
-        {/* Contextual links to specialized surfaces */}
-        <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
-          {onNavigateToProtection && (
-            <button
-              type="button"
-              onClick={onNavigateToProtection}
-              className="px-2.5 py-1.5 rounded-lg bg-sentinel-surface border border-sentinel-border hover:border-sentinel-borderStrong text-sentinel-textMuted hover:text-white transition cursor-pointer flex items-center gap-1.5"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Policy Boundaries →</span>
-            </button>
-          )}
-          {onNavigateToAgent && (
-            <button
-              type="button"
-              onClick={onNavigateToAgent}
-              className="px-2.5 py-1.5 rounded-lg bg-sentinel-surface border border-sentinel-border hover:border-sentinel-borderStrong text-sentinel-textMuted hover:text-white transition cursor-pointer flex items-center gap-1.5"
-            >
-              <Cpu className="w-3.5 h-3.5 text-blue-400" />
-              <span>Agent Console →</span>
-            </button>
-          )}
-          {onNavigateToDecisions && (
-            <button
-              type="button"
-              onClick={onNavigateToDecisions}
-              className="px-2.5 py-1.5 rounded-lg bg-sentinel-surface border border-sentinel-border hover:border-sentinel-borderStrong text-sentinel-textMuted hover:text-white transition cursor-pointer flex items-center gap-1.5"
-            >
-              <Activity className="w-3.5 h-3.5 text-purple-400" />
-              <span>Activity Log →</span>
-            </button>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        category="PORTFOLIO CAPITAL"
+        title="Portfolio Capital & Asset Allocation"
+        subtitle="Real-time tokenized equity positions, Pyth oracle valuation, and macro asset-class compliance."
+        actions={
+          <>
+            {onNavigateToProtection && (
+              <button
+                type="button"
+                onClick={onNavigateToProtection}
+                className="px-2.5 py-1.5 rounded-lg bg-sentinel-surface border border-sentinel-border hover:border-sentinel-borderStrong text-sentinel-textMuted hover:text-white transition cursor-pointer flex items-center gap-1.5 font-mono text-xs"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Policy Boundaries →</span>
+              </button>
+            )}
+            {onNavigateToAgent && (
+              <button
+                type="button"
+                onClick={onNavigateToAgent}
+                className="px-2.5 py-1.5 rounded-lg bg-sentinel-surface border border-sentinel-border hover:border-sentinel-borderStrong text-sentinel-textMuted hover:text-white transition cursor-pointer flex items-center gap-1.5 font-mono text-xs"
+              >
+                <Cpu className="w-3.5 h-3.5 text-blue-400" />
+                <span>Agent Console →</span>
+              </button>
+            )}
+            {onNavigateToDecisions && (
+              <button
+                type="button"
+                onClick={onNavigateToDecisions}
+                className="px-2.5 py-1.5 rounded-lg bg-sentinel-surface border border-sentinel-border hover:border-sentinel-borderStrong text-sentinel-textMuted hover:text-white transition cursor-pointer flex items-center gap-1.5 font-mono text-xs"
+              >
+                <Activity className="w-3.5 h-3.5 text-purple-400" />
+                <span>Activity Log →</span>
+              </button>
+            )}
+          </>
+        }
+      />
 
       {/* 1. INSTITUTIONAL PORTFOLIO CONTEXT & FINANCIAL HEALTH STRIP */}
       <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 font-mono text-xs shadow-lg">

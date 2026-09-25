@@ -21,6 +21,7 @@ import {
 import { APP_CONFIG, getExplorerAddressUrl, getExplorerTxUrl } from '@/lib/config';
 import { formatAddress } from '@/lib/formatters';
 import { SourceBadge } from './ui/SourceBadge';
+import { PageHeader } from './ui/PageHeader';
 
 interface AdversarialVector {
   id: string;
@@ -209,27 +210,19 @@ export const ProofVerificationView: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* 1. Header & Philosophy */}
-      <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-3 pt-1">
-        <div>
-          <span className="text-xs font-semibold text-sentinel-textSubtle tracking-wider uppercase font-mono">
-            Verification &amp; Negative Proofs
-          </span>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            Sentinel Enforcement is Observable
-          </h2>
-          <p className="text-xs text-sentinel-textMuted mt-0.5 max-w-2xl font-sans">
-            We prove system security not by showing that a transaction succeeded, but by proving the dangerous things Sentinel refuses to execute.
-          </p>
-        </div>
-
-        {/* Telemetry pill */}
-        <div className="flex items-center gap-2 self-start sm:self-auto bg-sentinel-surface p-2 rounded-lg border border-sentinel-border font-mono text-xs">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          <span className="text-white font-bold">120 / 120 Tests Passing</span>
-          <span className="text-sentinel-textSubtle">•</span>
-          <span className="text-blue-400 font-semibold">11 Negative Proofs Active</span>
-        </div>
-      </div>
+      <PageHeader
+        category="VERIFICATION & NEGATIVE PROOFS"
+        title="Sentinel Enforcement is Observable"
+        subtitle="We prove system security not by showing that a transaction succeeded, but by proving the dangerous things Sentinel refuses to execute."
+        actions={
+          <div className="flex items-center gap-2 bg-sentinel-surface p-2 rounded-lg border border-sentinel-border font-mono text-xs">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            <span className="text-white font-bold">120 / 120 Tests Passing</span>
+            <span className="text-sentinel-textSubtle">•</span>
+            <span className="text-blue-400 font-semibold">11 Negative Proofs Active</span>
+          </div>
+        }
+      />
 
       {/* 2. On-Chain Anchor State & Canonical PDAs */}
       <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-5 sm:p-6 space-y-4 font-mono text-xs">

@@ -35,6 +35,7 @@ import {
 import { APP_CONFIG, getExplorerAddressUrl } from '@/lib/config';
 import { formatCurrency, formatAddress } from '@/lib/formatters';
 import { PortfolioSnapshot } from '@sentinel/domain';
+import { PageHeader } from './ui/PageHeader';
 
 interface GuaranteesViewProps {
   policy: FinancialPolicy;
@@ -221,17 +222,11 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
   return (
     <div className="space-y-6">
       {/* 1. HEADLINE & SUBTITLE */}
-      <div className="space-y-1.5 pt-1">
-        <span className="text-xs font-semibold text-sentinel-textSubtle tracking-wider uppercase">
-          Protection
-        </span>
-        <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-          Your money moves only within these boundaries.
-        </h2>
-        <p className="text-xs text-sentinel-textMuted max-w-2xl leading-relaxed">
-          Every autonomous trade proposal must satisfy these mathematical invariants on-chain before settlement.
-        </p>
-      </div>
+      <PageHeader
+        category="PROTECTION & INVARIANTS"
+        title="Your money moves only within these boundaries."
+        subtitle="Every autonomous trade proposal must satisfy these mathematical invariants on-chain before settlement."
+      />
 
       {/* ON-CHAIN PDA NOTICE CALLOUT */}
       <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-mono text-xs">

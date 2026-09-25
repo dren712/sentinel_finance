@@ -27,6 +27,7 @@ import {
   Lock,
 } from 'lucide-react';
 import { Badge } from './ui/Badge';
+import { PageHeader } from './ui/PageHeader';
 import { SentinelReceiptCard } from './ui/SentinelReceiptCard';
 import { getExplorerTxUrl, getExplorerAddressUrl, APP_CONFIG } from '@/lib/config';
 import {
@@ -352,36 +353,28 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
   return (
     <div className="space-y-6">
       {/* 1. HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-3 pt-1">
-        <div>
-          <span className="text-xs font-semibold text-sentinel-textSubtle tracking-wider uppercase">
-            Activity
-          </span>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            Cryptographic Verification Timeline
-          </h2>
-          <p className="text-xs text-sentinel-textMuted mt-0.5">
-            Where PROVN lives: every trade evaluated against on-chain invariants with deterministic SHA-256 commitments.
-          </p>
-        </div>
-
-        {/* Filter Pills */}
-        <div className="flex items-center gap-1 bg-sentinel-surface p-1 rounded-lg border border-sentinel-border self-start sm:self-auto text-xs font-mono">
-          {(['ALL', 'SETTLED', 'REJECTED'] as const).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`px-3 py-1 rounded-md transition font-semibold cursor-pointer sentinel-interactive sentinel-focus ${
-                filter === f
-                  ? 'bg-sentinel-surfaceElevated text-white border border-sentinel-border shadow-xs'
-                  : 'text-sentinel-textMuted hover:text-white'
-              }`}
-            >
-              {f}
-            </button>
-          ))}
-        </div>
-      </div>
+      <PageHeader
+        category="ACTIVITY & AUDIT TRAIL"
+        title="Cryptographic Verification Timeline"
+        subtitle="Where PROVN lives: every trade evaluated against on-chain invariants with deterministic SHA-256 commitments."
+        actions={
+          <div className="flex items-center gap-1 bg-sentinel-surface p-1 rounded-lg border border-sentinel-border text-xs font-mono">
+            {(['ALL', 'SETTLED', 'REJECTED'] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`px-3 py-1 rounded-md transition font-semibold cursor-pointer sentinel-interactive sentinel-focus ${
+                  filter === f
+                    ? 'bg-sentinel-surfaceElevated text-white border border-sentinel-border shadow-xs'
+                    : 'text-sentinel-textMuted hover:text-white'
+                }`}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+        }
+      />
 
       {/* 2. CLEAN TIMELINE: TODAY */}
       <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-5 sm:p-6 space-y-4">
