@@ -318,8 +318,8 @@ export const AgentView: React.FC<AgentViewProps> = ({
                     {formatCurrency(initialAmountUsd)} {orderSizePassed ? '≤' : '>'} {formatCurrency(maxOrderSizeUsd)}
                   </span>
                 </div>
-                <div className="flex justify-between" title={`Max Slippage Limit: ${maxSlippagePct.toFixed(2)}%`}>
-                  <span className="text-sentinel-textMuted">4. Slippage</span>
+                <div className="flex justify-between" title={`Pre-trade liquidity depth estimate: ${estimatedSlippagePct.toFixed(2)}% (Max Policy Limit: ${maxSlippagePct.toFixed(2)}%)`}>
+                  <span className="text-sentinel-textMuted">4. Slippage (Est.)</span>
                   <span className={slippageCheckPassed ? 'text-emerald-400 font-semibold' : 'text-rose-400 font-semibold'}>
                     {estimatedSlippagePct.toFixed(2)}% ≤ {maxSlippagePct.toFixed(2)}%
                   </span>

@@ -30,7 +30,7 @@
 ## 3. Reproducible Verification Commands
 
 ```bash
-# 1. Run all 120 unit & adversarial security tests (@sentinel/domain + @sentinel/sdk)
+# 1. Run the complete unit, domain, SDK, and adversarial security test suite
 pnpm test
 
 # 2. Run the live Solana Devnet P22/P23 verification script
