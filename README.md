@@ -5,7 +5,7 @@
 <h1 align="center">Sentinel Finance — Sentinel Robo</h1>
 
 <p align="center">
-  <strong>Outcome-bounded autonomy for tokenized portfolios on Solana.</strong><br>
+  <strong>Outcome-bounded autonomous investing on Solana — deterministic portfolio guarantees for an increasingly autonomous, increasingly fast settlement layer.</strong><br>
   <em>AI agents can decide what to trade. Sentinel decides whether the resulting portfolio state is allowed.</em>
 </p>
 
@@ -112,6 +112,21 @@ To provide complete technical transparency for judges, code auditors, and review
   - Current Devnet settlement mutates Sentinel's `VaultAccount` ledger on-chain; it does **not** perform an external DEX swap CPI into a Meteora pool on Devnet.
 - **`TARGET ARCHITECTURE` (Post-Hackathon Roadmap)**:
   - Direct on-chain Cross-Program Invocation (CPI) from Sentinel `execute_guarded_trade` into Meteora DBC / PreStocks secondary liquidity pools with post-CPI SPL token vault balance assertions.
+
+---
+
+## Built for Solana's Next Consensus Era
+
+Sentinel is an application-layer enforcement system: the agent proposes, Sentinel evaluates the projected portfolio state, and the on-chain Solana program enforces the resulting constraints.
+
+Solana's upcoming **Alpenglow** consensus upgrade targets sub-second (~150 ms) finality while leaving SVM transaction execution unchanged. Sentinel does not depend on Alpenglow today, but its policy-bound execution model is designed to benefit from Solana's continued improvements in confirmation and finality.
+
+```text
+Agent Intelligence ➔ Sentinel Policy Postconditions ➔ SVM Execution ➔ Solana Consensus / Finality ➔ PROVN Evidence Index
+```
+
+- **Today:** Sentinel runs on Solana Devnet with real on-chain policy enforcement (`execute_guarded_trade`), state transitions on `VaultAccount` PDAs, and PROVN cryptographic evidence.
+- **Direction:** Faster consensus + autonomous agents + deterministic financial postconditions. The consensus layer can evolve underneath the Sentinel enforcement model without requiring redesign of the core policy logic.
 
 ---
 

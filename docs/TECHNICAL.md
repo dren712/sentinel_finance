@@ -107,3 +107,20 @@ docker compose up --build -d
 curl http://localhost:3000/api/health
 ```
 
+---
+
+## 6. Built for Solana's Next Consensus Era (Alpenglow Readiness)
+
+Solana's upcoming **Alpenglow** consensus upgrade targets ~150 ms finality (replacing TowerBFT's ~12.8s) while leaving SVM transaction execution and account semantics completely unchanged.
+
+Because Sentinel's core guarantees operate at the SVM application layer (Anchor instructions, PDA state transitions, and postcondition verification), the consensus layer can evolve underneath the Sentinel enforcement model without redesigning core policy logic:
+
+```text
+Agent Intelligence ➔ Sentinel Policy Postconditions ➔ SVM Execution ➔ Solana Consensus / Finality ➔ PROVN Evidence Index
+```
+
+As Solana advances toward sub-second finality, Sentinel's policy-bound execution pipeline becomes uniquely well suited for high-frequency autonomous agent workflows:
+- **Today:** Sentinel runs on Solana Devnet with real on-chain policy enforcement (`execute_guarded_trade`), deterministic state transitions on `VaultAccount` PDAs, and PROVN cryptographic evidence.
+- **Direction:** Faster consensus + autonomous agents + deterministic financial postconditions.
+
+
