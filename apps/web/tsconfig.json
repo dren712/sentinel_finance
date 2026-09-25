@@ -19,7 +19,11 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@sentinel/domain": ["../../packages/domain/src/index.ts"],
+      "@sentinel/domain/*": ["../../packages/domain/src/*"],
+      "@sentinel/sdk": ["../../packages/sdk/src/index.ts"],
+      "@sentinel/sdk/*": ["../../packages/sdk/src/*"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],

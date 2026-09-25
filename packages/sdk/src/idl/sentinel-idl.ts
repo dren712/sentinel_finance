@@ -1324,4 +1324,4 @@ export const SENTINEL_IDL: Idl = {
   ]
 };
 
-export { Sentinel } from "./sentinel";
+export type { Sentinel } from "./sentinel";

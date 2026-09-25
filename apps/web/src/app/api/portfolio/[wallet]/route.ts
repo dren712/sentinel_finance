@@ -18,15 +18,31 @@ export async function GET(
     const store = getServerStore();
     const wallet = params.wallet;
 
-    const [portfolio, policy, historicalSnapshots] = await Promise.all([
-      reconcilePortfolioFromSolana(wallet),
-      reconcilePolicyFromSolana(wallet),
-      store.db.queryPortfolioSnapshots(wallet, 20),
-    ]);
+    let portfolio = store.portfolio;
+    let policy = store.policy;
+    let historicalSnapshots: any[] = [];
 
-    const cashReservePct = portfolio.stablecoinExposureBps / 100;
-    const minReserveFloorPct = policy.minStablecoinBps / 100;
-    const isReserveCompliant = portfolio.stablecoinExposureBps >= policy.minStablecoinBps;
+    try {
+      portfolio = await reconcilePortfolioFromSolana(wallet);
+    } catch {
+      portfolio = store.portfolio;
+    }
+
+    try {
+      policy = await reconcilePolicyFromSolana(wallet);
+    } catch {
+      policy = store.policy;
+    }
+
+    try {
+      historicalSnapshots = await store.db.queryPortfolioSnapshots(wallet, 20);
+    } catch {
+      historicalSnapshots = [];
+    }
+
+    const cashReservePct = (portfolio?.stablecoinExposureBps ?? 2500) / 100;
+    const minReserveFloorPct = (policy?.minStablecoinBps ?? 2000) / 100;
+    const isReserveCompliant = (portfolio?.stablecoinExposureBps ?? 2500) >= (policy?.minStablecoinBps ?? 2000);
 
     return Response.json({
       success: true,

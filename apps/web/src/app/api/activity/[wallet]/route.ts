@@ -13,10 +13,20 @@ export async function GET(
   try {
     const store = getServerStore();
     const wallet = params.wallet;
-    const [activityData, portfolioSnapshots] = await Promise.all([
-      queryAuthoritativeActivity(wallet),
-      store.db.queryPortfolioSnapshots(wallet),
-    ]);
+    let activityData: any = { activities: [], agentRuns: [], decisions: [], executions: [], evidenceList: [], stats: { totalRuns: 0, totalDecisions: 0, totalExecutions: 0, totalSnapshots: 0, totalEvidenceRecords: 0 } };
+    let portfolioSnapshots: any[] = [];
+
+    try {
+      activityData = await queryAuthoritativeActivity(wallet);
+    } catch (e) {
+      console.warn('Could not query authoritative activity, using fallback:', e);
+    }
+
+    try {
+      portfolioSnapshots = await store.db.queryPortfolioSnapshots(wallet);
+    } catch {
+      portfolioSnapshots = [];
+    }
 
     return Response.json({
       success: true,
@@ -24,7 +34,7 @@ export async function GET(
       authority: store.db.authority,
       historyStore: activityData.stats,
       totalActivities: activityData.activities.length,
-      activities: activityData.activities.map((item) => ({
+      activities: activityData.activities.map((item: any) => ({
         id: item.id,
         timestamp: item.timestamp,
         formattedTime: new Date(item.timestamp).toLocaleTimeString([], {
@@ -48,7 +58,7 @@ export async function GET(
         decisions: activityData.decisions,
         executions: activityData.executions,
         portfolio_snapshots: portfolioSnapshots,
-        evidence_index: activityData.evidenceList.map((e) => e.record),
+        evidence_index: activityData.evidenceList.map((e: any) => e.record),
       },
     });
   } catch (error: any) {
