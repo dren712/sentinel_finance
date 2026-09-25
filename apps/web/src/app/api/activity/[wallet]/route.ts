@@ -8,11 +8,12 @@ import { getServerStore, queryAuthoritativeActivity } from '../../../../lib/serv
  */
 export async function GET(
   _req: Request,
-  { params }: { params: { wallet: string } }
+  { params }: { params: Promise<{ wallet: string }> }
 ) {
   try {
     const store = getServerStore();
-    const wallet = params.wallet;
+    const { wallet } = await params;
+
     let activityData: any = { activities: [], agentRuns: [], decisions: [], executions: [], evidenceList: [], stats: { totalRuns: 0, totalDecisions: 0, totalExecutions: 0, totalSnapshots: 0, totalEvidenceRecords: 0 } };
     let portfolioSnapshots: any[] = [];
 

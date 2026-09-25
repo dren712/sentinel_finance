@@ -17,12 +17,13 @@ import { getServerStore, reconcilePolicyFromSolana } from '../../../../lib/serve
  */
 export async function GET(
   _req: Request,
-  { params }: { params: { wallet: string } }
+  { params }: { params: Promise<{ wallet: string }> }
 ) {
   try {
-    const policy = await reconcilePolicyFromSolana(params.wallet);
+    const { wallet: walletParam } = await params;
+    const policy = await reconcilePolicyFromSolana(walletParam);
     const ownerAddress =
-      params.wallet && params.wallet !== 'default' ? params.wallet : policy.owner;
+      walletParam && walletParam !== 'default' ? walletParam : policy.owner;
     const policyPda = deriveSentinelPda(ownerAddress);
 
     return Response.json({
@@ -61,17 +62,19 @@ export async function GET(
 
 export async function POST(
   req: Request,
-  { params }: { params: { wallet: string } }
+  { params }: { params: Promise<{ wallet: string }> }
 ) {
   try {
     const store = getServerStore();
-    await reconcilePolicyFromSolana(params.wallet);
+    const { wallet: walletParam } = await params;
+    await reconcilePolicyFromSolana(walletParam);
     const body = (await req.json().catch(() => ({}))) as any;
     const commitMode: 'PREPARE_ONLY' | 'CONFIRMED_ON_CHAIN' | 'SIMULATION' =
       body.commitMode || (body.confirmedTxSignature ? 'CONFIRMED_ON_CHAIN' : 'SIMULATION');
 
     const ownerAddress =
-      params.wallet && params.wallet !== 'default' ? params.wallet : store.policy.owner;
+      walletParam && walletParam !== 'default' ? walletParam : store.policy.owner;
+
     const expectedPolicyPda = deriveSentinelPda(ownerAddress);
 
     // Enforce explicit wallet -> owner -> Policy PDA binding

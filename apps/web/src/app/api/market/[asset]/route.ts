@@ -102,7 +102,7 @@ async function resolveNormalizedMarketPrice(
  */
 export async function GET(
   req: Request,
-  { params }: { params: { asset: string } }
+  { params }: { params: Promise<{ asset: string }> }
 ) {
   try {
     const store = getServerStore();
@@ -111,7 +111,8 @@ export async function GET(
     const requestedMode: 'LIVE' | 'SIMULATION' =
       modeParam === 'LIVE' ? 'LIVE' : 'SIMULATION';
 
-    const rawAsset = params.asset;
+    const { asset: rawAsset } = await params;
+
     const preStocksClient: PreStocksApiClient =
       typeof (store.client as any)?.getPreStocksApiClient === 'function'
         ? (store.client as any).getPreStocksApiClient()

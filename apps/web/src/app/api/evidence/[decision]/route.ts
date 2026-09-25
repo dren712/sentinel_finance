@@ -16,12 +16,13 @@ import {
  */
 export async function GET(
   _req: Request,
-  { params }: { params: { decision: string } }
+  { params }: { params: Promise<{ decision: string }> }
 ) {
   try {
     const store = getServerStore();
     await ensureSeededDevnetHistory();
-    const decisionId = params.decision;
+    const { decision: decisionId } = await params;
+
 
     // 1. Query P13 Postgres evidence_index table first
     const indexedRow = await store.db.queryEvidenceById(decisionId);

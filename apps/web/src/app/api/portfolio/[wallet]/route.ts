@@ -12,11 +12,12 @@ import {
  */
 export async function GET(
   _req: Request,
-  { params }: { params: { wallet: string } }
+  { params }: { params: Promise<{ wallet: string }> }
 ) {
   try {
     const store = getServerStore();
-    const wallet = params.wallet;
+    const { wallet } = await params;
+
 
     let portfolio = store.portfolio;
     let policy = store.policy;

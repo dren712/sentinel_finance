@@ -194,7 +194,7 @@ export const HeroStoryCenterpiece: React.FC<HeroStoryCenterpieceProps> = ({
           }`}>
             <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[10px] text-blue-400">
               <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-              Case A · Doesn't Trust The Agent
+              Case A · Does Not Trust The Agent
             </div>
             <p className="text-[11px] text-slate-300 mt-1">
               <strong>Portfolio Invariant Breach</strong>: BUY NVDAx $15k ➔ Concentration (35% &gt; 25%) ➔ <strong>BLOCK</strong> ➔ <strong>ADAPT</strong> ➔ BUY $5k.
@@ -208,7 +208,7 @@ export const HeroStoryCenterpiece: React.FC<HeroStoryCenterpieceProps> = ({
           }`}>
             <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[10px] text-amber-400">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-              Case B · Doesn't Trust The Market
+              Case B · Does Not Trust The Market
             </div>
             <p className="text-[11px] text-slate-300 mt-1">
               <strong>Meteora Curve Impact</strong>: BUY $8k ➔ DBC price impact 1.70% &gt; 1.00% cap ➔ <strong>BLOCK</strong> ➔ <strong>ADAPT along curve</strong> ➔ BUY $2,500.
@@ -222,7 +222,7 @@ export const HeroStoryCenterpiece: React.FC<HeroStoryCenterpieceProps> = ({
           }`}>
             <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[10px] text-emerald-400">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              Case C · Doesn't Trust The Data
+              Case C · Does Not Trust The Data
             </div>
             <p className="text-[11px] text-slate-300 mt-1">
               <strong>Pyth Oracle Freshness</strong>: BUY $4k ➔ Quote stale 140s &gt; 60s ➔ <strong>BLOCK</strong> ➔ <strong>WAIT / REPRICE</strong> via Hermès ➔ Settle fresh.

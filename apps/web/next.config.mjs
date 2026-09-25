@@ -7,9 +7,8 @@ const __dirname = path.dirname(__filename);
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ['@sentinel/domain', '@sentinel/sdk'],
-  experimental: {
-    serverComponentsExternalPackages: ['pg'],
-  },
+  serverExternalPackages: ['pg'],
+
   webpack: (config, { isServer }) => {
     config.resolve.alias = {
       ...config.resolve.alias,
