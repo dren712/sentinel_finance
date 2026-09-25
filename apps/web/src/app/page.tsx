@@ -777,34 +777,6 @@ export default function Home() {
         )}
 
         {/* Live Wallet Connection Bar (when wallet is connected and in app views) */}
-        {connected && publicKey && activeTab !== 'overview' && (
-          <div className="mb-4 px-3 py-1.5 rounded-lg bg-emerald-950/20 border border-emerald-500/25 flex flex-wrap items-center justify-between gap-2 text-xs font-mono text-emerald-300">
-            <div className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Wallet: {formatAddress(publicKey.toBase58(), 4)}</span>
-              {walletBalanceSol !== null && (
-                <span className="text-emerald-400/80">
-                  · {walletBalanceSol.toFixed(3)} SOL ({APP_CONFIG.clusterLabel})
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-3 text-[11px]">
-              <span className="text-sentinel-textMuted hidden sm:inline">
-                Vault: {formatAddress(activePdas.vaultPda, 4)} · Policy: {formatAddress(activePdas.policyPda, 4)}
-              </span>
-              <a
-                href={getExplorerAddressUrl(publicKey.toBase58())}
-                target="_blank"
-                rel="noreferrer"
-                className="text-emerald-400 hover:underline flex items-center gap-1"
-              >
-                <span>Explorer</span>
-                <ArrowUpRight className="w-3 h-3" />
-              </a>
-            </div>
-          </div>
-        )}
-
         {activeTab === 'overview' && (
           <LandingView
             onEnterApp={() => setActiveTab('portfolio')}
@@ -882,31 +854,16 @@ export default function Home() {
         onClose={() => setTxModalOpen(false)}
       />
 
-      {/* Clean Institutional Footer with Dynamic Cluster Identifier */}
+      {/* Restrained Institutional Footer */}
       <footer className="border-t border-sentinel-border bg-sentinel-surface/60 py-6 mb-16 md:mb-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-sentinel-textMuted">
           <div className="flex items-center gap-2">
             <span className="font-semibold text-white">Sentinel Finance</span>
-            <span>•</span>
-            <span>Stocklana Tokenized-Stock Hackathon</span>
-            <span>•</span>
-            <span className="text-purple-400 font-mono font-semibold">
-              {APP_CONFIG.clusterLabel} Deployment
-            </span>
+            <span>·</span>
+            <span>Outcome-Bounded Autonomous Portfolios on Solana</span>
           </div>
-          <div className="flex items-center gap-4 font-mono text-xs">
-            <a
-              href={getExplorerAddressUrl(APP_CONFIG.sentinelProgramId)}
-              target="_blank"
-              rel="noreferrer"
-              className="text-blue-400 hover:underline"
-            >
-              Anchor Program: {formatAddress(APP_CONFIG.sentinelProgramId, 4)}
-            </a>
-            <span>•</span>
-            <span className="text-emerald-400 font-semibold">
-              Vault PDA: {formatAddress(activePdas.vaultPda, 4)} (Authoritative)
-            </span>
+          <div className="text-sentinel-textSubtle font-medium">
+            Propose. Project. Enforce. Adapt. Settle.
           </div>
         </div>
       </footer>

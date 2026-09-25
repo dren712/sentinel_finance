@@ -6,43 +6,26 @@ import {
   FinancialPolicy,
   NormalizedMarketPrice,
 } from '@sentinel/domain';
-import { AutonomousRoboAgent, ExecutionVenueType, AgentLoopState, AutonomousAdaptationResult } from '@sentinel/sdk';
 import {
-  Bot,
-  Key,
+  AutonomousRoboAgent,
+  ExecutionVenueType,
+  AgentLoopState,
+  AutonomousAdaptationResult,
+} from '@sentinel/sdk';
+import {
   Play,
-  Copy,
   Check,
-  ShieldAlert,
-  ShieldCheck,
-  Zap,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  ArrowRight,
-  Lock,
-  ExternalLink,
-  Layers,
-  Cpu,
-  Building2,
-  TrendingUp,
-  FileText,
-  RefreshCw,
-  Target,
   X,
-  Sliders,
-  ChevronRight,
   ChevronDown,
   ChevronUp,
+  Sliders,
+  RefreshCw,
+  Copy,
 } from 'lucide-react';
 import { Badge } from './ui/Badge';
-import { Card, CardHeader } from './ui/Card';
+import { Card } from './ui/Card';
 import { PageHeader } from './ui/PageHeader';
-import { SourceBadge } from './ui/SourceBadge';
-import { FlagshipEnforcementCard } from './ui/FlagshipEnforcementCard';
-import { SettlementGateCard } from './ui/SettlementGateCard';
-import { formatCurrency, formatPercent, formatAddress } from '@/lib/formatters';
-import { getExplorerAddressUrl } from '@/lib/config';
+import { formatCurrency, formatAddress } from '@/lib/formatters';
 
 interface AgentViewProps {
   agent: AutonomousRoboAgent;
@@ -81,727 +64,442 @@ export const AgentView: React.FC<AgentViewProps> = ({
     onSelectVenue?.(venue);
   };
 
-  const [copied, setCopied] = useState(false);
+  const [isManualOpen, setIsManualOpen] = useState(false);
+  const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
+  const [copiedKey, setCopiedKey] = useState(false);
+
+  // Manual trade form state
   const [selectedAsset, setSelectedAsset] = useState('NVDAx');
   const [direction, setDirection] = useState<'BUY' | 'SELL'>('BUY');
   const [tradeAmount, setTradeAmount] = useState('15000');
-  const [strategy, setStrategy] = useState<'Momentum Growth' | 'Balanced Allocation' | 'Conservative Capital Preservation'>('Momentum Growth');
-  const [isProposerOpen, setIsProposerOpen] = useState(false);
 
-  // Action Review Modal / Bottom Sheet state
-  const [isReviewOpen, setIsReviewOpen] = useState(false);
-  const [reviewedActionSettled, setReviewedActionSettled] = useState(false);
-
-  const copyAuthority = () => {
-    navigator.clipboard.writeText(agent.wallet.getPublicKeyString());
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleCustomSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const amount = parseFloat(tradeAmount);
-    if (isNaN(amount) || amount <= 0) return;
-    onExecuteCustomTrade(selectedAsset, direction, amount);
-  };
-
-  const handleApproveReviewedAction = () => {
-    onExecuteCustomTrade('AAPLx', 'BUY', 2840);
-    setReviewedActionSettled(true);
-    setTimeout(() => {
-      setReviewedActionSettled(false);
-      setIsReviewOpen(false);
-    }, 1500);
-  };
-
-  // Asset universe covering public stocks and PreStocks pre-IPO equities
   const availableAssets = [
     ...portfolio.assets.filter((a) => !a.isStablecoin && a.symbol !== 'USDC'),
-    { symbol: 'SPACEXx', name: 'SpaceX Pre-IPO Equity', priceUsd: 220, isPreIpo: true },
-    { symbol: 'OPENAIx', name: 'OpenAI Pre-IPO Equity', priceUsd: 150, isPreIpo: true },
-    { symbol: 'STRIPEx', name: 'Stripe Pre-IPO Equity', priceUsd: 85, isPreIpo: true },
-    { symbol: 'ANTHROPICx', name: 'Anthropic Pre-IPO Equity', priceUsd: 110, isPreIpo: true },
+    { symbol: 'SPACEXx', name: 'SpaceX Pre-IPO Equity', priceUsd: 220 },
+    { symbol: 'OPENAIx', name: 'OpenAI Pre-IPO Equity', priceUsd: 150 },
+    { symbol: 'STRIPEx', name: 'Stripe Pre-IPO Equity', priceUsd: 85 },
   ];
 
-  const isPreIpoSelected = ['SPACEXx', 'OPENAIx', 'STRIPEx', 'ANTHROPICx'].includes(selectedAsset);
-
-  let targetVenueName = 'Meteora Dynamic Bonding Curve';
-  let targetVenueType: ExecutionVenueType = activeVenue;
-  let targetPoolAddress = 'Eo7WjKq67rjJQSZxS6z3YKapzY3eMj6Xy8DD5EkViQn7';
-  let targetRoute = `USDC ATA ➔ Meteora DBC Pool ➔ ${selectedAsset} ATA`;
-
-  if (activeVenue === 'DEMO_SIMULATION') {
-    targetVenueName = 'Sentinel Local Simulator (Offline Demo)';
-    targetPoolAddress = 'SimulatedLocalEngine111111111111111111111111111';
-    targetRoute = `USDC ATA ➔ Local Simulator ➔ ${selectedAsset} ATA`;
-  } else if (isPreIpoSelected || activeVenue === 'PRESTOCKS_SECONDARY') {
-    targetVenueName = 'PreStocks Secondary Market';
-    targetVenueType = 'PRESTOCKS_SECONDARY';
-    targetPoolAddress = `PreStk${selectedAsset.replace('x', '')}Vault11111111111111111111111`;
-    targetRoute = `USDC ATA ➔ PreStocks Secondary Vault ➔ ${selectedAsset} ATA`;
-  }
-
-  // Pre-flight estimation calculations
-  const [simulateDepeg, setSimulateDepeg] = useState(false);
+  // Pre-flight estimation for manual form
   const amountNum = parseFloat(tradeAmount) || 0;
   const targetAsset = portfolio.assets.find((a) => a.symbol === selectedAsset);
   const currentAssetVal = targetAsset ? targetAsset.valueUsd : 0;
-  const postAssetVal = direction === 'BUY' ? currentAssetVal + amountNum : Math.max(0, currentAssetVal - amountNum);
+  const postAssetVal =
+    direction === 'BUY' ? currentAssetVal + amountNum : Math.max(0, currentAssetVal - amountNum);
   const postExposureBps = Math.round((postAssetVal / (portfolio.totalValueUsd || 100_000)) * 10_000);
-  const willExceedExposure = postExposureBps > policy.maxSingleAssetBps;
-  const willExceedTradeLimit = amountNum > policy.maxTradeValueUsd;
   const postUsdcVal =
     direction === 'BUY'
       ? portfolio.stablecoinValueUsd - amountNum
       : portfolio.stablecoinValueUsd + amountNum;
   const postReserveBps = Math.round((postUsdcVal / (portfolio.totalValueUsd || 100_000)) * 10_000);
+
+  const willExceedExposure = postExposureBps > policy.maxSingleAssetBps;
+  const willExceedTradeLimit = amountNum > policy.maxTradeValueUsd;
   const willBreachReserve = postReserveBps < policy.minStablecoinBps;
+  const willBeBlocked = willExceedExposure || willExceedTradeLimit || willBreachReserve;
 
-  const currentMarketPrice = marketPrices?.[selectedAsset];
-  const effectiveTrackingErrorBps = simulateDepeg ? 320 : (currentMarketPrice?.trackingErrorBps ?? 18);
-  const willExceedTrackingError = effectiveTrackingErrorBps > (policy.maxTrackingErrorBps ?? 250);
-  const willBeRejected =
-    willExceedExposure || willExceedTradeLimit || willBreachReserve || willExceedTrackingError;
+  const handleCustomSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isNaN(amountNum) || amountNum <= 0) return;
+    onExecuteCustomTrade(selectedAsset, direction, amountNum);
+  };
 
-  const riskVerifierPassed = !willExceedExposure && !willExceedTradeLimit;
-  const balanceVerifierPassed = !willBreachReserve;
-  const policyVerifierPassed = policy.isActive;
-  const liquidityVerifierPassed = true;
-  const priceIntegrityVerifierPassed = !willExceedTrackingError;
-  const portfolioVerifierPassed = true;
+  // Derive values from adaptationResult if available, else canonical Flagship cycle preview
+  const initialDecision = adaptationResult?.step1RejectedDecision;
+  const settledDecision = adaptationResult?.step2SettledDecision;
 
-  const swarmPreFlightVerdicts = [
-    { name: 'RiskVerifier', role: 'Concentration Cap', passed: riskVerifierPassed },
-    { name: 'BalanceVerifier', role: 'Reserve Floor', passed: balanceVerifierPassed },
-    { name: 'PolicyVerifier', role: 'Authority Check', passed: policyVerifierPassed },
-    { name: 'LiquidityVerifier', role: 'Venue Depth', passed: liquidityVerifierPassed },
-    { name: 'PriceIntegrityVerifier', role: 'Pyth Oracle Truth', passed: priceIntegrityVerifierPassed },
-    { name: 'PortfolioVerifier', role: 'Macro Universe', passed: portfolioVerifierPassed },
-  ];
-  const swarmPassingCount = swarmPreFlightVerdicts.filter((v) => v.passed).length;
+  const initialAmountUsd = initialDecision?.intent.tradeAmountUsd ?? 15000;
+  const adaptedAmountUsd = settledDecision?.intent.tradeAmountUsd ?? 5000;
+  const targetSymbol = settledDecision?.intent.assetSymbol ?? 'NVDAx';
+  const refPrice = marketPrices?.[targetSymbol]?.priceUsd ?? 128.45;
+  const settledTxSig = settledDecision?.evidenceRecord?.transactionSignature;
+  const isRealOnChainTx = Boolean(
+    settledTxSig &&
+      settledTxSig.length >= 64 &&
+      !settledTxSig.startsWith('sim_') &&
+      !settledTxSig.startsWith('SIM_')
+  );
+  const evidenceHash = settledDecision?.evidenceRecord?.id;
 
   return (
     <div className="space-y-6">
-      {/* 1. PAGE HEADER & OPERATOR TELEMETRY STRIP */}
+      {/* HEADER */}
       <PageHeader
-        category="AUTONOMOUS OPERATOR CONSOLE"
-        title="Sentinel Robo-01"
-        badge={
-          <Badge variant="success" size="sm" dot dotPulse>
-            ACTIVE
-          </Badge>
-        }
-        subtitle="Bounded autonomous operator executing real-time market observation, pre-flight invariant checks, and automatic headroom adaptation."
+        category="AGENT"
+        title="Autonomous Decision Pipeline"
+        subtitle="Sentinel Robo-01 proposes trades, checks portfolio limits, resizes oversized orders, and settles."
         actions={
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* Ed25519 Authority Pill */}
-            <div className="flex items-center gap-2 font-mono text-xs bg-sentinel-surface px-3 py-2 rounded-lg border border-sentinel-border">
-              <span className="text-sentinel-textSubtle">Authority:</span>
-              <span className="text-white font-semibold">
-                {formatAddress(agent.wallet.getPublicKeyString(), 4)}
-              </span>
-              <button
-                type="button"
-                onClick={copyAuthority}
-                className="p-0.5 hover:text-white text-sentinel-textSubtle transition cursor-pointer sentinel-interactive sentinel-focus rounded"
-                title="Copy Ed25519 Authority"
-                aria-label="Copy Ed25519 Authority"
-              >
-                {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-              </button>
-              <a
-                href={getExplorerAddressUrl(agent.wallet.getPublicKeyString())}
-                target="_blank"
-                rel="noreferrer"
-                className="text-blue-400 hover:underline flex items-center gap-0.5 sentinel-interactive sentinel-focus rounded p-0.5"
-              >
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            </div>
-
-            {/* Run Adaptation Button */}
-            {onRunAdaptation && (
-              <button
-                type="button"
-                onClick={onRunAdaptation}
-                disabled={isRunningAdaptation}
-                className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-xs disabled:opacity-50 transition cursor-pointer sentinel-interactive sentinel-focus"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isRunningAdaptation ? 'animate-spin' : ''}`} />
-                <span>{isRunningAdaptation ? 'Adapting Proposal...' : 'Run Autonomous Adaptation'}</span>
-              </button>
-            )}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsManualOpen(!isManualOpen)}
+              className="px-3 py-2 rounded-lg border border-sentinel-border bg-sentinel-surface hover:bg-sentinel-surfaceElevated text-sentinel-textMuted hover:text-white text-xs font-medium transition cursor-pointer sentinel-interactive sentinel-focus"
+            >
+              {isManualOpen ? 'Close Manual Proposal' : 'Manual Trade Proposal'}
+            </button>
+            <button
+              type="button"
+              onClick={onRunAdaptation}
+              disabled={isRunningAdaptation}
+              className="sentinel-btn-physical px-4 py-2 rounded-lg bg-sentinel-accent hover:bg-sentinel-accentHover text-white text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 sentinel-interactive sentinel-focus"
+            >
+              <Play className={`w-3.5 h-3.5 ${isRunningAdaptation ? 'animate-spin' : ''}`} />
+              <span>{isRunningAdaptation ? 'Running Cycle...' : 'Run Autonomous Cycle'}</span>
+            </button>
           </div>
         }
       />
 
-      {/* 4-Pillar Operator Telemetry Strip */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs font-mono">
-        <div className="px-3.5 py-2.5 rounded-xl bg-sentinel-surface border border-sentinel-border flex items-center justify-between">
-          <span className="text-sentinel-textSubtle text-[11px]">MANDATE</span>
-          <span className="text-white font-semibold">Balanced Growth</span>
-        </div>
-        <div className="px-3.5 py-2.5 rounded-xl bg-sentinel-surface border border-sentinel-border flex items-center justify-between">
-          <span className="text-sentinel-textSubtle text-[11px]">CADENCE</span>
-          <span className="text-white font-semibold">Block-by-Block</span>
-        </div>
-        <div className="px-3.5 py-2.5 rounded-xl bg-sentinel-surface border border-sentinel-border flex items-center justify-between">
-          <span className="text-sentinel-textSubtle text-[11px]">ENFORCEMENT</span>
-          <span className="text-emerald-400 font-semibold">On-Chain Sentinel PDA</span>
-        </div>
-        <div className="px-3.5 py-2.5 rounded-xl bg-sentinel-surface border border-sentinel-border flex items-center justify-between">
-          <span className="text-sentinel-textSubtle text-[11px]">ACTIVE VENUE</span>
-          <span className="text-blue-400 font-semibold truncate ml-2">
-            {activeVenue === 'METEORA_DBC' ? 'Meteora DBC' : activeVenue === 'PRESTOCKS_SECONDARY' ? 'PreStocks' : 'Simulator'}
-          </span>
-        </div>
-      </div>
+      {/* ========================================================================= */}
+      {/* PRIMARY FOCAL POINT: PROPOSE → PROJECT → BLOCK/APPROVE → ADAPT → SETTLE   */}
+      {/* ========================================================================= */}
+      <Card variant="elevated" padding="lg" className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-sentinel-border">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-white">
+                Decision Lifecycle: {targetSymbol} Rebalance
+              </h2>
+              <Badge variant={adaptationResult ? 'success' : 'neutral'} size="xs">
+                {adaptationResult ? 'Cycle Executed' : 'Ready'}
+              </Badge>
+            </div>
+            <p className="text-xs text-sentinel-textMuted mt-0.5">
+              PROPOSE → PROJECT → BLOCK / APPROVE → ADAPT → SETTLE
+            </p>
+          </div>
 
-      {/* 2. AUTONOMOUS DECISION & ADAPTATION LOOP CARD */}
-      <Card variant="default" padding="md">
-        <CardHeader
-          category="AUTONOMOUS DECISION & ADAPTATION LOOP"
-          title="10-Stage Invariant Gate & Headroom Adaptation"
-          subtitle="When an autonomous proposal breaches policy bounds, Sentinel blocks execution on-chain and computes exact compliant headroom."
-          badge={<SourceBadge source="SOLANA" size="xs" />}
-        />
+          <div className="text-xs font-mono text-sentinel-textMuted tabular-nums">
+            Reference Price: <span className="text-white font-semibold">${refPrice.toFixed(2)}</span> (Pyth Quote)
+          </div>
+        </div>
 
-        {/* 10-Stage Stepper */}
-        {loopState && (
-          <div className="mb-5 grid grid-cols-5 sm:grid-cols-10 gap-1">
-            {[
-              { label: 'OBSERVE', idx: 1 },
-              { label: 'FORMULATE', idx: 2 },
-              { label: 'PROPOSE', idx: 3 },
-              { label: 'CHECK', idx: 4 },
-              { label: 'REJECTED', idx: 5 },
-              { label: 'READ', idx: 6 },
-              { label: 'ADAPT', idx: 7 },
-              { label: 'REPROPOSE', idx: 8 },
-              { label: 'RECHECK', idx: 9 },
-              { label: 'SETTLE', idx: 10 },
-            ].map((step) => {
-              const isActive = loopState.stageIndex === step.idx;
-              const isComplete = loopState.stageIndex > step.idx;
-              return (
-                <div
-                  key={step.idx}
-                  className={`text-center py-1 px-0.5 rounded text-[9px] font-bold font-mono transition-all ${
-                    isActive
-                      ? 'bg-blue-600/40 text-blue-200 border border-blue-500/60 ring-1 ring-blue-400/30'
-                      : isComplete
-                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                      : 'bg-slate-900/80 text-slate-500 border border-slate-800'
-                  }`}
-                >
-                  {isComplete && <span className="mr-0.5">✓</span>}
-                  {step.label}
+        {/* 5-Stage Horizontal / Vertical Pipeline */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+          {/* STAGE 1: PROPOSE */}
+          <div className="p-4 rounded-xl bg-sentinel-surfaceMuted border border-sentinel-border flex flex-col justify-between space-y-3">
+            <div>
+              <div className="text-[11px] font-mono text-sentinel-textSubtle font-semibold">
+                01 · PROPOSE
+              </div>
+              <div className="text-sm font-semibold text-white mt-1">
+                BUY {targetSymbol} {formatCurrency(initialAmountUsd)}
+              </div>
+              <p className="text-xs text-sentinel-textMuted mt-1.5 leading-relaxed">
+                Robo-01 spots momentum signal and requests an aggressive {formatCurrency(initialAmountUsd)} allocation.
+              </p>
+            </div>
+            <div className="pt-2 border-t border-sentinel-border/60 text-[11px] font-mono text-sentinel-textSubtle">
+              Authority: Proposal Only
+            </div>
+          </div>
+
+          {/* STAGE 2: PROJECT */}
+          <div className="p-4 rounded-xl bg-sentinel-surfaceMuted border border-sentinel-border flex flex-col justify-between space-y-3">
+            <div>
+              <div className="text-[11px] font-mono text-sentinel-textSubtle font-semibold">
+                02 · PROJECT
+              </div>
+              <div className="text-sm font-semibold text-white mt-1">
+                Post-Trade State
+              </div>
+              <div className="mt-2 space-y-1.5 text-xs font-mono tabular-nums">
+                <div className="flex justify-between">
+                  <span className="text-sentinel-textMuted">{targetSymbol} Weight</span>
+                  <span className="text-rose-400 font-semibold">20.0% → 35.0%</span>
                 </div>
-              );
-            })}
+                <div className="flex justify-between">
+                  <span className="text-sentinel-textMuted">Cash Reserve</span>
+                  <span className="text-rose-400 font-semibold">25.0% → 10.0%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sentinel-textMuted">Order Size</span>
+                  <span className="text-rose-400 font-semibold">$15k &gt; $10k</span>
+                </div>
+              </div>
+            </div>
+            <div className="pt-2 border-t border-sentinel-border/60 text-[11px] font-mono text-sentinel-textSubtle">
+              Simulated Pre-Settlement
+            </div>
+          </div>
+
+          {/* STAGE 3: BLOCK / APPROVE */}
+          <div className="p-4 rounded-xl bg-rose-950/15 border border-rose-500/30 flex flex-col justify-between space-y-3">
+            <div>
+              <div className="text-[11px] font-mono text-rose-400 font-semibold flex items-center justify-between">
+                <span>03 · BLOCK</span>
+                <X className="w-3.5 h-3.5" />
+              </div>
+              <div className="text-sm font-semibold text-white mt-1">
+                Rejected by Policy
+              </div>
+              <p className="text-xs text-sentinel-textMuted mt-1.5 leading-relaxed">
+                Violates single-stock ceiling ({(policy.maxSingleAssetBps / 100).toFixed(0)}%), cash reserve floor ({(policy.minStablecoinBps / 100).toFixed(0)}%), and order cap.
+              </p>
+            </div>
+            <div className="pt-2 border-t border-rose-500/20 text-[11px] font-mono text-rose-300">
+              0 Funds Transferred
+            </div>
+          </div>
+
+          {/* STAGE 4: ADAPT */}
+          <div className="p-4 rounded-xl bg-amber-950/15 border border-amber-500/30 flex flex-col justify-between space-y-3">
+            <div>
+              <div className="text-[11px] font-mono text-amber-400 font-semibold flex items-center justify-between">
+                <span>04 · ADAPT</span>
+                <RefreshCw className="w-3.5 h-3.5" />
+              </div>
+              <div className="text-sm font-semibold text-white mt-1">
+                Resize to {formatCurrency(adaptedAmountUsd)}
+              </div>
+              <p className="text-xs text-sentinel-textMuted mt-1.5 leading-relaxed">
+                Agent solves maximum compliant headroom: {targetSymbol} reaches 25.0% and cash reserve stays at 20.0%.
+              </p>
+            </div>
+            <div className="pt-2 border-t border-amber-500/20 text-[11px] font-mono text-amber-300">
+              Headroom: {formatCurrency(adaptedAmountUsd)}
+            </div>
+          </div>
+
+          {/* STAGE 5: SETTLE */}
+          <div className="p-4 rounded-xl bg-emerald-950/15 border border-emerald-500/30 flex flex-col justify-between space-y-3">
+            <div>
+              <div className="text-[11px] font-mono text-emerald-400 font-semibold flex items-center justify-between">
+                <span>05 · SETTLE</span>
+                <Check className="w-3.5 h-3.5" />
+              </div>
+              <div className="text-sm font-semibold text-white mt-1">
+                {adaptationResult ? 'Executed & Recorded' : 'Ready to Settle'}
+              </div>
+              <p className="text-xs text-sentinel-textMuted mt-1.5 leading-relaxed">
+                {formatCurrency(adaptedAmountUsd)} {targetSymbol} order passes all 4 policy rules and generates a SHA-256 audit receipt.
+              </p>
+            </div>
+            <div className="pt-2 border-t border-emerald-500/20 text-[11px] font-mono text-emerald-300 truncate">
+              {adaptationResult
+                ? isRealOnChainTx
+                  ? 'Devnet Tx Confirmed'
+                  : 'Simulated Settlement'
+                : 'Click Run Autonomous Cycle'}
+            </div>
+          </div>
+        </div>
+
+        {/* Truthful Settlement Receipt Summary when adaptationResult is present */}
+        {adaptationResult && settledDecision && (
+          <div className="pt-4 border-t border-sentinel-border flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono text-sentinel-textMuted">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-emerald-400 font-semibold">
+                ✓ Cycle Completed ({isRealOnChainTx ? 'Solana Devnet' : 'Simulated Execution'})
+              </span>
+              <span>·</span>
+              <span>
+                Adapted Order: BUY {targetSymbol} {formatCurrency(adaptedAmountUsd)}
+              </span>
+            </div>
+            {evidenceHash && (
+              <div className="text-sentinel-textSubtle" title={evidenceHash}>
+                Receipt SHA-256: <span className="text-white">0x{evidenceHash.slice(0, 12)}…{evidenceHash.slice(-6)}</span>
+              </div>
+            )}
           </div>
         )}
-
-        <FlagshipEnforcementCard
-          latestEvidence={adaptationResult?.step2SettledDecision?.evidenceRecord || null}
-          onRunAdaptation={onRunAdaptation}
-          isRunningAdaptation={isRunningAdaptation}
-        />
       </Card>
 
-      {/* 3. CURRENT REASONING & COMPLIANT OPPORTUNITY */}
-      <Card variant="default" padding="md">
-        <CardHeader
-          category="REAL-TIME OBSERVATION"
-          title="Current Reasoning & Proposed Action"
-          subtitle="Live evaluation of compliant opportunities within active policy headroom."
-          badge={<SourceBadge source="PYTH" size="xs" />}
-        />
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Section 1: MARKET OBSERVATION */}
-          <div className="bg-sentinel-surfaceMuted p-4 rounded-xl border border-sentinel-border space-y-2">
-            <span className="text-[10px] font-bold text-sentinel-textSubtle uppercase tracking-wider block font-mono">
-              MARKET OBSERVATION
-            </span>
-            <p className="text-xs text-white leading-relaxed">
-              NVDAx relative strength high after earnings release. Portfolio allocation currently 20.0%, within compliant band.
-            </p>
-            <div className="text-[11px] font-mono text-sentinel-textMuted pt-1 border-t border-sentinel-border/50">
-              Pyth confidence: <span className="text-blue-400 font-semibold">±$0.04 (Fresh)</span>
-            </div>
-          </div>
-
-          {/* Section 2: PROPOSED ACTION */}
-          <div className="bg-sentinel-surfaceMuted p-4 rounded-xl border border-sentinel-border space-y-2">
-            <span className="text-[10px] font-bold text-sentinel-textSubtle uppercase tracking-wider block font-mono">
-              PROPOSED ACTION
-            </span>
-            <div className="text-sm font-bold text-white font-mono">
-              BUY AAPLx <span className="text-blue-400">$2,840</span>
-            </div>
-            <div className="text-xs font-mono text-sentinel-textMuted space-y-0.5">
-              <div>Projected allocation: <span className="text-white font-semibold">24.1%</span></div>
-              <div>Policy limit: <span className="text-sentinel-textSubtle font-semibold">25.0%</span></div>
-            </div>
-          </div>
-
-          {/* Section 3: SENTINEL VERDICT */}
-          <div className="bg-emerald-950/20 p-4 rounded-xl border border-emerald-500/30 flex flex-col justify-between space-y-3">
+      {/* ========================================================================= */}
+      {/* DISCLOSURE 1: MANUAL TRADE PROPOSAL (COLLAPSED BY DEFAULT)                */}
+      {/* ========================================================================= */}
+      {isManualOpen && (
+        <Card variant="default" padding="md" className="space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-sentinel-border">
             <div>
-              <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block font-mono">
-                SENTINEL VERDICT
-              </span>
-              <div className="text-sm font-bold text-emerald-400 flex items-center gap-1.5 mt-1 font-mono">
-                <CheckCircle2 className="w-4 h-4" />
-                <span>✓ APPROVED</span>
-              </div>
-              <p className="text-xs text-emerald-200/80 mt-1">
-                All 4 core invariants hold with positive headroom.
-              </p>
-            </div>
-
-            {/* REVIEW ACTION BUTTON */}
-            <button
-              type="button"
-              onClick={() => setIsReviewOpen(true)}
-              className="w-full py-2 px-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
-            >
-              <span>Review action</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-      </Card>
-
-      {/* ACTION REVIEW BOTTOM SHEET / MODAL */}
-      {isReviewOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-          <div
-            className="fixed inset-0 bg-black/65 backdrop-blur-sm transition-opacity"
-            onClick={() => setIsReviewOpen(false)}
-          />
-
-          <div className="relative w-full max-w-lg bg-sentinel-surface border border-sentinel-border rounded-t-2xl sm:rounded-2xl shadow-2xl p-6 z-10 space-y-5 animate-in fade-in slide-in-from-bottom-6">
-            <div className="flex items-center justify-between pb-3 border-b border-sentinel-border">
-              <div className="flex items-center gap-2.5">
-                <ShieldCheck className="w-5 h-5 text-emerald-400" />
-                <h3 className="text-base font-bold text-white">Review Autonomous Trade</h3>
-              </div>
-              <button
-                onClick={() => setIsReviewOpen(false)}
-                className="p-1 rounded-lg hover:bg-sentinel-surfaceMuted text-sentinel-textSubtle hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="bg-sentinel-surfaceMuted p-4 rounded-xl border border-sentinel-border space-y-2 text-xs font-mono">
-              <div className="text-[10px] text-sentinel-textSubtle uppercase tracking-wider font-semibold">
-                ORDER SUMMARY
-              </div>
-              <div className="flex justify-between items-baseline text-sm">
-                <span className="text-white font-bold">BUY AAPLx</span>
-                <span className="text-blue-400 font-bold">$2,840.00 USD</span>
-              </div>
-              <div className="flex justify-between text-sentinel-textMuted text-[11px]">
-                <span>Target Venue:</span>
-                <span className="text-white">Meteora Dynamic Bonding Curve</span>
-              </div>
-              <div className="flex justify-between text-sentinel-textMuted text-[11px]">
-                <span>Execution Guard:</span>
-                <span className="text-emerald-400">Deterministic Sentinel PDA Ticket</span>
-              </div>
-            </div>
-
-            <div className="bg-sentinel-surfaceMuted p-4 rounded-xl border border-sentinel-border space-y-2 text-xs font-mono">
-              <div className="text-[10px] text-sentinel-textSubtle uppercase tracking-wider font-semibold">
-                PROJECTED ALLOCATION
-              </div>
-              <div className="flex justify-between">
-                <span className="text-white">AAPLx Weight:</span>
-                <span className="text-blue-400 font-bold">20.0% → 24.1% (Cap 25.0%)</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-white">USDC Cash Reserve:</span>
-                <span className="text-emerald-400 font-bold">25.0% → 22.3% (Floor 20.0%)</span>
-              </div>
-            </div>
-
-            <div className="space-y-2 text-xs font-mono">
-              <span className="text-[10px] text-sentinel-textSubtle uppercase tracking-wider font-semibold block">
-                INVARIANT VERIFICATION CHECKLIST
-              </span>
-              <div className="space-y-1.5 bg-sentinel-surfaceMuted/50 p-3 rounded-xl border border-sentinel-border">
-                <div className="flex items-center justify-between text-emerald-400">
-                  <span className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Exposure limit
-                  </span>
-                  <span className="text-white font-semibold">24.1% ≤ 25.0%</span>
-                </div>
-                <div className="flex items-center justify-between text-emerald-400">
-                  <span className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Stable reserve
-                  </span>
-                  <span className="text-white font-semibold">22.3% ≥ 20.0%</span>
-                </div>
-                <div className="flex items-center justify-between text-emerald-400">
-                  <span className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Trade size ceiling
-                  </span>
-                  <span className="text-white font-semibold">$2,840 ≤ $10,000</span>
-                </div>
-                <div className="flex items-center justify-between text-emerald-400">
-                  <span className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Price slippage
-                  </span>
-                  <span className="text-white font-semibold">&lt; 0.25% ≤ 1.00%</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="pt-3 border-t border-sentinel-border flex items-center justify-between gap-3">
-              <button
-                type="button"
-                onClick={() => setIsReviewOpen(false)}
-                className="px-4 py-2.5 rounded-lg border border-sentinel-border text-xs font-semibold text-sentinel-textMuted hover:text-white transition cursor-pointer"
-              >
-                Close
-              </button>
-
-              <button
-                type="button"
-                onClick={handleApproveReviewedAction}
-                disabled={reviewedActionSettled}
-                className="flex-1 py-2.5 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-xs cursor-pointer disabled:opacity-50"
-              >
-                {reviewedActionSettled ? (
-                  <>
-                    <Check className="w-4 h-4 text-white" />
-                    <span>Auto-Executed by Sentinel!</span>
-                  </>
-                ) : (
-                  <>
-                    <ShieldCheck className="w-4 h-4 text-white" />
-                    <span>Approve with wallet</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 4. EXECUTION VENUE SELECTOR (HIGH-DENSITY COMPACT CARDS) */}
-      <Card variant="default" padding="md">
-        <CardHeader
-          category="SETTLEMENT ROUTING"
-          title="Polymorphic Execution Venues"
-          subtitle="Select the liquidity venue for autonomous order routing and pre-trade reserve checks."
-          badge={<Badge variant="accent" size="xs">ACTIVE: {activeVenue}</Badge>}
-        />
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
-          {/* Venue 1: Meteora DBC */}
-          <button
-            type="button"
-            onClick={() => handleVenueChange('METEORA_DBC')}
-            className={`text-left p-3 rounded-lg border transition cursor-pointer flex flex-col justify-between ${
-              activeVenue === 'METEORA_DBC'
-                ? 'bg-blue-500/10 border-blue-500 shadow-xs'
-                : 'bg-sentinel-surfaceMuted border-sentinel-border hover:border-slate-600'
-            }`}
-          >
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                  <TrendingUp className="w-3.5 h-3.5 text-blue-400" />
-                  Meteora DBC
-                </span>
-                <SourceBadge source="METEORA" size="xs" />
-              </div>
-              <p className="text-[11px] text-sentinel-textMuted line-clamp-1">
-                Dynamic bonding curve AMM for tokenized stocks (NVDAx, AAPLx, SPYx).
-              </p>
-            </div>
-            <div className="mt-2 pt-1.5 border-t border-sentinel-border/50 text-[10px] font-mono text-sentinel-textSubtle flex justify-between">
-              <span>Depth: $25k</span>
-              <span>Max Slip: 1.00%</span>
-            </div>
-          </button>
-
-          {/* Venue 2: PreStocks Secondary */}
-          <button
-            type="button"
-            onClick={() => handleVenueChange('PRESTOCKS_SECONDARY')}
-            className={`text-left p-3 rounded-lg border transition cursor-pointer flex flex-col justify-between ${
-              activeVenue === 'PRESTOCKS_SECONDARY'
-                ? 'bg-purple-500/10 border-purple-500 shadow-xs'
-                : 'bg-sentinel-surfaceMuted border-sentinel-border hover:border-slate-600'
-            }`}
-          >
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-purple-400" />
-                  PreStocks Vault
-                </span>
-                <SourceBadge source="PRESTOCKS" size="xs" />
-              </div>
-              <p className="text-[11px] text-sentinel-textMuted line-clamp-1">
-                Secondary order matching vault for private tech giants (SpaceX, OpenAI, Stripe).
-              </p>
-            </div>
-            <div className="mt-2 pt-1.5 border-t border-sentinel-border/50 text-[10px] font-mono text-sentinel-textSubtle flex justify-between">
-              <span>Transfer: Verified</span>
-              <span>Cap: 20%</span>
-            </div>
-          </button>
-
-          {/* Venue 3: Demo Simulator */}
-          <button
-            type="button"
-            onClick={() => handleVenueChange('DEMO_SIMULATION')}
-            className={`text-left p-3 rounded-lg border transition cursor-pointer flex flex-col justify-between ${
-              activeVenue === 'DEMO_SIMULATION'
-                ? 'bg-amber-500/10 border-amber-500 shadow-xs'
-                : 'bg-sentinel-surfaceMuted border-sentinel-border hover:border-slate-600'
-            }`}
-          >
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                  <Cpu className="w-3.5 h-3.5 text-amber-400" />
-                  Local Simulator
-                </span>
-                <SourceBadge source="SIMULATION" size="xs" />
-              </div>
-              <p className="text-[11px] text-sentinel-textMuted line-clamp-1">
-                Deterministic in-memory execution harness for air-gapped testing.
-              </p>
-            </div>
-            <div className="mt-2 pt-1.5 border-t border-sentinel-border/50 text-[10px] font-mono text-sentinel-textSubtle flex justify-between">
-              <span>Signatures: sim_tx_*</span>
-              <span>Zero Latency</span>
-            </div>
-          </button>
-        </div>
-      </Card>
-
-      {/* 5. MANUAL TRADE PROPOSER & PRE-FLIGHT VERIFIER ENGINE (COLLAPSIBLE ACCORDION) */}
-      <div className="bg-sentinel-surface border border-sentinel-border rounded-xl overflow-hidden shadow-xs">
-        <button
-          type="button"
-          onClick={() => setIsProposerOpen(!isProposerOpen)}
-          className="w-full p-4 sm:p-5 flex items-center justify-between text-left hover:bg-sentinel-surfaceMuted/50 transition cursor-pointer"
-        >
-          <div className="flex items-center gap-2.5">
-            <Sliders className="w-4 h-4 text-blue-400" />
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider">
-                  Manual Trade Proposal &amp; Pre-Flight Engine
-                </h3>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-sentinel-surfaceMuted text-sentinel-textSubtle border border-sentinel-border">
-                  {swarmPassingCount} / 6 Verifiers Passing
-                </span>
-              </div>
-              <p className="text-[11px] text-sentinel-textMuted mt-0.5">
-                Simulate arbitrary trade proposals from agent authority to test real-time invariant enforcement.
+              <h3 className="text-sm font-semibold text-white">Manual Trade Proposal</h3>
+              <p className="text-xs text-sentinel-textMuted mt-0.5">
+                Submit a custom order size to test whether the Policy Guard approves or blocks it.
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-xs font-mono text-sentinel-textSubtle shrink-0">
-            <span>{isProposerOpen ? 'Hide Proposer' : 'Expand Proposer'}</span>
-            {isProposerOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </div>
-        </button>
 
-        {isProposerOpen && (
-          <div className="p-5 border-t border-sentinel-border space-y-4 bg-sentinel-surfaceMuted/20 animate-in fade-in duration-150">
-            <form onSubmit={handleCustomSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {/* Asset Selection */}
+          <form onSubmit={handleCustomSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
             <div>
-              <label className="block text-xs font-semibold text-sentinel-textSubtle mb-1">
-                TARGET ASSET
-              </label>
+              <label className="text-xs text-sentinel-textMuted block mb-1.5">Asset</label>
               <select
                 value={selectedAsset}
                 onChange={(e) => setSelectedAsset(e.target.value)}
-                className="w-full bg-sentinel-surfaceMuted border border-sentinel-border rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
+                className="w-full h-9 px-3 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border text-xs text-white font-mono"
               >
-                <optgroup label="Tokenized Public Equities (Meteora DBC)">
-                  {availableAssets
-                    .filter((a) => !('isPreIpo' in a) && !('isAgentToken' in a))
-                    .map((a) => (
-                      <option key={a.symbol} value={a.symbol}>
-                        {a.symbol} (${a.priceUsd.toFixed(2)})
-                      </option>
-                    ))}
-                </optgroup>
-                <optgroup label="Pre-IPO Unicorn Equities (PreStocks)">
-                  {availableAssets
-                    .filter((a) => 'isPreIpo' in a)
-                    .map((a) => (
-                      <option key={a.symbol} value={a.symbol}>
-                        {a.symbol} (${a.priceUsd.toFixed(2)}) · Pre-IPO
-                      </option>
-                    ))}
-                </optgroup>
+                {availableAssets.map((a) => (
+                  <option key={a.symbol} value={a.symbol}>
+                    {a.symbol} — {a.name}
+                  </option>
+                ))}
               </select>
             </div>
 
-            {/* Direction */}
             <div>
-              <label className="block text-xs font-semibold text-sentinel-textSubtle mb-1">
-                DIRECTION
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setDirection('BUY')}
-                  className={`py-2 text-xs font-bold rounded-lg border transition cursor-pointer sentinel-interactive sentinel-focus ${
-                    direction === 'BUY'
-                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                      : 'bg-sentinel-surfaceMuted text-sentinel-textMuted border-sentinel-border hover:text-white'
-                  }`}
-                >
-                  BUY
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDirection('SELL')}
-                  className={`py-2 text-xs font-bold rounded-lg border transition cursor-pointer sentinel-interactive sentinel-focus ${
-                    direction === 'SELL'
-                      ? 'bg-rose-500/20 text-rose-400 border-rose-500/40'
-                      : 'bg-sentinel-surfaceMuted text-sentinel-textMuted border-sentinel-border hover:text-white'
-                  }`}
-                >
-                  SELL
-                </button>
+              <label className="text-xs text-sentinel-textMuted block mb-1.5">Side</label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {(['BUY', 'SELL'] as const).map((side) => (
+                  <button
+                    key={side}
+                    type="button"
+                    onClick={() => setDirection(side)}
+                    className={`h-9 rounded-lg border text-xs font-semibold cursor-pointer ${
+                      direction === side
+                        ? 'bg-sentinel-surfaceElevated border-sentinel-accent text-white'
+                        : 'bg-sentinel-surfaceMuted border-sentinel-border text-sentinel-textMuted'
+                    }`}
+                  >
+                    {side}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* Amount */}
             <div>
-              <label className="block text-xs font-semibold text-sentinel-textSubtle mb-1">
-                NOTIONAL AMOUNT (USD)
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-2 text-xs text-sentinel-textMuted font-mono">$</span>
-                <input
-                  type="number"
-                  min="100"
-                  step="500"
-                  value={tradeAmount}
-                  onChange={(e) => setTradeAmount(e.target.value)}
-                  className="w-full bg-sentinel-surfaceMuted border border-sentinel-border rounded-lg pl-7 pr-3 py-1.5 text-xs text-white font-mono tabular-nums focus:outline-none focus:border-blue-500 sentinel-focus"
-                />
-              </div>
+              <label className="text-xs text-sentinel-textMuted block mb-1.5">Order Amount (USD)</label>
+              <input
+                type="number"
+                min="100"
+                step="100"
+                value={tradeAmount}
+                onChange={(e) => setTradeAmount(e.target.value)}
+                className="w-full h-9 px-3 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border text-xs text-white font-mono tabular-nums"
+              />
             </div>
+
+            <div>
+              <button
+                type="submit"
+                disabled={isRunningTrade}
+                className="w-full h-9 rounded-lg bg-sentinel-accent hover:bg-sentinel-accentHover text-white text-xs font-semibold cursor-pointer disabled:opacity-50"
+              >
+                {isRunningTrade ? 'Evaluating...' : 'Submit Proposal'}
+              </button>
+            </div>
+          </form>
+
+          {/* Pre-flight Preview Bar */}
+          <div className="pt-3 border-t border-sentinel-border flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+            <div className="flex flex-wrap items-center gap-4 text-sentinel-textMuted">
+              <span>
+                Projected {selectedAsset}:{' '}
+                <strong className={willExceedExposure ? 'text-rose-400' : 'text-white'}>
+                  {(postExposureBps / 100).toFixed(1)}%
+                </strong>{' '}
+                (max {(policy.maxSingleAssetBps / 100).toFixed(0)}%)
+              </span>
+              <span>
+                Projected Cash:{' '}
+                <strong className={willBreachReserve ? 'text-rose-400' : 'text-white'}>
+                  {(postReserveBps / 100).toFixed(1)}%
+                </strong>{' '}
+                (min {(policy.minStablecoinBps / 100).toFixed(0)}%)
+              </span>
+            </div>
+            <span className={willBeBlocked ? 'text-rose-400 font-semibold' : 'text-emerald-400 font-semibold'}>
+              {willBeBlocked ? 'Pre-Flight Forecast: Will Be Blocked' : 'Pre-Flight Forecast: Compliant'}
+            </span>
           </div>
+        </Card>
+      )}
 
-          {/* Pre-Flight SWARM-Lite 6-Verifier Status */}
-          <div
-            className={`p-3.5 rounded-xl border text-xs space-y-2.5 font-mono ${
-              willBeRejected
-                ? 'bg-rose-950/20 border-rose-500/40 text-rose-200'
-                : 'bg-emerald-950/20 border-emerald-500/40 text-emerald-200'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-[11px] uppercase flex items-center gap-1.5">
-                {willBeRejected ? (
-                  <>
-                    <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
-                    Sentinel Pre-Flight: Will Reject
-                  </>
-                ) : (
-                  <>
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                    Sentinel Pre-Flight: Compliant
-                  </>
-                )}
-              </span>
-              <span className="text-[10px] font-bold tabular-nums">
-                {swarmPassingCount} / 6 Verifiers Passing
-              </span>
-            </div>
+      {/* ========================================================================= */}
+      {/* DISCLOSURE 2: COLLAPSED DIAGNOSTICS & EXECUTION VENUE                     */}
+      {/* ========================================================================= */}
+      <Card padding="none" className="overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setIsDiagnosticsOpen(!isDiagnosticsOpen)}
+          className="w-full p-4 flex items-center justify-between text-left hover:bg-sentinel-surfaceMuted transition cursor-pointer"
+        >
+          <div className="flex items-center gap-2.5">
+            <Sliders className="w-4 h-4 text-sentinel-textSubtle" />
+            <span className="text-xs font-semibold text-white">
+              Agent Diagnostics &amp; Execution Venue
+            </span>
+            <span className="text-xs font-mono text-sentinel-textSubtle">
+              ({activeVenue})
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-sentinel-textSubtle">
+            <span>{isDiagnosticsOpen ? 'Hide Diagnostics' : 'Expand Diagnostics'}</span>
+            {isDiagnosticsOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </div>
+        </button>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5 text-[10px]">
-              {swarmPreFlightVerdicts.map((v) => (
-                <div
-                  key={v.name}
-                  className={`p-1.5 rounded-md border flex items-center justify-between ${
-                    v.passed
-                      ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-300'
-                      : 'bg-rose-950/40 border-rose-500/40 text-rose-300'
-                  }`}
-                >
-                  <span className="truncate">{v.role}</span>
-                  <span className="font-bold">{v.passed ? '✓' : '✕'}</span>
+        {isDiagnosticsOpen && (
+          <div className="p-5 border-t border-sentinel-border bg-sentinel-surfaceMuted/40 space-y-5 text-xs">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Delegated Signer */}
+              <div className="p-3.5 rounded-lg bg-sentinel-surface border border-sentinel-border space-y-1.5">
+                <div className="text-sentinel-textSubtle">Delegated Agent Signer (Ed25519)</div>
+                <div className="flex items-center justify-between font-mono text-white">
+                  <span>{formatAddress(agent.wallet.getPublicKeyString(), 8)}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(agent.wallet.getPublicKeyString());
+                      setCopiedKey(true);
+                      setTimeout(() => setCopiedKey(false), 2000);
+                    }}
+                    className="text-sentinel-textMuted hover:text-white flex items-center gap-1 cursor-pointer"
+                  >
+                    {copiedKey ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedKey ? 'Copied' : 'Copy'}</span>
+                  </button>
                 </div>
-              ))}
-            </div>
-          </div>
+              </div>
 
-          {/* Settlement Gate: Pre-Flight Invariant Checklist */}
-          <SettlementGateCard
-            assetSymbol={selectedAsset}
-            direction={direction}
-            amountUsd={amountNum}
-            venueName={targetVenueName}
-            poolAddress={targetPoolAddress}
-            liquidityDepthUsd={31_842}
-            priceImpactBps={direction === 'BUY' ? Math.round((amountNum / (portfolio.totalValueUsd || 100_000)) * 100) + 12 : 24}
-            pythFreshnessSec={12}
-            policyPassed={!willExceedExposure && !willExceedTradeLimit && !willBreachReserve}
-            postStatePassed={!willBeRejected}
-          />
-
-          {/* Quick Preset Buttons & Submit */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-sentinel-textSubtle">Test Presets:</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedAsset('NVDAx');
-                  setDirection('BUY');
-                  setTradeAmount('15000');
-                }}
-                className="px-2.5 py-1 rounded bg-rose-950/40 text-rose-300 border border-rose-800/40 text-xs font-mono hover:bg-rose-900/40 cursor-pointer sentinel-interactive sentinel-focus"
-              >
-                $15,000 NVDA (Breach)
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedAsset('NVDAx');
-                  setDirection('BUY');
-                  setTradeAmount('5000');
-                }}
-                className="px-2.5 py-1 rounded bg-emerald-950/40 text-emerald-300 border border-emerald-800/40 text-xs font-mono hover:bg-emerald-900/40 cursor-pointer sentinel-interactive sentinel-focus"
-              >
-                $5,000 NVDA (Safe)
-              </button>
+              {/* Execution Venue Selector */}
+              <div className="p-3.5 rounded-lg bg-sentinel-surface border border-sentinel-border space-y-1.5">
+                <div className="text-sentinel-textSubtle">Target Execution Adapter</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {(['METEORA_DBC', 'PRESTOCKS_SECONDARY', 'DEMO_SIMULATION'] as ExecutionVenueType[]).map(
+                    (venue) => (
+                      <button
+                        key={venue}
+                        type="button"
+                        onClick={() => handleVenueChange(venue)}
+                        className={`px-2.5 py-1 rounded font-mono text-[11px] border cursor-pointer ${
+                          activeVenue === venue
+                            ? 'bg-sentinel-surfaceElevated border-sentinel-accent text-white'
+                            : 'bg-sentinel-surfaceMuted border-sentinel-border text-sentinel-textMuted hover:text-white'
+                        }`}
+                      >
+                        {venue}
+                      </button>
+                    )
+                  )}
+                </div>
+              </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={isRunningTrade}
-              className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-2 shadow-md disabled:opacity-50 transition cursor-pointer sentinel-interactive sentinel-focus"
-            >
-              <Play className={`w-3.5 h-3.5 ${isRunningTrade ? 'animate-spin' : ''}`} />
-              <span>{isRunningTrade ? 'Evaluating Invariants...' : 'Submit Intent'}</span>
-            </button>
+            {/* Loop State Trace Log (when available) */}
+            {loopState && (loopState.whyNarrative || loopState.breachedInvariants.length > 0) && (
+              <div className="space-y-2">
+                <div className="text-sentinel-textSubtle font-semibold">
+                  Execution Stage Log (Stage {loopState.stageIndex} / {loopState.totalStages} · {loopState.stage})
+                </div>
+                <div className="p-3 rounded-lg bg-sentinel-surface border border-sentinel-border font-mono text-[11px] space-y-1.5 text-sentinel-textMuted">
+                  {loopState.whyNarrative?.initialProposalText && (
+                    <div><span className="text-sentinel-textSubtle">[01 PROPOSE]</span> <span className="text-white">{loopState.whyNarrative.initialProposalText}</span></div>
+                  )}
+                  {loopState.whyNarrative?.rejectionSummary && (
+                    <div><span className="text-rose-400">[03 BLOCK]</span> <span className="text-white">{loopState.whyNarrative.rejectionSummary}</span></div>
+                  )}
+                  {loopState.whyNarrative?.recalculationText && (
+                    <div><span className="text-blue-400">[04 ADAPT]</span> <span className="text-white">{loopState.whyNarrative.recalculationText}</span></div>
+                  )}
+                  {loopState.whyNarrative?.sentinelStatusText && (
+                    <div><span className="text-emerald-400">[05 SETTLE]</span> <span className="text-white">{loopState.whyNarrative.sentinelStatusText}</span></div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
-        </form>
-      </div>
-    )}
-  </div>
-</div>
+        )}
+      </Card>
+    </div>
   );
 };
-

@@ -302,213 +302,148 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* PORTFOLIO CAPITAL & ALLOCATION CONTEXT */}
+      {/* PORTFOLIO CAPITAL HEADER */}
       <PageHeader
-        category="PORTFOLIO CAPITAL"
-        title="Portfolio Capital & Asset Allocation"
-        subtitle="Real-time tokenized equity positions, Pyth oracle valuation, and macro asset-class compliance."
+        category="PORTFOLIO"
+        title="Capital & Holdings"
+        subtitle="Tokenized equity positions, cash reserves, and position limits."
         actions={
-          <>
-            {onNavigateToProtection && (
-              <button
-                type="button"
-                onClick={onNavigateToProtection}
-                className="px-2.5 py-1.5 rounded-lg bg-sentinel-surface border border-sentinel-border hover:border-sentinel-borderStrong text-sentinel-textMuted hover:text-white transition cursor-pointer flex items-center gap-1.5 font-mono text-xs"
-              >
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Policy Boundaries →</span>
-              </button>
-            )}
-            {onNavigateToAgent && (
-              <button
-                type="button"
-                onClick={onNavigateToAgent}
-                className="px-2.5 py-1.5 rounded-lg bg-sentinel-surface border border-sentinel-border hover:border-sentinel-borderStrong text-sentinel-textMuted hover:text-white transition cursor-pointer flex items-center gap-1.5 font-mono text-xs"
-              >
-                <Cpu className="w-3.5 h-3.5 text-blue-400" />
-                <span>Agent Console →</span>
-              </button>
-            )}
-            {onNavigateToDecisions && (
-              <button
-                type="button"
-                onClick={onNavigateToDecisions}
-                className="px-2.5 py-1.5 rounded-lg bg-sentinel-surface border border-sentinel-border hover:border-sentinel-borderStrong text-sentinel-textMuted hover:text-white transition cursor-pointer flex items-center gap-1.5 font-mono text-xs"
-              >
-                <Activity className="w-3.5 h-3.5 text-purple-400" />
-                <span>Activity Log →</span>
-              </button>
-            )}
-          </>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowPerformanceChart(!showPerformanceChart)}
+              className="px-3 py-1.5 rounded-lg border border-sentinel-border bg-sentinel-surface hover:bg-sentinel-surfaceElevated text-sentinel-textMuted hover:text-white font-medium text-xs transition cursor-pointer sentinel-interactive sentinel-focus"
+            >
+              {showPerformanceChart ? 'Hide Performance' : 'Performance Chart'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsBuilderOpen(!isBuilderOpen)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-sentinel-border bg-sentinel-surface hover:bg-sentinel-surfaceElevated text-white font-medium text-xs transition cursor-pointer sentinel-interactive sentinel-focus"
+            >
+              <Sliders className="w-3.5 h-3.5 text-blue-400" />
+              <span>{isBuilderOpen ? 'Close Allocator' : 'Target Allocator'}</span>
+            </button>
+          </div>
         }
       />
 
-      {/* 1. INSTITUTIONAL PORTFOLIO CONTEXT & FINANCIAL HEALTH STRIP */}
-      <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 font-mono text-xs shadow-lg">
-        <div className="flex flex-wrap items-center gap-6">
-          <div>
-            <span className="text-[10px] text-sentinel-textSubtle uppercase tracking-wider block font-sans">
-              Total Portfolio NAV
-            </span>
-            <span className="text-2xl font-black text-white tabular-nums tracking-tight">
-              {formatCurrency(portfolio.totalValueUsd)}
-            </span>
-          </div>
-
-          <div className="h-8 w-px bg-sentinel-border hidden sm:block" />
-
-          <div>
-            <span className="text-[10px] text-sentinel-textSubtle uppercase tracking-wider block font-sans">
-              Sentinel Guarantees
-            </span>
-            <span className="text-sm font-bold text-emerald-400 flex items-center gap-1.5 mt-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              {checksPassed} / {totalChecks} Active (Healthy)
-            </span>
-          </div>
-
-          <div className="h-8 w-px bg-sentinel-border hidden sm:block" />
-
-          <div>
-            <span className="text-[10px] text-sentinel-textSubtle uppercase tracking-wider block font-sans">
-              USDC Cash Floor
-            </span>
-            <span className="text-sm font-bold text-white mt-1 block">
-              {(portfolio.stablecoinExposureBps / 100).toFixed(1)}%
-              <span className="text-sentinel-textMuted font-normal text-xs ml-1">
-                (min {(policy.minStablecoinBps / 100).toFixed(0)}%)
-              </span>
-            </span>
-          </div>
-
-          <div className="h-8 w-px bg-sentinel-border hidden sm:block" />
-
-          <div>
-            <span className="text-[10px] text-sentinel-textSubtle uppercase tracking-wider block font-sans">
-              Single Asset Cap
-            </span>
-            <span className="text-sm font-bold text-white mt-1 block">
-              ≤ {(policy.maxSingleAssetBps / 100).toFixed(0)}%
-              <span className="text-emerald-400 font-semibold text-xs ml-1">
-                (Safe)
-              </span>
-            </span>
-          </div>
-
-          <div className="h-8 w-px bg-sentinel-border hidden lg:block" />
-
-          <div className="hidden lg:block">
-            <span className="text-[10px] text-sentinel-textSubtle uppercase tracking-wider block font-sans">
-              Vault Authority PDA
-            </span>
-            <span className="text-xs font-semibold text-purple-400 mt-1 block">
-              {formatAddress(sentinelPda, 4)}
-            </span>
-          </div>
+      {/* 1. UNIFIED CAPITAL SUMMARY BAR (No PDA telemetry on main surface) */}
+      <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-5 grid grid-cols-2 sm:grid-cols-5 gap-6 items-center">
+        <div>
+          <span className="text-xs text-sentinel-textSubtle block">Total Portfolio Value</span>
+          <span className="text-2xl font-bold text-white font-mono tabular-nums tracking-tight mt-0.5 block">
+            {formatCurrency(portfolio.totalValueUsd)}
+          </span>
         </div>
 
-        {/* Action Controls */}
-        <div className="flex items-center gap-2 self-start md:self-auto">
-          <button
-            type="button"
-            onClick={() => setShowPerformanceChart(!showPerformanceChart)}
-            className="px-3 py-1.5 rounded-lg border border-sentinel-border bg-sentinel-surfaceMuted hover:bg-sentinel-surfaceElevated text-sentinel-text font-semibold text-xs transition cursor-pointer sentinel-interactive sentinel-focus"
-          >
-            {showPerformanceChart ? 'Hide Performance Chart' : 'Show Performance Chart'}
-          </button>
-          <button
-            type="button"
-            onClick={() => setIsBuilderOpen(!isBuilderOpen)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 font-semibold text-xs transition cursor-pointer sentinel-interactive sentinel-focus"
-          >
-            <Sliders className="w-3.5 h-3.5" />
-            <span>{isBuilderOpen ? 'Close Builder' : 'Asset Allocator'}</span>
-          </button>
+        <div>
+          <span className="text-xs text-sentinel-textSubtle block">Public Equities</span>
+          <span className="text-sm font-semibold text-white font-mono tabular-nums mt-1 block">
+            {(assetClassReport.publicEquities.exposureBps / 100).toFixed(1)}%
+            <span className="text-sentinel-textSubtle font-normal text-xs ml-1">
+              / {(assetClassReport.publicEquities.maxBps / 100).toFixed(0)}% cap
+            </span>
+          </span>
+        </div>
+
+        <div>
+          <span className="text-xs text-sentinel-textSubtle block">Pre-IPO Equities</span>
+          <span className="text-sm font-semibold text-white font-mono tabular-nums mt-1 block">
+            {(assetClassReport.preIpo.exposureBps / 100).toFixed(1)}%
+            <span className="text-sentinel-textSubtle font-normal text-xs ml-1">
+              / {(assetClassReport.preIpo.maxBps / 100).toFixed(0)}% cap
+            </span>
+          </span>
+        </div>
+
+        <div>
+          <span className="text-xs text-sentinel-textSubtle block">USDC Cash Reserve</span>
+          <span className="text-sm font-semibold text-white font-mono tabular-nums mt-1 block">
+            {(portfolio.stablecoinExposureBps / 100).toFixed(1)}%
+            <span className="text-sentinel-textSubtle font-normal text-xs ml-1">
+              (min {(policy.minStablecoinBps / 100).toFixed(0)}%)
+            </span>
+          </span>
+        </div>
+
+        <div>
+          <span className="text-xs text-sentinel-textSubtle block">Policy Status</span>
+          <span className="text-sm font-semibold text-emerald-400 flex items-center gap-1.5 mt-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+            {checksPassed} of {totalChecks} Limits Satisfied
+          </span>
         </div>
       </div>
 
-      {/* 3. OPTIONAL / EXPANDABLE AREA CURVE FINANCIAL CHART */}
+      {/* 2. EXPANDABLE PERFORMANCE CHART DISCLOSURE */}
       {showPerformanceChart && (
-        <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="animate-in fade-in duration-150">
           <FinancialChart currentValueUsd={portfolio.totalValueUsd} />
         </div>
       )}
 
-      {/* 4. EXPANDABLE PORTFOLIO BUILDER STUDIO (Phase 11) */}
+      {/* 3. EXPANDABLE TARGET ALLOCATOR DISCLOSURE */}
       {isBuilderOpen && (
-        <div className="bg-sentinel-surface border border-purple-500/30 rounded-xl p-5 space-y-4">
+        <div className="bg-sentinel-surface border border-sentinel-borderStrong rounded-xl p-5 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-sentinel-border">
             <div>
-              <div className="flex items-center gap-2">
-                <Sliders className="w-4 h-4 text-purple-400" />
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-                  Asset Universe &amp; Allocator Studio
-                </h3>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-purple-500/10 text-purple-400 border border-purple-500/20 font-semibold">
-                  PreStocks &amp; DBC
-                </span>
-              </div>
+              <h3 className="text-sm font-semibold text-white">
+                Target Portfolio Allocator (Simulated Projection)
+              </h3>
               <p className="text-xs text-sentinel-textMuted mt-0.5">
-                Adjust multi-asset weight targets within institutional Sentinel boundary envelopes.
+                Model target weights across public equities, pre-IPO secondaries, and cash reserve.
               </p>
             </div>
-            <span className={`px-2.5 py-1 rounded text-xs font-mono font-semibold border flex items-center gap-1.5 ${
-              canDeploy
-                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
-            }`}>
-              {canDeploy ? '✓ Invariants Satisfied' : '✕ Limits Breached'}
+            <span
+              className={`px-2.5 py-1 rounded text-xs font-mono font-medium border ${
+                canDeploy
+                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                  : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+              }`}
+            >
+              {canDeploy ? '✓ Within Policy Limits' : '✕ Exceeds Policy Limits'}
             </span>
           </div>
 
           {/* Curated Presets */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
             {PORTFOLIO_PRESETS.map((preset) => {
               const isSelected = activePresetId === preset.id;
               return (
                 <button
                   key={preset.id}
+                  type="button"
                   onClick={() => handleApplyPreset(preset)}
                   className={`text-left p-3 rounded-lg border transition cursor-pointer ${
                     isSelected
-                      ? 'bg-sentinel-surfaceElevated border-blue-500/50 shadow-sm'
-                      : 'bg-sentinel-surfaceMuted border-sentinel-border hover:border-sentinel-border/80'
+                      ? 'bg-sentinel-surfaceElevated border-sentinel-accent'
+                      : 'bg-sentinel-surfaceMuted border-sentinel-border hover:border-sentinel-borderStrong'
                   }`}
                 >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-xs text-white">{preset.name}</span>
-                    <span className="text-[9px] px-1.5 py-0.2 rounded font-mono bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                      {preset.badge}
-                    </span>
-                  </div>
-                  <span className="text-[11px] font-mono text-blue-400 block font-semibold mb-1">
+                  <div className="font-semibold text-xs text-white">{preset.name}</div>
+                  <div className="text-[11px] font-mono text-sentinel-textMuted mt-0.5">
                     {preset.tag}
-                  </span>
-                  <p className="text-[10px] text-sentinel-textMuted line-clamp-2">
-                    {preset.description}
-                  </p>
+                  </div>
                 </button>
               );
             })}
           </div>
 
           {/* Asset Sliders */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 pt-2">
-            {/* Public Equities */}
-            <div className="p-3.5 rounded-lg bg-sentinel-surfaceMuted border border-blue-500/20 space-y-3">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 pt-1">
+            <div className="p-3.5 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border space-y-2.5">
               <div className="flex justify-between items-center text-xs">
-                <span className="font-bold text-white flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-blue-400" /> Public Equities
-                </span>
-                <span className={`font-mono font-bold ${isPublicValid ? 'text-blue-400' : 'text-rose-400'}`}>
-                  {publicAllocatedPct.toFixed(1)}% / ≤ {maxPublicPct.toFixed(0)}%
+                <span className="font-semibold text-white">Public Equities</span>
+                <span className={`font-mono ${isPublicValid ? 'text-sentinel-textMuted' : 'text-rose-400'}`}>
+                  {publicAllocatedPct.toFixed(0)}% / {maxPublicPct.toFixed(0)}%
                 </span>
               </div>
               {['AAPLx', 'NVDAx', 'SPYx'].map((sym) => (
                 <div key={sym} className="space-y-1">
                   <div className="flex justify-between text-xs font-mono">
-                    <span className="text-white">{sym}</span>
-                    <span className="font-semibold text-white">{builderAllocations[sym] || 0}%</span>
+                    <span className="text-sentinel-textMuted">{sym}</span>
+                    <span className="text-white tabular-nums">{builderAllocations[sym] || 0}%</span>
                   </div>
                   <input
                     type="range"
@@ -523,21 +458,18 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
               ))}
             </div>
 
-            {/* Pre-IPO Equities */}
-            <div className="p-3.5 rounded-lg bg-sentinel-surfaceMuted border border-purple-500/20 space-y-3">
+            <div className="p-3.5 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border space-y-2.5">
               <div className="flex justify-between items-center text-xs">
-                <span className="font-bold text-white flex items-center gap-1.5">
-                  <Rocket className="w-3.5 h-3.5 text-purple-400" /> Pre-IPO Unicorns
-                </span>
-                <span className={`font-mono font-bold ${isPreIpoValid ? 'text-purple-400' : 'text-rose-400'}`}>
-                  {preIpoAllocatedPct.toFixed(1)}% / ≤ {maxPreIpoPct.toFixed(0)}%
+                <span className="font-semibold text-white">Pre-IPO Equities</span>
+                <span className={`font-mono ${isPreIpoValid ? 'text-sentinel-textMuted' : 'text-rose-400'}`}>
+                  {preIpoAllocatedPct.toFixed(0)}% / {maxPreIpoPct.toFixed(0)}%
                 </span>
               </div>
               {['SPACEXx', 'OPENAIx', 'STRIPEx'].map((sym) => (
                 <div key={sym} className="space-y-1">
                   <div className="flex justify-between text-xs font-mono">
-                    <span className="text-white">{sym}</span>
-                    <span className="font-semibold text-white">{builderAllocations[sym] || 0}%</span>
+                    <span className="text-sentinel-textMuted">{sym}</span>
+                    <span className="text-white tabular-nums">{builderAllocations[sym] || 0}%</span>
                   </div>
                   <input
                     type="range"
@@ -552,20 +484,17 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
               ))}
             </div>
 
-            {/* Reserve Cash */}
-            <div className="p-3.5 rounded-lg bg-sentinel-surfaceMuted border border-emerald-500/20 space-y-3">
+            <div className="p-3.5 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border space-y-2.5">
               <div className="flex justify-between items-center text-xs">
-                <span className="font-bold text-white flex items-center gap-1.5">
-                  <Lock className="w-3.5 h-3.5 text-emerald-400" /> Reserve Liquidity
-                </span>
-                <span className={`font-mono font-bold ${isStableValid ? 'text-emerald-400' : 'text-rose-400'}`}>
-                  {stableAllocatedPct.toFixed(1)}% / ≥ {minStablePct.toFixed(0)}%
+                <span className="font-semibold text-white">Cash Reserve</span>
+                <span className={`font-mono ${isStableValid ? 'text-sentinel-textMuted' : 'text-rose-400'}`}>
+                  {stableAllocatedPct.toFixed(0)}% / min {minStablePct.toFixed(0)}%
                 </span>
               </div>
               <div className="space-y-1">
                 <div className="flex justify-between text-xs font-mono">
-                  <span className="text-white">USDC Cash Floor</span>
-                  <span className="font-semibold text-white">{builderAllocations.USDC || 0}%</span>
+                  <span className="text-sentinel-textMuted">USDC</span>
+                  <span className="text-white tabular-nums">{builderAllocations.USDC || 0}%</span>
                 </div>
                 <input
                   type="range"
@@ -577,121 +506,44 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
                   className="w-full accent-emerald-500 cursor-pointer"
                 />
               </div>
-              <div className="pt-2 text-[11px] font-mono text-sentinel-textMuted">
-                Total Allocated: <span className={isTotalValid ? 'text-white' : 'text-rose-400'}>{totalAllocatedPct.toFixed(1)}%</span> (must equal 100%)
+              <div className="pt-2 text-xs font-mono text-sentinel-textMuted">
+                Total: <span className={isTotalValid ? 'text-white' : 'text-rose-400'}>{totalAllocatedPct.toFixed(0)}%</span> (must equal 100%)
               </div>
             </div>
           </div>
 
           <div className="flex items-center justify-end gap-3 pt-2">
             {deploySuccess && (
-              <span className="text-xs font-mono text-emerald-400 font-semibold flex items-center gap-1">
-                <Check className="w-4 h-4" /> Deployed on Solana!
+              <span className="text-xs font-mono text-emerald-400 font-medium flex items-center gap-1">
+                <Check className="w-4 h-4" /> Target Allocation Applied (Simulated Projection)
               </span>
             )}
             <button
+              type="button"
               disabled={!canDeploy}
               onClick={handleDeploy}
               className={`px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center gap-2 cursor-pointer sentinel-interactive sentinel-focus ${
                 canDeploy
-                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs'
+                  ? 'bg-sentinel-accent hover:bg-sentinel-accentHover text-white'
                   : 'bg-sentinel-surfaceMuted text-sentinel-textSubtle border border-sentinel-border cursor-not-allowed opacity-60'
               }`}
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>Apply Verified Portfolio</span>
+              <span>Apply Target Allocation</span>
             </button>
           </div>
         </div>
       )}
 
-      {/* 4B. MACRO ASSET-CLASS ALLOCATION ENVELOPES */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 font-mono text-xs">
-        {/* Public Equities Envelope */}
-        <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-4 space-y-2.5">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
-              <Building2 className="w-3.5 h-3.5 text-blue-400" />
-              Public Equities
-            </span>
-            <SourceBadge source="METEORA" size="xs" />
-          </div>
-          <div className="flex items-baseline justify-between">
-            <span className="text-lg font-extrabold text-white tabular-nums">
-              {formatCurrency(assetClassReport.publicEquities.valueUsd)}
-            </span>
-            <span className={`text-xs font-bold tabular-nums ${assetClassReport.publicEquities.passed ? 'text-blue-400' : 'text-rose-400'}`}>
-              {(assetClassReport.publicEquities.exposureBps / 100).toFixed(1)}% / ≤ {(assetClassReport.publicEquities.maxBps / 100).toFixed(0)}% Cap
-            </span>
-          </div>
-          <div className="w-full bg-sentinel-surfaceMuted h-1.5 rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full ${assetClassReport.publicEquities.passed ? 'bg-blue-500' : 'bg-rose-500'}`}
-              style={{ width: `${Math.min(100, (assetClassReport.publicEquities.exposureBps / assetClassReport.publicEquities.maxBps) * 100)}%` }}
-            />
-          </div>
-        </div>
-
-        {/* Pre-IPO Unicorns Envelope */}
-        <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-4 space-y-2.5">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
-              <Rocket className="w-3.5 h-3.5 text-purple-400" />
-              Pre-IPO Unicorns
-            </span>
-            <SourceBadge source="PRESTOCKS" size="xs" />
-          </div>
-          <div className="flex items-baseline justify-between">
-            <span className="text-lg font-extrabold text-white tabular-nums">
-              {formatCurrency(assetClassReport.preIpo.valueUsd)}
-            </span>
-            <span className={`text-xs font-bold tabular-nums ${assetClassReport.preIpo.passed ? 'text-purple-400' : 'text-rose-400'}`}>
-              {(assetClassReport.preIpo.exposureBps / 100).toFixed(1)}% / ≤ {(assetClassReport.preIpo.maxBps / 100).toFixed(0)}% Cap
-            </span>
-          </div>
-          <div className="w-full bg-sentinel-surfaceMuted h-1.5 rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full ${assetClassReport.preIpo.passed ? 'bg-purple-500' : 'bg-rose-500'}`}
-              style={{ width: `${Math.min(100, (assetClassReport.preIpo.exposureBps / assetClassReport.preIpo.maxBps) * 100)}%` }}
-            />
-          </div>
-        </div>
-
-        {/* USDC Cash Reserve Envelope */}
-        <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-4 space-y-2.5">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
-              <Lock className="w-3.5 h-3.5 text-emerald-400" />
-              USDC Cash Reserve
-            </span>
-            <SourceBadge source="PYTH" size="xs" />
-          </div>
-          <div className="flex items-baseline justify-between">
-            <span className="text-lg font-extrabold text-white tabular-nums">
-              {formatCurrency(assetClassReport.stable.valueUsd)}
-            </span>
-            <span className={`text-xs font-bold tabular-nums ${assetClassReport.stable.passed ? 'text-emerald-400' : 'text-rose-400'}`}>
-              {(assetClassReport.stable.exposureBps / 100).toFixed(1)}% / ≥ {(assetClassReport.stable.minBps / 100).toFixed(0)}% Floor
-            </span>
-          </div>
-          <div className="w-full bg-sentinel-surfaceMuted h-1.5 rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full ${assetClassReport.stable.passed ? 'bg-emerald-500' : 'bg-rose-500'}`}
-              style={{ width: `${Math.min(100, (assetClassReport.stable.exposureBps / 10000) * 200)}%` }}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* 5. CLEAN HOLDINGS TABLE */}
+      {/* 4. PRIMARY FOCAL POINT: HOLDINGS TABLE */}
       <Card variant="default" padding="md">
         <CardHeader
-          category="TOKENIZED EQUITY & LIQUIDITY POSITIONS"
-          title="Portfolio Holdings"
-          subtitle="Select any asset to inspect Pyth Hermès dual-feed freshness, basis deviation, PreStocks 409A attestations, and policy headroom."
+          category="HOLDINGS"
+          title="Positions & Valuation"
+          subtitle="Select any position to inspect oracle pricing, custody details, and limit headroom."
           action={
-            <span className="text-xs font-mono text-sentinel-textSubtle px-2.5 py-1 rounded bg-sentinel-surfaceMuted border border-sentinel-border">
-              {portfolio.assets.length} Assets · 100.00% NAV
+            <span className="text-xs font-mono text-sentinel-textSubtle">
+              {portfolio.assets.length} Positions
             </span>
           }
         />
