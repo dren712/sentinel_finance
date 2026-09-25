@@ -81,12 +81,12 @@ export const Header: React.FC<HeaderProps> = ({
           onClick={onNavigateToOverview}
           className="flex items-center gap-3 text-left cursor-pointer group focus:outline-none"
         >
-          <div className="relative w-9 h-9 rounded-[4px] bg-sentinel-surfaceElevated border border-sentinel-border flex items-center justify-center shrink-0 p-1 group-hover:border-sentinel-accent transition-colors">
+          <div className="relative w-10 h-10 rounded-[4px] bg-sentinel-surfaceElevated border border-sentinel-border flex items-center justify-center shrink-0 p-1 group-hover:border-sentinel-accent transition-colors shadow-sm">
             <Image
               src="/Sentinel_Logo.png"
               alt="Sentinel Logo"
-              width={30}
-              height={30}
+              width={34}
+              height={34}
               className="object-contain"
             />
           </div>

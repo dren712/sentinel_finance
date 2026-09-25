@@ -273,6 +273,48 @@ export const LandingView: React.FC<LandingViewProps> = ({
                 </span>
               </div>
 
+              {/* Agent Unit Visual HUD with Sentinel Logo */}
+              <div className="mb-4 p-3 rounded-[4px] bg-sentinel-surfaceElevated border border-sentinel-border flex items-center gap-3.5 relative overflow-hidden">
+                {/* Visual Frame for Mascot Logo */}
+                <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-[4px] bg-sentinel-bg border border-sentinel-border p-1 shrink-0 flex items-center justify-center">
+                  <Image
+                    src="/Sentinel_Logo.png"
+                    alt="Sentinel Autonomous Agent ROBO-01"
+                    width={72}
+                    height={72}
+                    priority
+                    className="object-contain"
+                  />
+                  <span className="absolute bottom-1 right-1 w-2 h-2 rounded-full bg-sentinel-success ring-2 ring-sentinel-bg animate-telemetry-pulse" />
+                </div>
+
+                {/* Telemetry Details */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <div className="flex items-center gap-1.5 font-mono">
+                      <span className="font-bold text-white text-xs sm:text-sm tracking-wide">[ ROBO-01 ]</span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded-[2px] bg-sentinel-accent/15 text-sentinel-accent border border-sentinel-accent/30 font-semibold">
+                        AUTONOMOUS AGENT
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-sentinel-success font-semibold flex items-center gap-1 font-mono">
+                      <span className="w-1.5 h-1.5 rounded-full bg-sentinel-success" />
+                      ACTIVE
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-sentinel-textMuted font-sans leading-snug line-clamp-2">
+                    Autonomous investment unit operating under Anchor Policy PDA bounds. Proposes market actions within mathematical invariants.
+                  </p>
+                  <div className="flex items-center gap-2.5 mt-1.5 text-[10px] text-sentinel-textSubtle font-mono truncate">
+                    <span>UNIT ID: ROBO-01</span>
+                    <span>·</span>
+                    <span>AUTHORITY: ON-CHAIN</span>
+                    <span>·</span>
+                    <span className="text-sentinel-accent">4 INVARIANTS LOCKED</span>
+                  </div>
+                </div>
+              </div>
+
               {/* Scenario Selector */}
               <div className="grid grid-cols-3 gap-2 mb-4">
                 <button
