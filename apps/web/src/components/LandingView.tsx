@@ -7,16 +7,21 @@ import {
   Play,
   ExternalLink,
   ShieldCheck,
+  ShieldAlert,
   Check,
   X,
-  SlidersHorizontal,
   ChevronDown,
   ChevronUp,
   RefreshCw,
   Lock,
+  Layers,
+  Cpu,
+  Database,
+  Key,
 } from 'lucide-react';
 import { APP_CONFIG, getExplorerAddressUrl } from '@/lib/config';
 import { formatAddress } from '@/lib/formatters';
+import { Card, CardHeader, Badge, SourceBadge } from './ui';
 
 interface LandingViewProps {
   onEnterApp: () => void;
@@ -93,9 +98,11 @@ export const LandingView: React.FC<LandingViewProps> = ({
   };
 
   return (
-    <div className="relative overflow-hidden pb-16">
-      {/* SECTION 1: HERO */}
-      <section className="pt-8 sm:pt-14 pb-14 sm:pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+    <div className="relative overflow-hidden pb-16 space-y-12">
+      {/* ========================================================================= */}
+      {/* BEAT 1: QUIET ANCHOR HERO                                                 */}
+      {/* ========================================================================= */}
+      <section className="pt-8 sm:pt-14 pb-6 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
           
           {/* Left Column: Thesis & Primary Actions */}
@@ -105,15 +112,15 @@ export const LandingView: React.FC<LandingViewProps> = ({
               <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
               <span className="text-purple-300 font-semibold">SOLANA DEVNET</span>
               <span className="text-slate-600">•</span>
-              <span className="text-sentinel-text">POLICY ENFORCED</span>
+              <span className="text-sentinel-text font-medium">POLICY ENFORCED</span>
               <span className="text-slate-600">•</span>
-              <span className="text-emerald-400">PROVN VERIFIED</span>
+              <span className="text-emerald-400 font-medium">PROVN VERIFIED</span>
             </div>
 
             {/* Dominant Headline (Solid white, strict typography) */}
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-white leading-[1.08] mb-5">
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.08] mb-5">
               AUTONOMOUS INVESTING.<br />
-              <span className="text-slate-300">RIGID GUARANTEES.</span>
+              <span className="text-slate-400">RIGID GUARANTEES.</span>
             </h1>
 
             {/* Supporting Sentence */}
@@ -126,7 +133,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
               <button
                 type="button"
                 onClick={onEnterApp}
-                className="sentinel-btn-physical flex items-center gap-2 px-6 py-3 rounded-lg bg-sentinel-accent hover:bg-sentinel-accentHover text-white font-semibold text-sm transition-colors cursor-pointer"
+                className="sentinel-btn-physical flex items-center gap-2 px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition-colors cursor-pointer shadow-sm sentinel-interactive sentinel-focus"
               >
                 <span>Launch Sentinel</span>
                 <ArrowRight className="w-4 h-4" />
@@ -136,9 +143,9 @@ export const LandingView: React.FC<LandingViewProps> = ({
                 type="button"
                 onClick={onRunDemo}
                 disabled={isRunningDemo}
-                className="sentinel-btn-physical flex items-center gap-2 px-5 py-3 rounded-lg bg-sentinel-surface hover:bg-sentinel-surfaceElevated border border-sentinel-border text-sentinel-text font-medium text-sm transition-colors cursor-pointer disabled:opacity-50"
+                className="sentinel-btn-physical flex items-center gap-2 px-5 py-3 rounded-lg bg-sentinel-surface hover:bg-sentinel-surfaceElevated border border-sentinel-border text-sentinel-text font-medium text-sm transition-colors cursor-pointer disabled:opacity-50 sentinel-interactive sentinel-focus"
               >
-                <Play className={`w-3.5 h-3.5 text-sentinel-success ${isRunningDemo ? 'animate-spin' : ''}`} />
+                <Play className={`w-3.5 h-3.5 text-emerald-400 ${isRunningDemo ? 'animate-spin' : ''}`} />
                 <span>{isRunningDemo ? 'Running 5-Step Demo...' : 'Watch 90s Demo'}</span>
               </button>
             </div>
@@ -152,7 +159,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
                 </div>
               </div>
               <div>
-                <div className="text-xl sm:text-2xl font-bold text-sentinel-success font-mono tabular-nums">100% Atomic</div>
+                <div className="text-xl sm:text-2xl font-bold text-emerald-400 font-mono tabular-nums">100% Atomic</div>
                 <div className="text-[10px] text-sentinel-textSubtle uppercase tracking-wider font-semibold mt-0.5">
                   Revert on Breach
                 </div>
@@ -168,8 +175,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
 
           {/* Right Column: Signature Constraint Trace Motif */}
           <div className="lg:col-span-6">
-            <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-5 sm:p-6 shadow-xl">
-              
+            <Card variant="elevated" padding="md" className="shadow-xl">
               {/* Card Header: Quiet Anchor Identity */}
               <div className="flex items-center justify-between pb-4 border-b border-sentinel-border">
                 <div className="flex items-center gap-2.5">
@@ -196,7 +202,6 @@ export const LandingView: React.FC<LandingViewProps> = ({
 
               {/* Constraint Trace Steps */}
               <div className="pt-5 space-y-4 font-mono text-xs">
-                
                 {/* 1. Agent Intent */}
                 <div className="relative pl-6 pb-2 border-l border-slate-800">
                   <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-blue-500 ring-4 ring-slate-900" />
@@ -246,30 +251,112 @@ export const LandingView: React.FC<LandingViewProps> = ({
                     </p>
                   </div>
                 </div>
-
               </div>
-
-            </div>
+            </Card>
           </div>
 
         </div>
       </section>
 
-      {/* SECTION 2: THE "AHA" — INTERACTIVE GUARANTEE */}
-      <section className="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-        <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-6 sm:p-8 shadow-xl">
-          
+      {/* ========================================================================= */}
+      {/* BEAT 2: THE INVARIANT PROBLEM & SOLUTION (ARCHITECTURAL COMPARISON)       */}
+      {/* ========================================================================= */}
+      <section className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+        <Card variant="default" padding="lg">
+          <CardHeader
+            category="THE INVARIANT PROBLEM"
+            title="Why Autonomous Capital Requires Mathematical Invariants"
+            subtitle="Granting autonomous AI direct execution access without on-chain policy boundaries always leads to catastrophic drawdowns."
+          />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+            {/* Column A: Unconstrained LLM Agent */}
+            <div className="p-5 rounded-xl bg-sentinel-surfaceMuted border border-rose-500/20 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-mono font-bold text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <ShieldAlert className="w-4 h-4 text-rose-400" />
+                  Unconstrained Agent (Vulnerable)
+                </span>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/20">
+                  NO BOUNDARIES
+                </span>
+              </div>
+              <p className="text-xs text-sentinel-textMuted leading-relaxed">
+                Trading bots and AI agents operate with unchecked wallet keys. A single prompt injection, model drift, or hallucinated calculation can drain the entire portfolio.
+              </p>
+              <ul className="space-y-2 text-xs font-mono text-sentinel-textSubtle pt-2 border-t border-sentinel-border">
+                <li className="flex items-start gap-2">
+                  <span className="text-rose-400 shrink-0">✕</span>
+                  <span>Direct key execution: zero pre-trade safety validation</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-rose-400 shrink-0">✕</span>
+                  <span>Chases momentum into illiquid, toxic bonding curves</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-rose-400 shrink-0">✕</span>
+                  <span>Drains stablecoin reserves during volatility spikes</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-rose-400 shrink-0">✕</span>
+                  <span>Irreversible on-chain capital loss with zero audit recourse</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Column B: Sentinel Invariant-Gated Agent */}
+            <div className="p-5 rounded-xl bg-sentinel-surfaceMuted border border-emerald-500/20 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-mono font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  Sentinel Guarded Agent (Protected)
+                </span>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                  INVARIANT BOUND
+                </span>
+              </div>
+              <p className="text-xs text-sentinel-textMuted leading-relaxed">
+                Sentinel places an Anchor Policy PDA between the AI and execution venues. The agent only holds proposal authority; the smart contract verifies invariants before settlement.
+              </p>
+              <ul className="space-y-2 text-xs font-mono text-sentinel-textSubtle pt-2 border-t border-sentinel-border">
+                <li className="flex items-start gap-2">
+                  <span className="text-emerald-400 shrink-0">✓</span>
+                  <span>Pre-flight projected post-state verification on-chain</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-emerald-400 shrink-0">✓</span>
+                  <span>Mathematical single-asset cap &amp; cash reserve floor guarantees</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-emerald-400 shrink-0">✓</span>
+                  <span>Pyth Hermes dual-feed validation (&lt;400ms quote age)</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-emerald-400 shrink-0">✓</span>
+                  <span>Automatic compliant headroom adaptation &amp; PROVN SHA-256 logs</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </Card>
+      </section>
+
+      {/* ========================================================================= */}
+      {/* BEAT 3: INTERACTIVE GUARANTEE SIMULATOR                                   */}
+      {/* ========================================================================= */}
+      <section className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+        <Card variant="elevated" padding="lg">
           {/* Section Header */}
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-6 border-b border-sentinel-border">
             <div>
-              <div className="text-xs font-mono font-semibold uppercase tracking-wider text-sentinel-accent mb-1">
+              <div className="text-xs font-mono font-semibold uppercase tracking-wider text-blue-400 mb-1">
                 Interactive Guarantee
               </div>
               <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-                Test the guarantee
+                Test the Invariant Gate
               </h2>
               <p className="text-sm text-sentinel-textMuted mt-1">
-                Simulate what happens when an AI agent proposes an out-of-bounds trade. Watch Sentinel calculate compliant headroom.
+                Simulate what happens when an AI agent proposes an out-of-bounds trade. Watch Sentinel reject and calculate compliant headroom.
               </p>
             </div>
 
@@ -279,9 +366,9 @@ export const LandingView: React.FC<LandingViewProps> = ({
               <button
                 type="button"
                 onClick={() => handlePreset('NVDAx', 15000)}
-                className={`px-3 py-1.5 rounded text-xs font-mono font-medium transition-colors cursor-pointer ${
+                className={`px-3 py-1.5 rounded text-xs font-mono font-medium transition cursor-pointer sentinel-interactive sentinel-focus ${
                   selectedAsset === 'NVDAx' && tradeAmount === 15000 && !isAdapted
-                    ? 'bg-rose-950/50 text-rose-300 border border-rose-500/40'
+                    ? 'bg-rose-950/50 text-rose-300 border border-rose-500/40 shadow-xs'
                     : 'bg-sentinel-surfaceMuted text-sentinel-textMuted hover:text-white border border-sentinel-border'
                 }`}
               >
@@ -290,9 +377,9 @@ export const LandingView: React.FC<LandingViewProps> = ({
               <button
                 type="button"
                 onClick={() => handlePreset('OPENAIx', 25000)}
-                className={`px-3 py-1.5 rounded text-xs font-mono font-medium transition-colors cursor-pointer ${
+                className={`px-3 py-1.5 rounded text-xs font-mono font-medium transition cursor-pointer sentinel-interactive sentinel-focus ${
                   selectedAsset === 'OPENAIx' && tradeAmount === 25000 && !isAdapted
-                    ? 'bg-rose-950/50 text-rose-300 border border-rose-500/40'
+                    ? 'bg-rose-950/50 text-rose-300 border border-rose-500/40 shadow-xs'
                     : 'bg-sentinel-surfaceMuted text-sentinel-textMuted hover:text-white border border-sentinel-border'
                 }`}
               >
@@ -301,9 +388,9 @@ export const LandingView: React.FC<LandingViewProps> = ({
               <button
                 type="button"
                 onClick={() => handlePreset('AAPLx', 5000)}
-                className={`px-3 py-1.5 rounded text-xs font-mono font-medium transition-colors cursor-pointer ${
+                className={`px-3 py-1.5 rounded text-xs font-mono font-medium transition cursor-pointer sentinel-interactive sentinel-focus ${
                   selectedAsset === 'AAPLx' && tradeAmount === 5000
-                    ? 'bg-emerald-950/50 text-emerald-300 border border-emerald-500/40'
+                    ? 'bg-emerald-950/50 text-emerald-300 border border-emerald-500/40 shadow-xs'
                     : 'bg-sentinel-surfaceMuted text-sentinel-textMuted hover:text-white border border-sentinel-border'
                 }`}
               >
@@ -317,7 +404,6 @@ export const LandingView: React.FC<LandingViewProps> = ({
             
             {/* Left Column: Intent Formulation (5 cols) */}
             <div className="lg:col-span-5 space-y-6">
-              
               {/* Asset Selector */}
               <div>
                 <label className="text-xs font-mono text-sentinel-textSubtle uppercase tracking-wider block mb-2 font-semibold">
@@ -332,10 +418,10 @@ export const LandingView: React.FC<LandingViewProps> = ({
                         setSelectedAsset(sym);
                         setIsAdapted(false);
                       }}
-                      className={`p-3 rounded-lg border text-left transition-colors cursor-pointer ${
+                      className={`p-3 rounded-lg border text-left transition cursor-pointer sentinel-interactive sentinel-focus ${
                         selectedAsset === sym
-                          ? 'bg-sentinel-surfaceElevated border-sentinel-accent text-white'
-                          : 'bg-sentinel-surfaceMuted border-sentinel-border text-sentinel-textMuted hover:border-sentinel-borderStrong'
+                          ? 'bg-sentinel-surfaceElevated border-blue-500 text-white shadow-xs'
+                          : 'bg-sentinel-surfaceMuted border-sentinel-border text-sentinel-textMuted hover:border-slate-600'
                       }`}
                     >
                       <div className="text-xs font-bold font-mono">{sym}</div>
@@ -383,17 +469,15 @@ export const LandingView: React.FC<LandingViewProps> = ({
               <button
                 type="button"
                 onClick={onEnterApp}
-                className="w-full py-3 rounded-lg bg-sentinel-surfaceElevated hover:bg-sentinel-border border border-sentinel-border text-white font-semibold text-xs uppercase tracking-wider font-mono flex items-center justify-center gap-2 cursor-pointer transition-colors"
+                className="w-full py-3 rounded-lg bg-sentinel-surfaceElevated hover:bg-sentinel-border border border-sentinel-border text-white font-semibold text-xs uppercase tracking-wider font-mono flex items-center justify-center gap-2 cursor-pointer transition sentinel-interactive sentinel-focus"
               >
                 <span>Enter Trading Console</span>
-                <ArrowRight className="w-3.5 h-3.5 text-sentinel-accent" />
+                <ArrowRight className="w-3.5 h-3.5 text-blue-400" />
               </button>
-
             </div>
 
             {/* Right Column: Projected State & Decision (7 cols) */}
             <div className="lg:col-span-7 bg-sentinel-surfaceMuted border border-sentinel-border rounded-xl p-5 flex flex-col justify-between">
-              
               <div>
                 {/* Projected Portfolio State Header */}
                 <div className="flex items-center justify-between pb-3 border-b border-sentinel-border mb-4">
@@ -407,7 +491,6 @@ export const LandingView: React.FC<LandingViewProps> = ({
 
                 {/* Constraint Comparison Table */}
                 <div className="space-y-3 font-mono text-xs">
-                  
                   {/* Concentration */}
                   <div className={`p-3 rounded-lg border flex items-center justify-between ${
                     isConcentrationBreach && !isAdapted
@@ -467,7 +550,6 @@ export const LandingView: React.FC<LandingViewProps> = ({
                       </div>
                     </div>
                   </div>
-
                 </div>
 
                 {/* Outcome & Adaptation Action */}
@@ -486,7 +568,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
                       <button
                         type="button"
                         onClick={handleAdapt}
-                        className="sentinel-btn-physical px-4 py-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-200 text-xs font-mono font-semibold flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+                        className="sentinel-btn-physical px-4 py-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-200 text-xs font-mono font-semibold flex items-center justify-center gap-1.5 shrink-0 cursor-pointer sentinel-interactive sentinel-focus"
                       >
                         <RefreshCw className="w-3 h-3 text-amber-400" />
                         <span>Let the agent adapt</span>
@@ -507,7 +589,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
                         <button
                           type="button"
                           onClick={handleReset}
-                          className="px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono cursor-pointer shrink-0"
+                          className="px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono cursor-pointer shrink-0 sentinel-interactive sentinel-focus"
                         >
                           Reset Simulation
                         </button>
@@ -515,15 +597,14 @@ export const LandingView: React.FC<LandingViewProps> = ({
                     </div>
                   )}
                 </div>
-
               </div>
 
-              {/* View Decision Evidence Affordance (Forensic detail behind disclosure) */}
+              {/* View Decision Evidence Affordance */}
               <div className="mt-4 pt-3 border-t border-sentinel-border">
                 <button
                   type="button"
                   onClick={() => setShowEvidence((prev) => !prev)}
-                  className="w-full flex items-center justify-between text-xs font-mono text-sentinel-textSubtle hover:text-sentinel-text transition-colors cursor-pointer py-1"
+                  className="w-full flex items-center justify-between text-xs font-mono text-sentinel-textSubtle hover:text-sentinel-text transition cursor-pointer py-1"
                 >
                   <span className="flex items-center gap-1.5">
                     <Lock className="w-3 h-3 text-sentinel-textSubtle" />
@@ -559,40 +640,32 @@ export const LandingView: React.FC<LandingViewProps> = ({
                   </div>
                 )}
               </div>
-
             </div>
 
           </div>
-
-        </div>
+        </Card>
       </section>
 
-      {/* SECTION 3: HOW IT WORKS — UNIFIED 5-STEP SEQUENCE */}
-      <section className="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-        <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-6 sm:p-8 shadow-xl">
-          
-          <div className="text-left max-w-2xl mb-8">
-            <div className="text-xs font-mono font-semibold uppercase tracking-wider text-sentinel-accent mb-1">
-              Execution Architecture
-            </div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-              How Sentinel works
-            </h2>
-            <p className="text-sm text-sentinel-textMuted mt-1">
-              Every transaction follows a deterministic, 5-stage cryptographic lifecycle from proposal to verified settlement.
-            </p>
-          </div>
+      {/* ========================================================================= */}
+      {/* BEAT 4: EXECUTION ARCHITECTURE & THE SENTINEL PROTOCOL STACK             */}
+      {/* ========================================================================= */}
+      <section className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-8">
+        {/* 5-Step Lifecycle */}
+        <Card variant="default" padding="lg">
+          <CardHeader
+            category="EXECUTION ARCHITECTURE"
+            title="The 5-Stage Invariant Lifecycle"
+            subtitle="Every autonomous trade follows a deterministic, 5-stage cryptographic lifecycle from proposal to verified settlement."
+          />
 
-          {/* Unified Horizontal 5-Step Visual */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-            
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mt-4">
             <div className="p-4 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border">
               <div className="text-[10px] font-mono font-bold text-blue-400 uppercase tracking-wider mb-1.5">
                 01 • PROPOSE
               </div>
               <div className="text-sm font-semibold text-white mb-1.5">AI Intent</div>
               <div className="text-xs text-sentinel-textMuted leading-relaxed">
-                Autonomous agent formulates trade proposal based on market telemetry and strategy parameters.
+                Autonomous agent formulates trade proposal based on strategy and Pyth market inputs.
               </div>
             </div>
 
@@ -635,39 +708,22 @@ export const LandingView: React.FC<LandingViewProps> = ({
                 Settles via Vault PDA and registers an immutable SHA-256 cryptographic trace on-chain.
               </div>
             </div>
-
           </div>
+        </Card>
 
-          <div className="mt-6 pt-5 border-t border-sentinel-border text-xs text-sentinel-textSubtle font-mono">
-            Intelligence is fluid. Enforcement is rigid. Zero capital loss from rogue agent execution.
-          </div>
+        {/* The Sentinel Protocol Stack */}
+        <Card variant="default" padding="lg">
+          <CardHeader
+            category="INFRASTRUCTURE"
+            title="The Sentinel Protocol Stack"
+            subtitle="Integrated with Solana ecosystem infrastructure for oracle data integrity, private equity tokenization, and cryptographic proof."
+          />
 
-        </div>
-      </section>
-
-      {/* SECTION 4: THE SENTINEL STACK (Compact Protocol & Sponsor Proof) */}
-      <section className="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-        <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-6 sm:p-8 shadow-xl">
-          
-          <div className="text-left max-w-2xl mb-8">
-            <div className="text-xs font-mono font-semibold uppercase tracking-wider text-sentinel-accent mb-1">
-              Infrastructure
-            </div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-              The Sentinel Stack
-            </h2>
-            <p className="text-sm text-sentinel-textMuted mt-1">
-              Integrated with Solana ecosystem protocols for data integrity, liquidity verification, and cryptographic proof.
-            </p>
-          </div>
-
-          {/* 5 Architectural Rows */}
-          <div className="space-y-3 font-mono text-xs">
-            
+          <div className="space-y-3 font-mono text-xs mt-4">
             <div className="p-3.5 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div className="flex items-center gap-3">
-                <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 font-bold">PYTH</span>
-                <span className="text-sentinel-text font-semibold">Dual-Feed Price Verification</span>
+                <SourceBadge source="PYTH" />
+                <span className="text-white font-semibold">Dual-Feed Price Verification</span>
               </div>
               <div className="text-sentinel-textMuted text-[11px]">
                 Validates tokenized assets against underlying stock prices; fails closed if quotes lag &gt;60s.
@@ -676,8 +732,8 @@ export const LandingView: React.FC<LandingViewProps> = ({
 
             <div className="p-3.5 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div className="flex items-center gap-3">
-                <span className="px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 font-bold">PRESTOCKS</span>
-                <span className="text-sentinel-text font-semibold">Isolated Pre-IPO Asset Universe</span>
+                <SourceBadge source="PRESTOCKS" />
+                <span className="text-white font-semibold">Isolated Pre-IPO Asset Universe</span>
               </div>
               <div className="text-sentinel-textMuted text-[11px]">
                 Secondary facility tokenization with certified NAV attestations and secondary vault PDAs.
@@ -686,8 +742,8 @@ export const LandingView: React.FC<LandingViewProps> = ({
 
             <div className="p-3.5 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div className="flex items-center gap-3">
-                <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 font-bold">METEORA DBC</span>
-                <span className="text-sentinel-text font-semibold">Bonding Curve Liquidity Verifier</span>
+                <SourceBadge source="METEORA" />
+                <span className="text-white font-semibold">Bonding Curve Liquidity Verifier</span>
               </div>
               <div className="text-sentinel-textMuted text-[11px]">
                 Pre-trade reserve verification enforcing $25,000 liquidity floor before execution release.
@@ -696,8 +752,8 @@ export const LandingView: React.FC<LandingViewProps> = ({
 
             <div className="p-3.5 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div className="flex items-center gap-3">
-                <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-bold">SOLANA</span>
-                <span className="text-sentinel-text font-semibold">Sub-Second Anchor Program Enforcement</span>
+                <SourceBadge source="SOLANA" />
+                <span className="text-white font-semibold">Anchor Invariant Program Enforcement</span>
               </div>
               <div className="text-sentinel-textMuted text-[11px]">
                 Deterministic Policy PDA rules, non-custodial Vault PDAs, and atomic transaction execution.
@@ -706,22 +762,22 @@ export const LandingView: React.FC<LandingViewProps> = ({
 
             <div className="p-3.5 rounded-lg bg-sentinel-surfaceMuted border border-sentinel-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div className="flex items-center gap-3">
-                <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 font-bold">PROVN</span>
-                <span className="text-sentinel-text font-semibold">Verifiable Cryptographic Evidence</span>
+                <SourceBadge source="PROVN" />
+                <span className="text-white font-semibold">Verifiable Cryptographic Evidence</span>
               </div>
               <div className="text-sentinel-textMuted text-[11px]">
                 Immutable SHA-256 state commitment index anchoring agent proposals and enforcement telemetry.
               </div>
             </div>
-
           </div>
-
-        </div>
+        </Card>
       </section>
 
-      {/* SECTION 5: DEVNET VERIFICATION & FINAL CTA */}
-      <section className="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-        <div className="bg-sentinel-surface border border-sentinel-border rounded-xl p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-xl">
+      {/* ========================================================================= */}
+      {/* BEAT 5: DEVNET VERIFICATION & DIRECT LAUNCH                               */}
+      {/* ========================================================================= */}
+      <section className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+        <Card variant="elevated" padding="lg" className="flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-xl">
           <div>
             <div className="flex items-center gap-2 mb-2">
               <span className="w-2 h-2 rounded-full bg-purple-400" />
@@ -729,7 +785,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
                 Solana Devnet Live Deployment
               </span>
             </div>
-            <h3 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+            <h3 className="text-xl sm:text-2xl font-bold text-white tracking-tight font-mono">
               Anchor Program: {formatAddress(APP_CONFIG.sentinelProgramId, 6)}
             </h3>
             <p className="text-xs text-sentinel-textMuted mt-1 max-w-xl">
@@ -742,7 +798,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
               href={getExplorerAddressUrl(APP_CONFIG.sentinelProgramId)}
               target="_blank"
               rel="noreferrer"
-              className="sentinel-btn-physical px-4 py-2.5 rounded-lg bg-sentinel-surfaceMuted hover:bg-sentinel-surfaceElevated border border-sentinel-border text-xs font-mono text-sentinel-text flex items-center gap-1.5 transition-colors"
+              className="sentinel-btn-physical px-4 py-2.5 rounded-lg bg-sentinel-surfaceMuted hover:bg-sentinel-surfaceElevated border border-sentinel-border text-xs font-mono text-sentinel-text flex items-center gap-1.5 transition sentinel-interactive sentinel-focus"
             >
               <span>View Program on Explorer</span>
               <ExternalLink className="w-3.5 h-3.5 text-sentinel-textSubtle" />
@@ -751,13 +807,13 @@ export const LandingView: React.FC<LandingViewProps> = ({
             <button
               type="button"
               onClick={onEnterApp}
-              className="sentinel-btn-physical px-5 py-2.5 rounded-lg bg-sentinel-accent hover:bg-sentinel-accentHover text-xs font-bold text-white flex items-center gap-1.5 cursor-pointer transition-colors"
+              className="sentinel-btn-physical px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-bold text-white flex items-center gap-1.5 cursor-pointer transition sentinel-interactive sentinel-focus shadow-sm"
             >
               <span>Enter Trading Console</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
-        </div>
+        </Card>
       </section>
     </div>
   );
