@@ -1,13 +1,35 @@
-# Sentinel Robo
+<p align="center">
+  <img src="./docs/assets/Sentinel_logo.png" alt="Sentinel Robo" width="300" />
+</p>
 
-### Outcome-bounded autonomy for tokenized portfolios on Solana.
+<h1 align="center">Sentinel Robo</h1>
 
-AI agents can decide what to trade.
-Sentinel decides whether the resulting portfolio state is allowed.
+<p align="center">
+  <strong>Outcome-bounded autonomy for tokenized portfolios on Solana.</strong><br>
+  <em>AI agents can decide what to trade. Sentinel decides whether the resulting portfolio state is allowed.</em>
+</p>
 
-`Agent intent → Promise → Post-state projection → Financial invariants → Block / Settle → Adapt → Cryptographic evidence`
+<p align="center">
+  <a href="https://explorer.solana.com/address/3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK?cluster=devnet"><img src="https://img.shields.io/badge/Solana-Devnet_Live-9945FF?logo=solana&logoColor=white" alt="Solana Devnet"></a>
+  <a href="https://pyth.network"><img src="https://img.shields.io/badge/Pyth_Hermes-Dual--Feed_Live-E6DAFE?logo=pyth&logoColor=black" alt="Pyth Network"></a>
+  <a href="./docs/SPONSORS.md#2-prestocks-prestocksapiclient--pre-ipo-exposure-ceiling"><img src="https://img.shields.io/badge/PreStocks-Certified_Pre--IPO-8A2BE2" alt="PreStocks"></a>
+  <a href="./docs/SPONSORS.md#3-meteora-meteoradbcmarketqualityverifier--pool-pda-derivation"><img src="https://img.shields.io/badge/Meteora-DBC_Pool_PDAs-FE5F55" alt="Meteora"></a>
+  <a href="./docs/VERIFICATION.md"><img src="https://img.shields.io/badge/PROVN-Two--Tier_Receipts-00C49F" alt="PROVN"></a>
+  <a href="./docs/SECURITY.md"><img src="https://img.shields.io/badge/Security-11_Vectors_Enforced-2563EB" alt="Security Matrix"></a>
+</p>
 
-[Technical Docs](./docs/TECHNICAL.md) · [Demo Walkthrough](./docs/DEMO.md) · [Solana Explorer](https://explorer.solana.com/address/3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK?cluster=devnet) · [Verification Gate](./docs/VERIFICATION.md) · [Security Matrix](./docs/SECURITY.md)
+<p align="center">
+  <code>Agent intent → Promise → Post-state projection → Financial invariants → Block / Settle → Adapt → Cryptographic evidence</code>
+</p>
+
+<p align="center">
+  <a href="./docs/TECHNICAL.md">Technical Docs</a> ·
+  <a href="./docs/DEMO.md">Demo Walkthrough</a> ·
+  <a href="https://explorer.solana.com/address/3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK?cluster=devnet">Solana Explorer</a> ·
+  <a href="./docs/VERIFICATION.md">Verification Gate</a> ·
+  <a href="./docs/SECURITY.md">Security Matrix</a> ·
+  <a href="./docs/SPONSORS.md">Sponsor Integrations</a>
+</p>
 
 ---
 
