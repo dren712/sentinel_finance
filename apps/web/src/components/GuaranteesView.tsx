@@ -34,9 +34,12 @@ import {
 } from 'lucide-react';
 import { APP_CONFIG, getExplorerAddressUrl } from '@/lib/config';
 import { formatCurrency, formatAddress } from '@/lib/formatters';
+import { InvariantSimulator } from './ui/InvariantSimulator';
+import { PortfolioSnapshot } from '@sentinel/domain';
 
 interface GuaranteesViewProps {
   policy: FinancialPolicy;
+  portfolio?: PortfolioSnapshot;
   onUpdatePolicy: (updated: Partial<FinancialPolicy>) => void;
   agentRiskState?: AgentRiskState;
   onResetCircuitBreaker?: () => void;
@@ -47,6 +50,7 @@ const AVAILABLE_VENUES = ['METEORA_DBC', 'PRESTOCKS_SECONDARY', 'DEMO_SIMULATION
 
 export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
   policy,
+  portfolio,
   onUpdatePolicy,
   agentRiskState,
   onResetCircuitBreaker,
@@ -525,7 +529,68 @@ export const GuaranteesView: React.FC<GuaranteesViewProps> = ({
         </div>
       </div>
 
-      {/* 5. EXPANDABLE SECTION: ADVANCED POLICY TIERS & CANONICAL DSL */}
+      {/* 5. INTERACTIVE RISK & INVARIANT SIMULATOR */}
+      <InvariantSimulator
+        portfolio={
+          portfolio || {
+            portfolioId: 'main-port',
+            owner: 'GR9CtiUswZtay68U2fGqcDeB1dg8sHtpVi9kk2nCEwzw',
+            totalValueUsd: 100_000,
+            stablecoinValueUsd: 25_000,
+            stablecoinExposureBps: 2500,
+            timestamp: Date.now(),
+            assets: [
+              {
+                symbol: 'USDC',
+                name: 'USD Coin',
+                mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+                amount: 25000,
+                priceUsd: 1,
+                valueUsd: 25000,
+                exposureBps: 2500,
+                isStablecoin: true,
+                isIndex: false,
+              },
+              {
+                symbol: 'NVDAx',
+                name: 'NVIDIA xStock',
+                mint: 'NVDAxMint1111111111111111111111111111111111',
+                amount: 166.6667,
+                priceUsd: 120,
+                valueUsd: 20000,
+                exposureBps: 2000,
+                isStablecoin: false,
+                isIndex: false,
+              },
+              {
+                symbol: 'AAPLx',
+                name: 'Apple xStock',
+                mint: 'AAPLxMint1111111111111111111111111111111111',
+                amount: 100,
+                priceUsd: 200,
+                valueUsd: 20000,
+                exposureBps: 2000,
+                isStablecoin: false,
+                isIndex: false,
+              },
+              {
+                symbol: 'SPYx',
+                name: 'S&P 500 Tokenized ETF',
+                mint: 'SPYxMint11111111111111111111111111111111111',
+                amount: 70,
+                priceUsd: 500,
+                valueUsd: 35000,
+                exposureBps: 3500,
+                isStablecoin: false,
+                isIndex: true,
+              },
+            ],
+          }
+        }
+        policy={policy}
+      />
+
+      {/* 6. EXPANDABLE SECTION: ADVANCED POLICY TIERS & CANONICAL DSL */}
       <div className="border border-sentinel-border rounded-xl overflow-hidden bg-sentinel-surface">
         <button
           onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}

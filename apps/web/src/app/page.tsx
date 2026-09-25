@@ -27,6 +27,8 @@ import { HeroStoryCenterpiece, DemoScenarioKey } from '@/components/HeroStoryCen
 import { AgentView } from '@/components/AgentView';
 import { GuaranteesView } from '@/components/GuaranteesView';
 import { ActivityView } from '@/components/ActivityView';
+import { ProofVerificationView } from '@/components/ProofVerificationView';
+import { MarketRegimeBanner } from '@/components/ui/MarketRegimeBanner';
 import { TransactionModal, TxLifecycleStep, TxDetails } from '@/components/ui/TransactionModal';
 import { APP_CONFIG, getExplorerAddressUrl, deriveSentinelDomainPdas } from '@/lib/config';
 import { formatAddress } from '@/lib/formatters';
@@ -635,6 +637,9 @@ export default function Home() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-12">
+        {/* Institutional Market Regime & Session Context Bar */}
+        <MarketRegimeBanner onNavigateToProof={() => setActiveTab('proof')} pythFreshnessSec={8} />
+
         {/* Dynamic Demo Stepper Banner */}
         {demoStep > 0 && (
           <div className="mb-6 p-4 rounded-xl bg-blue-950/40 border border-blue-500/40 shadow-lg animate-in fade-in slide-in-from-top-4 duration-200">
@@ -792,6 +797,7 @@ export default function Home() {
         {activeTab === 'protection' && (
           <GuaranteesView
             policy={policy}
+            portfolio={portfolio}
             onUpdatePolicy={handleUpdatePolicy}
             agentRiskState={client.getAgentRiskState()}
             onResetCircuitBreaker={() => {
@@ -799,6 +805,10 @@ export default function Home() {
               setPolicy(prev => ({ ...prev }));
             }}
           />
+        )}
+
+        {activeTab === 'proof' && (
+          <ProofVerificationView />
         )}
 
         {activeTab === 'activity' && (

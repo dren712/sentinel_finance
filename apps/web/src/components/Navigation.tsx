@@ -5,6 +5,7 @@ import {
   PieChart,
   Bot,
   ShieldCheck,
+  CheckCircle2,
   FileCheck,
 } from 'lucide-react';
 
@@ -12,6 +13,7 @@ export type NavTab =
   | 'portfolio'
   | 'agent'
   | 'protection'
+  | 'proof'
   | 'activity';
 
 interface NavigationProps {
@@ -36,6 +38,7 @@ export const Navigation: React.FC<NavigationProps> = ({
     { id: 'portfolio', label: 'Portfolio', icon: PieChart },
     { id: 'agent', label: 'Agent', icon: Bot },
     { id: 'protection', label: 'Protection', icon: ShieldCheck },
+    { id: 'proof', label: 'Verification', icon: CheckCircle2, count: 11 },
     { id: 'activity', label: 'Activity', icon: FileCheck, count: evidenceCount },
   ];
 
@@ -74,7 +77,7 @@ export const Navigation: React.FC<NavigationProps> = ({
 
       {/* Mobile Bottom Navigation Bar (Non-negotiable) */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-sentinel-surface/95 backdrop-blur border-t border-sentinel-border px-3 py-1.5 shadow-2xl safe-area-bottom">
-        <nav className="grid grid-cols-4 gap-1">
+        <nav className="grid grid-cols-5 gap-1">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;

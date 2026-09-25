@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { Badge } from './ui/Badge';
 import { FlagshipEnforcementCard } from './ui/FlagshipEnforcementCard';
+import { SettlementGateCard } from './ui/SettlementGateCard';
 import { formatCurrency, formatPercent, formatAddress } from '@/lib/formatters';
 import { getExplorerAddressUrl } from '@/lib/config';
 
@@ -787,6 +788,20 @@ export const AgentView: React.FC<AgentViewProps> = ({
               ))}
             </div>
           </div>
+
+          {/* Settlement Gate: Pre-Flight Invariant Checklist */}
+          <SettlementGateCard
+            assetSymbol={selectedAsset}
+            direction={direction}
+            amountUsd={amountNum}
+            venueName={targetVenueName}
+            poolAddress={targetPoolAddress}
+            liquidityDepthUsd={31_842}
+            priceImpactBps={direction === 'BUY' ? Math.round((amountNum / (portfolio.totalValueUsd || 100_000)) * 100) + 12 : 24}
+            pythFreshnessSec={12}
+            policyPassed={!willExceedExposure && !willExceedTradeLimit && !willBreachReserve}
+            postStatePassed={!willBeRejected}
+          />
 
           {/* Quick Preset Buttons & Submit */}
           <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
