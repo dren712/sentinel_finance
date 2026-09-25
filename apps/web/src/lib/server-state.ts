@@ -137,7 +137,7 @@ function createRealDevnetOrFallbackAdapter(client: SentinelClient): ExecutionAda
           venueType: 'SOLANA',
           venueName: 'Simulated Execution Fallback (Devnet Agent RPC Offline)',
           cluster: APP_CONFIG.cluster,
-          transactionSignature: undefined,
+          transactionSignature: fallbackResult.transactionSignature,
           isSimulation: true,
         };
       }
@@ -584,12 +584,13 @@ export async function runServerAgentCycle(params: {
   const step1 = result.step1RejectedDecision;
   const step2 = result.step2SettledDecision;
 
-  // For simulated preflight rejections, keep signature undefined and mark as simulation
-  if (!step1.executionResult?.transactionSignature) {
-    step1.evidenceRecord.isSimulation = true;
-    step1.evidenceRecord.transactionSignature = undefined;
+  const isStep1Simulation = Boolean(
+    step1.evidenceRecord.isSimulation || !step1.executionResult?.transactionSignature
+  );
+  step1.evidenceRecord.isSimulation = isStep1Simulation;
+  if (!step1.evidenceRecord.transactionSignature || step1.evidenceRecord.transactionSignature.startsWith('REVERT_')) {
+    step1.evidenceRecord.transactionSignature = `sim_revert_${now}`;
   }
-
 
   await store.db.recordAgentRun({
     run_id: result.cycleId,
@@ -639,20 +640,13 @@ export async function runServerAgentCycle(params: {
     created_at: now - 1000,
   });
 
-  const isStep1Simulation = Boolean(
-    step1.evidenceRecord.isSimulation || !step1.executionResult?.transactionSignature
-  );
-  if (isStep1Simulation && (!step1.evidenceRecord.transactionSignature || step1.evidenceRecord.transactionSignature.startsWith('REVERT_'))) {
-    step1.evidenceRecord.transactionSignature = undefined;
-  }
-
   const isSimulatedExecution = Boolean(
     step2.executionResult?.isSimulation || !step2.executionResult?.transactionSignature
   );
 
   const settledSignature = isSimulatedExecution
-    ? undefined
-    : (step2.executionResult?.transactionSignature || step2.evidenceRecord.transactionSignature);
+    ? (step2.executionResult?.transactionSignature || `sim_tx_${now}_settled`)
+    : (step2.executionResult?.transactionSignature || step2.evidenceRecord.transactionSignature || `sim_tx_${now}_settled`);
 
   step2.evidenceRecord.transactionSignature = settledSignature;
   step2.evidenceRecord.isSimulation = isSimulatedExecution;
