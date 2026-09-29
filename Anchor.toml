@@ -23,4 +23,4 @@ cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
-test = "pnpm test"
+test = "pnpm test && node --test tests/sentinel-localnet.test.ts"

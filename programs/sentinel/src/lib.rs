@@ -231,7 +231,7 @@ pub mod sentinel {
         promise.trade_amount_usd = trade_amount_usd;
         promise.status = 1; // 1 = Promised
         promise.created_at = clock.unix_timestamp;
-        promise.expires_at = clock.unix_timestamp.checked_add(120).ok_or(SentinelError::MathOverflow)?; // 120s TTL
+        promise.expires_at = clock.unix_timestamp.checked_add(5).ok_or(SentinelError::MathOverflow)?; // 5s TTL
         promise.bump = ctx.bumps.promise;
 
         emit!(PromiseCreatedEvent {
@@ -266,30 +266,20 @@ pub mod sentinel {
         );
 
         // 2. Security domain: single owner domain across agent, policy, and vault (Point 1)
-        require!(agent.owner == policy.owner, SentinelError::SecurityDomainMismatch);
-        require!(policy.owner == vault.owner, SentinelError::SecurityDomainMismatch);
-        require!(agent.is_active, SentinelError::AgentInactive);
+        check_domain_binding(&agent.owner, &policy.owner, &vault.owner)?;
+        check_agent_active(agent.is_active)?;
 
         // 3. State & Promise checks (Point 6)
         let clock = Clock::get()?;
         require!(policy.is_active, SentinelError::PolicyInactive);
         require!(promise.status == 1, SentinelError::InvalidPromiseStatus);
-        require!(clock.unix_timestamp <= promise.expires_at, SentinelError::PromiseExpired);
+        check_promise_expiry(promise.expires_at, clock.unix_timestamp)?;
 
         // 4. Bind Promise amount strictly to execution amount in cents (Finding 2)
-        let promised_cents = promise.trade_amount_usd
-            .checked_mul(100)
-            .ok_or(SentinelError::MathOverflow)?;
-        require!(
-            trade_amount_cents == promised_cents,
-            SentinelError::TradeAmountMismatch
-        );
+        check_trade_amount_binding(trade_amount_cents, promise.trade_amount_usd)?;
 
         // 5. Validate trade direction (Point 3)
-        require!(
-            promise.trade_direction == 0 || promise.trade_direction == 1,
-            SentinelError::InvalidTradeDirection
-        );
+        check_trade_direction(promise.trade_direction)?;
 
         // 6. Fail closed on missing/zero/invalid price (Point 4)
         require!(quoted_price_cents > 0, SentinelError::InvalidPrice);
@@ -309,21 +299,11 @@ pub mod sentinel {
         };
 
         // Enforce slippage tolerance against benchmark price (protects existing holdings)
-        let benchmark_diff = if execution_price_cents >= benchmark_price_cents {
-            execution_price_cents - benchmark_price_cents
-        } else {
-            benchmark_price_cents - execution_price_cents
-        };
-        let benchmark_slippage_bps = (benchmark_diff as u128)
-            .checked_mul(10_000)
-            .ok_or(SentinelError::MathOverflow)?
-            .checked_div(benchmark_price_cents as u128)
-            .ok_or(SentinelError::MathOverflow)?;
-
-        require!(
-            benchmark_slippage_bps <= policy.max_slippage_bps as u128,
-            SentinelError::SlippageExceeded
-        );
+        check_benchmark_slippage(
+            execution_price_cents,
+            benchmark_price_cents,
+            policy.max_slippage_bps,
+        )?;
 
         // 9. Perform trade mutation on actual vault balances (Findings 1, 4, 9)
         let token_units_traded = trade_amount_cents
@@ -459,11 +439,13 @@ pub mod sentinel {
             SentinelError::UnauthorizedAgent
         );
 
-        // Tie verification_result directly to the settled or rejected promise status
-        require!(
-            verification_result == ctx.accounts.promise.status,
-            SentinelError::InvalidPromiseStatus
-        );
+        // Tie verification_result directly to the settled or rejected promise status and agent binding
+        check_evidence_lifecycle(
+            &ctx.accounts.promise.agent,
+            &ctx.accounts.agent.key(),
+            ctx.accounts.promise.status,
+            verification_result,
+        )?;
 
         let evidence = &mut ctx.accounts.evidence;
         evidence.evidence_id = evidence_id;
@@ -488,8 +470,74 @@ pub mod sentinel {
 }
 
 // -----------------------------------------------------------------------------
-// Pure Functional Verifiers for Direct Testing
+// Pure Functional Verifiers for Direct Testing & Program Enforcement
 // -----------------------------------------------------------------------------
+
+pub fn check_benchmark_slippage(
+    execution_price_cents: u64,
+    benchmark_price_cents: u64,
+    max_slippage_bps: u16,
+) -> Result<u128> {
+    require!(benchmark_price_cents > 0, SentinelError::InvalidPrice);
+    require!(execution_price_cents > 0, SentinelError::InvalidPrice);
+
+    let benchmark_diff = if execution_price_cents >= benchmark_price_cents {
+        execution_price_cents - benchmark_price_cents
+    } else {
+        benchmark_price_cents - execution_price_cents
+    };
+    let benchmark_slippage_bps = (benchmark_diff as u128)
+        .checked_mul(10_000)
+        .ok_or(SentinelError::MathOverflow)?
+        .checked_div(benchmark_price_cents as u128)
+        .ok_or(SentinelError::MathOverflow)?;
+
+    require!(
+        benchmark_slippage_bps <= max_slippage_bps as u128,
+        SentinelError::SlippageExceeded
+    );
+
+    Ok(benchmark_slippage_bps)
+}
+
+pub fn check_trade_direction(direction: u8) -> Result<()> {
+    require!(direction == 0 || direction == 1, SentinelError::InvalidTradeDirection);
+    Ok(())
+}
+
+pub fn check_domain_binding(agent_owner: &Pubkey, policy_owner: &Pubkey, vault_owner: &Pubkey) -> Result<()> {
+    require!(agent_owner == policy_owner, SentinelError::SecurityDomainMismatch);
+    require!(policy_owner == vault_owner, SentinelError::SecurityDomainMismatch);
+    Ok(())
+}
+
+pub fn check_trade_amount_binding(executed_cents: u64, promised_usd: u64) -> Result<()> {
+    let promised_cents = promised_usd.checked_mul(100).ok_or(SentinelError::MathOverflow)?;
+    require!(executed_cents == promised_cents, SentinelError::TradeAmountMismatch);
+    Ok(())
+}
+
+pub fn check_promise_expiry(expires_at: i64, current_timestamp: i64) -> Result<()> {
+    require!(current_timestamp <= expires_at, SentinelError::PromiseExpired);
+    Ok(())
+}
+
+pub fn check_agent_active(is_active: bool) -> Result<()> {
+    require!(is_active, SentinelError::AgentInactive);
+    Ok(())
+}
+
+pub fn check_evidence_lifecycle(
+    promise_agent: &Pubkey,
+    caller_agent: &Pubkey,
+    promise_status: u8,
+    verification_result: u8,
+) -> Result<()> {
+    require!(promise_agent == caller_agent, SentinelError::UnauthorizedAgent);
+    require!(promise_status == 3 || promise_status == 4, SentinelError::InvalidPromiseStatus);
+    require!(verification_result == promise_status, SentinelError::InvalidPromiseStatus);
+    Ok(())
+}
 
 pub fn verify_vault_postconditions(
     policy: &PolicyAccount,
@@ -537,23 +585,12 @@ pub fn verify_vault_postconditions(
         SentinelError::StablecoinReserveBreached
     );
 
-    // 4. Slippage check (in u128)
-    let price_diff = if execution_price_cents >= quoted_price_cents {
-        execution_price_cents - quoted_price_cents
-    } else {
-        quoted_price_cents - execution_price_cents
-    };
-
-    let slippage_bps = (price_diff as u128)
-        .checked_mul(10_000)
-        .ok_or(SentinelError::MathOverflow)?
-        .checked_div(quoted_price_cents as u128)
-        .ok_or(SentinelError::MathOverflow)?;
-
-    require!(
-        slippage_bps <= policy.max_slippage_bps as u128,
-        SentinelError::SlippageExceeded
-    );
+    // 4. Slippage check (in u128) via extracted pure function
+    check_benchmark_slippage(
+        execution_price_cents,
+        quoted_price_cents,
+        policy.max_slippage_bps,
+    )?;
 
     Ok(())
 }
@@ -959,99 +996,142 @@ mod tests {
     }
 
     #[test]
-    fn test_security_domain_binding() {
-        let owner_alice = Pubkey::new_unique();
-        let owner_bob = Pubkey::new_unique();
-
-        // Cross-owner composition check: Agent Alice + Policy Bob MUST be rejected
-        let agent_alice_owner = owner_alice;
-        let policy_bob_owner = owner_bob;
-        assert_ne!(agent_alice_owner, policy_bob_owner);
-
-        // Matching common owner domain passes
-        let policy_alice_owner = owner_alice;
-        let vault_alice_owner = owner_alice;
-        assert_eq!(agent_alice_owner, policy_alice_owner);
-        assert_eq!(policy_alice_owner, vault_alice_owner);
-    }
-
-    #[test]
-    fn test_direction_validation() {
-        let dir_buy: u8 = 0;
-        let dir_sell: u8 = 1;
-        let dir_invalid_2: u8 = 2;
-        let dir_invalid_255: u8 = 255;
-
-        assert!(dir_buy == 0 || dir_buy == 1);
-        assert!(dir_sell == 0 || dir_sell == 1);
-        assert!(!(dir_invalid_2 == 0 || dir_invalid_2 == 1));
-        assert!(!(dir_invalid_255 == 0 || dir_invalid_255 == 1));
-    }
-
-    #[test]
-    fn test_promise_amount_binding() {
-        let promised_amount_usd: u64 = 5_000;
-        let promised_cents: u64 = promised_amount_usd * 100; // 500,000 cents
-        let executed_cents: u64 = 500_000;
-        let rogue_executed_cents: u64 = 1_000_000;
-
-        assert_eq!(executed_cents, promised_cents);
-        assert_ne!(rogue_executed_cents, promised_cents);
-    }
-
-    #[test]
-    fn test_agent_kill_switch_active_enforcement() {
-        let mut agent = AgentAccount {
-            owner: Pubkey::default(),
-            agent_authority: Pubkey::default(),
-            agent_id: "robo-01".to_string(),
-            portfolio_id: "portfolio-main".to_string(),
-            is_active: true,
-            bump: 0,
-        };
-
-        // Active agent passes
-        assert!(agent.is_active);
-
-        // Emergency pause kill switch: set_agent_active(false)
-        agent.is_active = false;
-        assert!(!agent.is_active);
-    }
-
-    #[test]
-    fn test_rogue_agent_tiny_price_deflation_exploit_reverts() {
-        let policy = mock_policy(); // max_slippage_bps = 100 (1.00%), max_single_asset_bps = 2500 (25.00%)
-
-        // Vault holds NVDAx with verified benchmark price: $120.00 (12,000 cents)
-        let benchmark_price_cents: u64 = 12_000;
-
-        // Rogue agent crafts an exploit transaction passing tiny execution & quoted price: $0.01 (1 cent)
-        // in an attempt to artificially deflate existing NVDAx value and slip past the 25% single-asset cap
-        let rogue_exec_cents: u64 = 1;
-
-        // Calculate slippage against the vault's stored benchmark price
-        let price_diff = if rogue_exec_cents >= benchmark_price_cents {
-            rogue_exec_cents - benchmark_price_cents
-        } else {
-            benchmark_price_cents - rogue_exec_cents
-        };
-        let benchmark_slippage_bps = (price_diff as u128) * 10_000 / (benchmark_price_cents as u128);
-
-        // Benchmark slippage is 9,999 bps (99.99%), which drastically breaches policy tolerance of 100 bps
-        assert!(benchmark_slippage_bps > policy.max_slippage_bps as u128);
-        assert_eq!(benchmark_slippage_bps, 9999);
-
-        // Verification engine fails closed with SlippageExceeded
-        let res = verify_vault_postconditions(
-            &policy,
-            500_000,
-            2_000_000,
-            10_000_000,
-            2_000_000,
-            benchmark_price_cents,
-            rogue_exec_cents,
+    fn test_check_benchmark_slippage_direct() {
+        // Zero or negative prices fail closed
+        assert_eq!(
+            check_benchmark_slippage(12_000, 0, 100).unwrap_err(),
+            error!(SentinelError::InvalidPrice)
         );
-        assert_eq!(res.unwrap_err(), error!(SentinelError::SlippageExceeded));
+        assert_eq!(
+            check_benchmark_slippage(0, 12_000, 100).unwrap_err(),
+            error!(SentinelError::InvalidPrice)
+        );
+
+        // Exact match -> 0 bps
+        let res_zero = check_benchmark_slippage(12_000, 12_000, 100);
+        assert_eq!(res_zero.unwrap(), 0);
+
+        // Within tolerance: 12,050 vs 12,000 -> 41 bps <= 100 bps
+        let res_ok = check_benchmark_slippage(12_050, 12_000, 100);
+        assert_eq!(res_ok.unwrap(), 41);
+
+        // Slippage exceeded: 12,200 vs 12,000 -> 166 bps > 100 bps
+        let res_exceeded = check_benchmark_slippage(12_200, 12_000, 100);
+        assert_eq!(res_exceeded.unwrap_err(), error!(SentinelError::SlippageExceeded));
+
+        // Rogue agent deflation exploit: 1 cent vs 12,000 cents stored -> 9999 bps > 100 bps
+        let res_deflation = check_benchmark_slippage(1, 12_000, 100);
+        assert_eq!(res_deflation.unwrap_err(), error!(SentinelError::SlippageExceeded));
+    }
+
+    #[test]
+    fn test_check_promise_expiry_real_function() {
+        // Active promise (clock <= expires_at) passes
+        assert!(check_promise_expiry(1_726_000_100, 1_726_000_050).is_ok());
+
+        // Expired promise (clock > expires_at) fails closed with PromiseExpired
+        assert_eq!(
+            check_promise_expiry(1_726_000_100, 1_726_000_101).unwrap_err(),
+            error!(SentinelError::PromiseExpired)
+        );
+    }
+
+    #[test]
+    fn test_check_agent_active_real_function() {
+        // Active agent passes
+        assert!(check_agent_active(true).is_ok());
+
+        // Inactive agent (kill-switch triggered) fails closed with AgentInactive
+        assert_eq!(
+            check_agent_active(false).unwrap_err(),
+            error!(SentinelError::AgentInactive)
+        );
+    }
+
+    #[test]
+    fn test_check_trade_direction_real_function() {
+        // BUY (0) and SELL (1) pass
+        assert!(check_trade_direction(0).is_ok());
+        assert!(check_trade_direction(1).is_ok());
+
+        // Invalid directions fail closed with InvalidTradeDirection
+        assert_eq!(
+            check_trade_direction(2).unwrap_err(),
+            error!(SentinelError::InvalidTradeDirection)
+        );
+        assert_eq!(
+            check_trade_direction(255).unwrap_err(),
+            error!(SentinelError::InvalidTradeDirection)
+        );
+    }
+
+    #[test]
+    fn test_check_domain_binding_real_function() {
+        let alice = Pubkey::new_unique();
+        let bob = Pubkey::new_unique();
+
+        // Consistent owner domain passes
+        assert!(check_domain_binding(&alice, &alice, &alice).is_ok());
+
+        // Mismatched policy owner fails
+        assert_eq!(
+            check_domain_binding(&alice, &bob, &alice).unwrap_err(),
+            error!(SentinelError::SecurityDomainMismatch)
+        );
+
+        // Mismatched vault owner fails
+        assert_eq!(
+            check_domain_binding(&alice, &alice, &bob).unwrap_err(),
+            error!(SentinelError::SecurityDomainMismatch)
+        );
+    }
+
+    #[test]
+    fn test_check_trade_amount_binding_real_function() {
+        // Exact cents match for $5,000 USD (500,000 cents) passes
+        assert!(check_trade_amount_binding(500_000, 5_000).is_ok());
+
+        // Dollars passed instead of cents ($5,000 vs 500,000 cents) fails closed
+        assert_eq!(
+            check_trade_amount_binding(5_000, 5_000).unwrap_err(),
+            error!(SentinelError::TradeAmountMismatch)
+        );
+
+        // Over-execution ($15,000 trade vs $5,000 promise) fails closed
+        assert_eq!(
+            check_trade_amount_binding(1_500_000, 5_000).unwrap_err(),
+            error!(SentinelError::TradeAmountMismatch)
+        );
+    }
+
+    #[test]
+    fn test_check_evidence_lifecycle_real_function() {
+        let agent_a = Pubkey::new_unique();
+        let agent_b = Pubkey::new_unique();
+
+        // Valid settled evidence passes
+        assert!(check_evidence_lifecycle(&agent_a, &agent_a, 3, 3).is_ok());
+
+        // Valid rejected evidence passes
+        assert!(check_evidence_lifecycle(&agent_a, &agent_a, 4, 4).is_ok());
+
+        // Unauthorized foreign agent fails closed
+        assert_eq!(
+            check_evidence_lifecycle(&agent_a, &agent_b, 3, 3).unwrap_err(),
+            error!(SentinelError::UnauthorizedAgent)
+        );
+
+        // Promise status still Promised (1) cannot record evidence
+        assert_eq!(
+            check_evidence_lifecycle(&agent_a, &agent_a, 1, 1).unwrap_err(),
+            error!(SentinelError::InvalidPromiseStatus)
+        );
+
+        // Mismatched verification_result (e.g. claiming settled 3 when promise status is rejected 4) fails
+        assert_eq!(
+            check_evidence_lifecycle(&agent_a, &agent_a, 4, 3).unwrap_err(),
+            error!(SentinelError::InvalidPromiseStatus)
+        );
     }
 
     #[test]
@@ -1078,41 +1158,5 @@ mod tests {
         // Benchmark price of existing holdings MUST remain intact (12,000 cents), preventing valuation collapse
         assert_eq!(target_pos.price_cents, 12_000);
         assert_eq!(target_pos.amount_units, 241);
-    }
-
-    #[test]
-    fn test_strict_promise_amount_cents_enforcement() {
-        let promised_usd: u64 = 5_000;
-        let promised_cents: u64 = promised_usd * 100; // 500,000 cents
-
-        // Exact cents matches
-        let exact_cents: u64 = 500_000;
-        assert_eq!(exact_cents, promised_cents);
-
-        // Passing dollars (5,000) instead of cents (500,000) fails closed
-        let invalid_dollars_passed_as_cents: u64 = 5_000;
-        assert_ne!(invalid_dollars_passed_as_cents, promised_cents);
-    }
-
-    #[test]
-    fn test_record_evidence_lifecycle_status_and_agent_binding() {
-        // Status 1 (Promised) cannot record evidence
-        let status_promised: u8 = 1;
-        assert!(!(status_promised == 3 || status_promised == 4));
-
-        // Status 3 (Settled) is permitted
-        let status_settled: u8 = 3;
-        assert!(status_settled == 3 || status_settled == 4);
-
-        // Status 4 (Rejected) is permitted
-        let status_rejected: u8 = 4;
-        assert!(status_rejected == 3 || status_rejected == 4);
-
-        // Verification result MUST match promise status
-        let verification_result_settled: u8 = 3;
-        assert_eq!(verification_result_settled, status_settled);
-
-        // Mismatched verification result (e.g. claiming settled when rejected) fails
-        assert_ne!(verification_result_settled, status_rejected);
     }
 }
