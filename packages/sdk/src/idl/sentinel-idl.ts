@@ -1,7 +1,4 @@
-import { Idl } from "@coral-xyz/anchor";
-import { Sentinel } from "./sentinel";
-
-export const SENTINEL_IDL: Idl = {
+export const SENTINEL_IDL = {
   "address": "3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK",
   "metadata": {
     "name": "sentinel",
@@ -182,6 +179,9 @@ export const SENTINEL_IDL: Idl = {
           ]
         },
         {
+          "name": "price_update"
+        },
+        {
           "name": "authority",
           "signer": true
         }
@@ -196,7 +196,7 @@ export const SENTINEL_IDL: Idl = {
           "type": "u64"
         },
         {
-          "name": "quoted_price_cents",
+          "name": "_quoted_price_cents",
           "type": "u64"
         }
       ]
@@ -401,6 +401,65 @@ export const SENTINEL_IDL: Idl = {
               }
             }
           }
+        }
+      ]
+    },
+    {
+      "name": "post_price_update",
+      "docs": [
+        "Posts or updates a verified Pyth price update account"
+      ],
+      "discriminator": [
+        152,
+        172,
+        180,
+        83,
+        98,
+        71,
+        47,
+        78
+      ],
+      "accounts": [
+        {
+          "name": "price_update",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "feed_id",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "price",
+          "type": "i64"
+        },
+        {
+          "name": "conf",
+          "type": "u64"
+        },
+        {
+          "name": "exponent",
+          "type": "i32"
+        },
+        {
+          "name": "publish_time",
+          "type": "i64"
         }
       ]
     },
@@ -806,6 +865,19 @@ export const SENTINEL_IDL: Idl = {
       ]
     },
     {
+      "name": "PriceUpdateV2",
+      "discriminator": [
+        34,
+        241,
+        35,
+        99,
+        157,
+        126,
+        244,
+        205
+      ]
+    },
+    {
       "name": "PromiseAccount",
       "discriminator": [
         27,
@@ -1015,6 +1087,21 @@ export const SENTINEL_IDL: Idl = {
       "code": 6017,
       "name": "InvalidPrice",
       "msg": "Missing, zero, or invalid market price: execution fails closed"
+    },
+    {
+      "code": 6018,
+      "name": "StaleOraclePrice",
+      "msg": "Pyth oracle quote is older than 60s maximum allowed age"
+    },
+    {
+      "code": 6019,
+      "name": "WideConfidenceInterval",
+      "msg": "Pyth oracle confidence interval is wider than allowable threshold"
+    },
+    {
+      "code": 6020,
+      "name": "MismatchedFeedId",
+      "msg": "Pyth price feed ID does not match the target asset mint feed"
     }
   ],
   "types": [
@@ -1327,6 +1414,83 @@ export const SENTINEL_IDL: Idl = {
       }
     },
     {
+      "name": "PriceFeedMessage",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "feed_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "price",
+            "type": "i64"
+          },
+          {
+            "name": "conf",
+            "type": "u64"
+          },
+          {
+            "name": "exponent",
+            "type": "i32"
+          },
+          {
+            "name": "publish_time",
+            "type": "i64"
+          },
+          {
+            "name": "prev_publish_time",
+            "type": "i64"
+          },
+          {
+            "name": "ema_price",
+            "type": "i64"
+          },
+          {
+            "name": "ema_conf",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PriceUpdateV2",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "write_authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "verification_level",
+            "type": {
+              "defined": {
+                "name": "VerificationLevel"
+              }
+            }
+          },
+          {
+            "name": "price_message",
+            "type": {
+              "defined": {
+                "name": "PriceFeedMessage"
+              }
+            }
+          },
+          {
+            "name": "posted_slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
       "name": "PromiseAccount",
       "type": {
         "kind": "struct",
@@ -1482,8 +1646,26 @@ export const SENTINEL_IDL: Idl = {
           }
         ]
       }
+    },
+    {
+      "name": "VerificationLevel",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Partial",
+            "fields": [
+              {
+                "name": "num_signatures",
+                "type": "u8"
+              }
+            ]
+          },
+          {
+            "name": "Full"
+          }
+        ]
+      }
     }
   ]
-};
-
-export type { Sentinel } from "./sentinel";
+} as const;

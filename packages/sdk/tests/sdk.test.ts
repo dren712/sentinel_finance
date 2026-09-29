@@ -179,12 +179,13 @@ describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
           vault: vaultPda,
           agent: agentPda,
           policy: policyPda,
+          priceUpdate: Keypair.generate().publicKey,
           authority: mockAuthority,
         })
         .instruction();
 
       assert.strictEqual(executeIx.programId.toBase58(), program.programId.toBase58());
-      assert.strictEqual(executeIx.keys.length, 5);
+      assert.strictEqual(executeIx.keys.length, 6);
       // Anchor discriminator for execute_guarded_trade: [173, 223, 79, 146, 151, 58, 98, 99]
       assert.deepStrictEqual(Array.from(executeIx.data.subarray(0, 8)), [173, 223, 79, 146, 151, 58, 98, 99]);
     });

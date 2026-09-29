@@ -55,4 +55,13 @@ pub enum SentinelError {
 
     #[msg("Missing, zero, or invalid market price: execution fails closed")]
     InvalidPrice,
+
+    #[msg("Pyth oracle quote is older than 60s maximum allowed age")]
+    StaleOraclePrice,
+
+    #[msg("Pyth oracle confidence interval is wider than allowable threshold")]
+    WideConfidenceInterval,
+
+    #[msg("Pyth price feed ID does not match the target asset mint feed")]
+    MismatchedFeedId,
 }

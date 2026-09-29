@@ -185,6 +185,9 @@ export type Sentinel = {
           ]
         },
         {
+          "name": "priceUpdate"
+        },
+        {
           "name": "authority",
           "signer": true
         }
@@ -404,6 +407,65 @@ export type Sentinel = {
               }
             }
           }
+        }
+      ]
+    },
+    {
+      "name": "postPriceUpdate",
+      "docs": [
+        "Posts or updates a verified Pyth price update account"
+      ],
+      "discriminator": [
+        152,
+        172,
+        180,
+        83,
+        98,
+        71,
+        47,
+        78
+      ],
+      "accounts": [
+        {
+          "name": "priceUpdate",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "feedId",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "price",
+          "type": "i64"
+        },
+        {
+          "name": "conf",
+          "type": "u64"
+        },
+        {
+          "name": "exponent",
+          "type": "i32"
+        },
+        {
+          "name": "publishTime",
+          "type": "i64"
         }
       ]
     },
@@ -809,6 +871,19 @@ export type Sentinel = {
       ]
     },
     {
+      "name": "priceUpdateV2",
+      "discriminator": [
+        34,
+        241,
+        35,
+        99,
+        157,
+        126,
+        244,
+        205
+      ]
+    },
+    {
       "name": "promiseAccount",
       "discriminator": [
         27,
@@ -1018,6 +1093,21 @@ export type Sentinel = {
       "code": 6017,
       "name": "invalidPrice",
       "msg": "Missing, zero, or invalid market price: execution fails closed"
+    },
+    {
+      "code": 6018,
+      "name": "staleOraclePrice",
+      "msg": "Pyth oracle quote is older than 60s maximum allowed age"
+    },
+    {
+      "code": 6019,
+      "name": "wideConfidenceInterval",
+      "msg": "Pyth oracle confidence interval is wider than allowable threshold"
+    },
+    {
+      "code": 6020,
+      "name": "mismatchedFeedId",
+      "msg": "Pyth price feed ID does not match the target asset mint feed"
     }
   ],
   "types": [
@@ -1330,6 +1420,83 @@ export type Sentinel = {
       }
     },
     {
+      "name": "priceFeedMessage",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "feedId",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "price",
+            "type": "i64"
+          },
+          {
+            "name": "conf",
+            "type": "u64"
+          },
+          {
+            "name": "exponent",
+            "type": "i32"
+          },
+          {
+            "name": "publishTime",
+            "type": "i64"
+          },
+          {
+            "name": "prevPublishTime",
+            "type": "i64"
+          },
+          {
+            "name": "emaPrice",
+            "type": "i64"
+          },
+          {
+            "name": "emaConf",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "priceUpdateV2",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "writeAuthority",
+            "type": "pubkey"
+          },
+          {
+            "name": "verificationLevel",
+            "type": {
+              "defined": {
+                "name": "verificationLevel"
+              }
+            }
+          },
+          {
+            "name": "priceMessage",
+            "type": {
+              "defined": {
+                "name": "priceFeedMessage"
+              }
+            }
+          },
+          {
+            "name": "postedSlot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
       "name": "promiseAccount",
       "type": {
         "kind": "struct",
@@ -1482,6 +1649,26 @@ export type Sentinel = {
           {
             "name": "usdcBalanceCents",
             "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "verificationLevel",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "partial",
+            "fields": [
+              {
+                "name": "numSignatures",
+                "type": "u8"
+              }
+            ]
+          },
+          {
+            "name": "full"
           }
         ]
       }

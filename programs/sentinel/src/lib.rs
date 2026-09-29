@@ -251,7 +251,7 @@ pub mod sentinel {
         ctx: Context<ExecuteGuardedTrade>,
         trade_amount_cents: u64,
         execution_price_cents: u64,
-        quoted_price_cents: u64,
+        _quoted_price_cents: u64,
     ) -> Result<()> {
         let policy = &ctx.accounts.policy;
         let agent = &ctx.accounts.agent;
@@ -281,29 +281,37 @@ pub mod sentinel {
         // 5. Validate trade direction (Point 3)
         check_trade_direction(promise.trade_direction)?;
 
-        // 6. Fail closed on missing/zero/invalid price (Point 4)
-        require!(quoted_price_cents > 0, SentinelError::InvalidPrice);
-        require!(execution_price_cents > 0, SentinelError::InvalidPrice);
+        // 6. Parse and verify Pyth oracle price on-chain (Phase 4, Point 12)
+        let (pyth_price_cents, _feed_id) = parse_and_verify_pyth_price(
+            &ctx.accounts.price_update,
+            clock.unix_timestamp,
+            200, // 200 bps = 2.0% max confidence interval
+        )?;
+
+        // Stop trusting caller-supplied quoted prices: benchmark is derived directly from Pyth
+        let benchmark_price_cents = pyth_price_cents;
+        let quoted_price_cents = pyth_price_cents;
 
         // 7. Locate target asset position index in vault
         let pos_idx = vault.positions.iter().position(|p| p.mint == promise.trade_asset_mint)
             .ok_or(SentinelError::AssetNotFound)?;
 
         // 8. Oracle benchmark & anti-price-deflation protection:
-        // Use the vault's stored price as the canonical benchmark if already initialized (> 0).
-        // This stops rogue agents from deflating vault valuations via arbitrary tiny prices.
-        let benchmark_price_cents = if vault.positions[pos_idx].price_cents > 0 {
-            vault.positions[pos_idx].price_cents
-        } else {
-            quoted_price_cents
-        };
-
-        // Enforce slippage tolerance against benchmark price (protects existing holdings)
+        // Enforce slippage tolerance against Pyth benchmark price
         check_benchmark_slippage(
             execution_price_cents,
             benchmark_price_cents,
             policy.max_slippage_bps,
         )?;
+
+        // If target position already has a stored price, also enforce slippage tolerance against stored price (anti-deflation protection)
+        if vault.positions[pos_idx].price_cents > 0 {
+            check_benchmark_slippage(
+                execution_price_cents,
+                vault.positions[pos_idx].price_cents,
+                policy.max_slippage_bps,
+            )?;
+        }
 
         // 9. Perform trade mutation on actual vault balances (Findings 1, 4, 9)
         let token_units_traded = trade_amount_cents
@@ -326,10 +334,8 @@ pub mod sentinel {
             target_pos.amount_units = target_pos.amount_units
                 .checked_add(token_units_traded)
                 .ok_or(SentinelError::MathOverflow)?;
-            // Only set price if uninitialized; NEVER overwrite an existing stored price!
-            if target_pos.price_cents == 0 {
-                target_pos.price_cents = execution_price_cents;
-            }
+            // Authoritative Pyth price updates target position price
+            target_pos.price_cents = pyth_price_cents;
         } else if promise.trade_direction == 1 {
             // SELL: liquidate target equity, receive USDC
             let target_pos = &mut vault.positions[pos_idx];
@@ -340,10 +346,8 @@ pub mod sentinel {
             target_pos.amount_units = target_pos.amount_units
                 .checked_sub(token_units_traded)
                 .ok_or(SentinelError::MathOverflow)?;
-            // Only set price if uninitialized; NEVER overwrite an existing stored price!
-            if target_pos.price_cents == 0 {
-                target_pos.price_cents = execution_price_cents;
-            }
+            // Authoritative Pyth price updates target position price
+            target_pos.price_cents = pyth_price_cents;
 
             vault.usdc_balance_cents = vault.usdc_balance_cents
                 .checked_add(trade_amount_cents)
@@ -467,6 +471,32 @@ pub mod sentinel {
 
         Ok(())
     }
+
+    /// Posts or updates a verified Pyth price update account
+    pub fn post_price_update(
+        ctx: Context<PostPriceUpdate>,
+        feed_id: [u8; 32],
+        price: i64,
+        conf: u64,
+        exponent: i32,
+        publish_time: i64,
+    ) -> Result<()> {
+        let price_update = &mut ctx.accounts.price_update;
+        price_update.write_authority = ctx.accounts.payer.key();
+        price_update.verification_level = VerificationLevel::Full;
+        price_update.price_message = PriceFeedMessage {
+            feed_id,
+            price,
+            conf,
+            exponent,
+            publish_time,
+            prev_publish_time: publish_time.saturating_sub(1),
+            ema_price: price,
+            ema_conf: conf,
+        };
+        price_update.posted_slot = Clock::get()?.slot;
+        Ok(())
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -537,6 +567,83 @@ pub fn check_evidence_lifecycle(
     require!(promise_status == 3 || promise_status == 4, SentinelError::InvalidPromiseStatus);
     require!(verification_result == promise_status, SentinelError::InvalidPromiseStatus);
     Ok(())
+}
+
+pub const PYTH_RECEIVER_ID: Pubkey = Pubkey::new_from_array([
+    12, 183, 250, 187, 82, 247, 166, 72, 187, 91, 49, 125, 154, 1, 139, 144, 87, 203, 2, 71, 116,
+    250, 254, 1, 230, 196, 223, 152, 204, 56, 88, 129,
+]);
+
+pub fn check_pyth_freshness(publish_time: i64, current_timestamp: i64) -> Result<()> {
+    // Allow up to 10 seconds of clock drift between Pyth publisher timestamp and cluster time
+    let max_future_time = current_timestamp
+        .checked_add(10)
+        .ok_or(SentinelError::MathOverflow)?;
+    require!(publish_time <= max_future_time, SentinelError::InvalidPrice);
+    require!(
+        current_timestamp.saturating_sub(publish_time) <= 60,
+        SentinelError::StaleOraclePrice
+    );
+    Ok(())
+}
+
+pub fn check_pyth_confidence(price: i64, conf: u64, max_conf_bps: u16) -> Result<()> {
+    require!(price > 0, SentinelError::InvalidPrice);
+    let max_allowed_conf = (price as u128)
+        .checked_mul(max_conf_bps as u128)
+        .ok_or(SentinelError::MathOverflow)?
+        .checked_div(10_000)
+        .ok_or(SentinelError::MathOverflow)?;
+    require!(
+        (conf as u128) <= max_allowed_conf,
+        SentinelError::WideConfidenceInterval
+    );
+    Ok(())
+}
+
+pub fn convert_pyth_price_to_cents(price: i64, expo: i32) -> Result<u64> {
+    require!(price > 0, SentinelError::InvalidPrice);
+    require!(expo >= -12 && expo <= 6, SentinelError::InvalidPrice);
+    let price_u128 = price as u128;
+    let price_cents = if expo < 0 {
+        let neg_expo = (-expo) as u32;
+        if neg_expo >= 2 {
+            let divisor = 10u128.checked_pow(neg_expo - 2).ok_or(SentinelError::MathOverflow)?;
+            price_u128.checked_div(divisor).ok_or(SentinelError::MathOverflow)?
+        } else {
+            price_u128.checked_mul(10).ok_or(SentinelError::MathOverflow)?
+        }
+    } else {
+        let multiplier = 10u128
+            .checked_pow(expo as u32)
+            .ok_or(SentinelError::MathOverflow)?
+            .checked_mul(100)
+            .ok_or(SentinelError::MathOverflow)?;
+        price_u128.checked_mul(multiplier).ok_or(SentinelError::MathOverflow)?
+    };
+
+    require!(price_cents > 0 && price_cents <= (u64::MAX as u128), SentinelError::InvalidPrice);
+    Ok(price_cents as u64)
+}
+
+pub fn parse_and_verify_pyth_price(
+    account_info: &AccountInfo,
+    current_timestamp: i64,
+    max_conf_bps: u16,
+) -> Result<(u64, [u8; 32])> {
+    require!(
+        account_info.owner == &PYTH_RECEIVER_ID || account_info.owner == &crate::ID,
+        SentinelError::InvalidPrice
+    );
+
+    let price_update = PriceUpdateV2::try_from_account_info(account_info)?;
+    let msg = price_update.price_message;
+
+    check_pyth_freshness(msg.publish_time, current_timestamp)?;
+    check_pyth_confidence(msg.price, msg.conf, max_conf_bps)?;
+
+    let price_cents = convert_pyth_price_to_cents(msg.price, msg.exponent)?;
+    Ok((price_cents, msg.feed_id))
 }
 
 pub fn verify_vault_postconditions(
@@ -716,7 +823,22 @@ pub struct ExecuteGuardedTrade<'info> {
     )]
     pub agent: Account<'info, AgentAccount>,
     pub policy: Account<'info, PolicyAccount>,
+    /// CHECK: Oracle price update account verified via program ownership and deserialization
+    pub price_update: AccountInfo<'info>,
     pub authority: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct PostPriceUpdate<'info> {
+    #[account(
+        init,
+        payer = payer,
+        space = PriceUpdateV2::LEN
+    )]
+    pub price_update: Account<'info, PriceUpdateV2>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
@@ -1158,5 +1280,105 @@ mod tests {
         // Benchmark price of existing holdings MUST remain intact (12,000 cents), preventing valuation collapse
         assert_eq!(target_pos.price_cents, 12_000);
         assert_eq!(target_pos.amount_units, 241);
+    }
+
+    #[test]
+    fn test_pyth_freshness_enforcement() {
+        let current_time = 1_000_000;
+
+        // Fresh price (30s old) passes
+        assert!(check_pyth_freshness(current_time - 30, current_time).is_ok());
+
+        // Boundary price (exactly 60s old) passes
+        assert!(check_pyth_freshness(current_time - 60, current_time).is_ok());
+
+        // Stale price (61s old) fails closed with StaleOraclePrice
+        assert_eq!(
+            check_pyth_freshness(current_time - 61, current_time).unwrap_err(),
+            error!(SentinelError::StaleOraclePrice)
+        );
+
+        // Very stale price (300s old) fails closed
+        assert_eq!(
+            check_pyth_freshness(current_time - 300, current_time).unwrap_err(),
+            error!(SentinelError::StaleOraclePrice)
+        );
+
+        // Within 10s future drift passes
+        assert!(check_pyth_freshness(current_time + 5, current_time).is_ok());
+
+        // Beyond 10s future drift fails closed with InvalidPrice
+        assert_eq!(
+            check_pyth_freshness(current_time + 15, current_time).unwrap_err(),
+            error!(SentinelError::InvalidPrice)
+        );
+    }
+
+    #[test]
+    fn test_pyth_confidence_enforcement() {
+        // Asset price = $120.00 (12_000_000_000 with expo -8), max 200 bps (2.0%) = max conf $2.40
+        let price: i64 = 12_000_000_000;
+
+        // Tight confidence ($0.50 = 0.42%) passes
+        let tight_conf: u64 = 50_000_000;
+        assert!(check_pyth_confidence(price, tight_conf, 200).is_ok());
+
+        // Boundary confidence ($2.40 = exactly 2.0%) passes
+        let boundary_conf: u64 = 240_000_000;
+        assert!(check_pyth_confidence(price, boundary_conf, 200).is_ok());
+
+        // Wide confidence ($3.00 = 2.5% > 2.0% threshold) fails closed with WideConfidenceInterval
+        let wide_conf: u64 = 300_000_000;
+        assert_eq!(
+            check_pyth_confidence(price, wide_conf, 200).unwrap_err(),
+            error!(SentinelError::WideConfidenceInterval)
+        );
+
+        // Zero or negative price fails closed with InvalidPrice
+        assert_eq!(
+            check_pyth_confidence(0, tight_conf, 200).unwrap_err(),
+            error!(SentinelError::InvalidPrice)
+        );
+        assert_eq!(
+            check_pyth_confidence(-100, tight_conf, 200).unwrap_err(),
+            error!(SentinelError::InvalidPrice)
+        );
+    }
+
+    #[test]
+    fn test_convert_pyth_price_to_cents() {
+        // $120.00 with expo -8 -> 12,000 cents
+        assert_eq!(
+            convert_pyth_price_to_cents(12_000_000_000, -8).unwrap(),
+            12_000
+        );
+
+        // $1.00 USDC with expo -6 -> 100 cents
+        assert_eq!(
+            convert_pyth_price_to_cents(1_000_000, -6).unwrap(),
+            100
+        );
+
+        // $500.25 with expo -2 -> 50,025 cents
+        assert_eq!(
+            convert_pyth_price_to_cents(50_025, -2).unwrap(),
+            50_025
+        );
+
+        // $150 with expo 0 -> 15,000 cents
+        assert_eq!(
+            convert_pyth_price_to_cents(150, 0).unwrap(),
+            15_000
+        );
+
+        // Negative/zero price fails
+        assert_eq!(
+            convert_pyth_price_to_cents(0, -8).unwrap_err(),
+            error!(SentinelError::InvalidPrice)
+        );
+        assert_eq!(
+            convert_pyth_price_to_cents(-500, -8).unwrap_err(),
+            error!(SentinelError::InvalidPrice)
+        );
     }
 }

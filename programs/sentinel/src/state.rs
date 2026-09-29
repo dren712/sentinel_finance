@@ -98,3 +98,51 @@ pub struct EvidenceAccount {
 impl EvidenceAccount {
     pub const LEN: usize = 8 + (4 + 32) + 32 + 32 + 32 + 1 + 2 + 8 + 1;
 }
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug, PartialEq)]
+pub enum VerificationLevel {
+    Partial { num_signatures: u8 },
+    Full,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, PartialEq)]
+pub struct PriceFeedMessage {
+    pub feed_id: [u8; 32],
+    pub price: i64,
+    pub conf: u64,
+    pub exponent: i32,
+    pub publish_time: i64,
+    pub prev_publish_time: i64,
+    pub ema_price: i64,
+    pub ema_conf: u64,
+}
+
+#[account]
+#[derive(Debug, PartialEq)]
+pub struct PriceUpdateV2 {
+    pub write_authority: Pubkey,
+    pub verification_level: VerificationLevel,
+    pub price_message: PriceFeedMessage,
+    pub posted_slot: u64,
+}
+
+impl PriceUpdateV2 {
+    pub const LEN: usize = 8 + 32 + 2 + (32 + 8 + 8 + 4 + 8 + 8 + 8 + 8) + 8 + 32;
+    pub const DISCRIMINATOR: [u8; 8] = [34, 241, 35, 99, 157, 126, 244, 205];
+
+    pub fn try_from_account_info(info: &AccountInfo) -> Result<Self> {
+        let data = info.try_borrow_data()?;
+        require!(data.len() >= 8, crate::errors::SentinelError::InvalidPrice);
+        if &data[0..8] == &Self::DISCRIMINATOR {
+            let mut slice = &data[8..];
+            let update = PriceUpdateV2::deserialize(&mut slice)
+                .map_err(|_| error!(crate::errors::SentinelError::InvalidPrice))?;
+            Ok(update)
+        } else {
+            let mut slice = &data[..];
+            let update = PriceUpdateV2::deserialize(&mut slice)
+                .map_err(|_| error!(crate::errors::SentinelError::InvalidPrice))?;
+            Ok(update)
+        }
+    }
+}

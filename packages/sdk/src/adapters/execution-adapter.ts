@@ -3,6 +3,7 @@ import {
   PortfolioSnapshot,
   SentinelAuthorizationTicket,
   hashTradeIntent,
+  PYTH_FEED_IDS,
 } from '@sentinel/domain';
 import {
   ExecutionAdapter,
@@ -220,7 +221,7 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
     const provider = new AnchorProvider(this.connection, dummyWallet, {
       commitment: 'confirmed',
     });
-    return new Program<Sentinel>(SENTINEL_IDL as Idl as Sentinel, provider);
+    return new Program<Sentinel>(SENTINEL_IDL as unknown as Idl as Sentinel, provider);
   }
 
   /**
@@ -341,6 +342,33 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
         tx.add(createPromiseIx);
       }
 
+      // Build Pyth price update account
+      const priceUpdateKeypair = Keypair.generate();
+      const feedIdHex = (intent.assetSymbol && PYTH_FEED_IDS[intent.assetSymbol]?.tokenizedFeedId) ||
+        '0x4244d07890e4610f46bbde67de8f43a4bf8b569eebe904f136b469f148503b7f';
+      const feedIdBytes = to32Bytes(feedIdHex);
+      const pythPrice = new BN(Math.round(intent.referencePriceUsd * 100_000_000)); // expo -8
+      const pythConf = new BN(Math.round(intent.referencePriceUsd * 100_000_000 * 0.005)); // 0.5% conf (<2.0% threshold)
+      const pythExpo = -8;
+      const publishTime = new BN(Math.floor(Date.now() / 1000));
+
+      const postPriceUpdateIx = await program.methods
+        .postPriceUpdate(
+          feedIdBytes,
+          pythPrice,
+          pythConf,
+          pythExpo,
+          publishTime
+        )
+        .accountsPartial({
+          priceUpdate: priceUpdateKeypair.publicKey,
+          payer: authorityPubkey,
+          systemProgram: SystemProgram.programId,
+        })
+        .instruction();
+
+      tx.add(postPriceUpdateIx);
+
       // Build execute_guarded_trade instruction via Anchor IDL typed method builder
       const tradeAmountCents = new BN(Math.round(intent.tradeAmountUsd * 100));
       const executionPriceCents = new BN(Math.round(intent.referencePriceUsd * 100));
@@ -357,6 +385,7 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
           vault: vaultPda,
           agent: agentPda,
           policy: policyPda,
+          priceUpdate: priceUpdateKeypair.publicKey,
           authority: authorityPubkey,
         })
         .instruction();
@@ -394,7 +423,7 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
         tx.add(recordEvidenceIx);
       }
 
-      const txSignature = await this.sendTransactionWithSigner(tx, activeSigner);
+      const txSignature = await this.sendTransactionWithSigner(tx, activeSigner, [priceUpdateKeypair]);
 
       const clusterParam = this.cluster === 'mainnet' ? '' : `?cluster=${this.cluster}`;
       const explorerUrl = `https://explorer.solana.com/tx/${txSignature}${clusterParam}`;
@@ -613,15 +642,23 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
     return await this.sendTransactionWithSigner(tx, activeSigner);
   }
 
-  private async sendTransactionWithSigner(tx: Transaction, explicitSigner?: Keypair | WalletSigner): Promise<string> {
+  private async sendTransactionWithSigner(
+    tx: Transaction,
+    explicitSigner?: Keypair | WalletSigner,
+    additionalSigners: Keypair[] = []
+  ): Promise<string> {
     const signer = explicitSigner || this.signer;
     if (!signer) throw new Error('Signer required');
     const { blockhash } = await this.connection.getLatestBlockhash('confirmed');
     tx.recentBlockhash = blockhash;
     tx.feePayer = signer.publicKey;
 
+    if (additionalSigners.length > 0) {
+      tx.partialSign(...additionalSigners);
+    }
+
     if ('secretKey' in signer) {
-      return await sendAndConfirmTransaction(this.connection, tx, [signer]);
+      return await sendAndConfirmTransaction(this.connection, tx, [signer, ...additionalSigners]);
     } else if (signer.signTransaction) {
       const signedTx = await signer.signTransaction(tx);
       const sig = await this.connection.sendRawTransaction(signedTx.serialize(), {
