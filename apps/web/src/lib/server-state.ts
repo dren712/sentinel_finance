@@ -30,6 +30,7 @@ import {
   LLMProvider,
   AutonomousAdaptationResult,
   AgentLoopState,
+  loadKeypair,
 } from '@sentinel/sdk';
 import {
   PortfolioSnapshot,
@@ -82,24 +83,14 @@ export interface ServerStateStore {
  */
 function loadServerAgentKeypair(): Keypair | undefined {
   try {
-    const envSecret = process.env.SOLANA_AGENT_KEYPAIR;
-    if (envSecret) {
-      const parsed = JSON.parse(envSecret);
-      if (Array.isArray(parsed) && parsed.length === 64) {
-        return Keypair.fromSecretKey(Uint8Array.from(parsed));
-      }
-    }
-    const defaultSolanaId = path.join(os.homedir(), '.config', 'solana', 'id.json');
-    if (fs.existsSync(defaultSolanaId)) {
-      const raw = JSON.parse(fs.readFileSync(defaultSolanaId, 'utf8'));
-      if (Array.isArray(raw) && raw.length === 64) {
-        return Keypair.fromSecretKey(Uint8Array.from(raw));
-      }
-    }
+    return (
+      loadKeypair(process.env.SENTINEL_AGENT_KEYPAIR) ||
+      loadKeypair(process.env.SOLANA_AGENT_KEYPAIR) ||
+      loadKeypair(path.join(os.homedir(), '.config', 'solana', 'id.json'))
+    );
   } catch {
-    // Fallback gracefully if no local Solana keypair file is present in container
+    return undefined;
   }
-  return undefined;
 }
 
 /**

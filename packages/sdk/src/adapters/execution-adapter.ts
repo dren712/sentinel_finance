@@ -22,6 +22,7 @@ import {
 } from '@solana/web3.js';
 import { Program, AnchorProvider, BN, Idl } from '@coral-xyz/anchor';
 import { SENTINEL_IDL, Sentinel } from '../idl';
+import { loadKeypair } from '../keys';
 
 export { DemoExecutionAdapter, SimulatedExecutionAdapter } from './demo-adapter';
 export {
@@ -85,6 +86,17 @@ function extractErrorCode(err: unknown): number {
   return 6000;
 }
 
+export interface LiveExecutionAdapterOptions {
+  rpcEndpoint?: string;
+  signer?: Keypair | WalletSigner;
+  agentSigner?: Keypair | WalletSigner;
+  ownerSigner?: Keypair | WalletSigner;
+  agentKeypair?: Keypair | WalletSigner;
+  ownerKeypair?: Keypair | WalletSigner;
+  programId?: string;
+  cluster?: SolanaCluster;
+}
+
 /**
  * LiveExecutionAdapter:
  * Connects to Solana RPC and builds on-chain transactions targeting the Sentinel Anchor program.
@@ -97,19 +109,63 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
   public readonly cluster: SolanaCluster;
   private connection: Connection;
   public readonly programId: PublicKey;
+  private agentSigner?: Keypair | WalletSigner;
+  private ownerSigner?: Keypair | WalletSigner;
   private signer?: Keypair | WalletSigner;
 
   constructor(
-    rpcEndpoint: string = 'https://api.devnet.solana.com',
+    rpcEndpointOrOptions: string | LiveExecutionAdapterOptions = 'https://api.devnet.solana.com',
     signer?: Keypair | WalletSigner,
     programId: string = '3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK',
-    cluster: SolanaCluster = 'devnet'
+    cluster: SolanaCluster = 'devnet',
+    ownerSigner?: Keypair | WalletSigner
   ) {
-    this.cluster = cluster;
-    this.venueName = cluster === 'mainnet' ? 'Solana Mainnet' : 'Solana Devnet';
+    let rpcEndpoint = 'https://api.devnet.solana.com';
+    if (typeof rpcEndpointOrOptions === 'object') {
+      rpcEndpoint = rpcEndpointOrOptions.rpcEndpoint || rpcEndpoint;
+      this.programId = new PublicKey(rpcEndpointOrOptions.programId || programId);
+      this.cluster = rpcEndpointOrOptions.cluster || cluster;
+      this.agentSigner =
+        rpcEndpointOrOptions.agentKeypair ||
+        rpcEndpointOrOptions.agentSigner ||
+        rpcEndpointOrOptions.signer;
+      this.ownerSigner =
+        rpcEndpointOrOptions.ownerKeypair ||
+        rpcEndpointOrOptions.ownerSigner;
+      this.signer = rpcEndpointOrOptions.signer || this.agentSigner || this.ownerSigner;
+    } else {
+      rpcEndpoint = rpcEndpointOrOptions;
+      this.programId = new PublicKey(programId);
+      this.cluster = cluster;
+      this.agentSigner = signer;
+      this.ownerSigner = ownerSigner;
+      this.signer = signer;
+    }
+
+    this.venueName = this.cluster === 'mainnet' ? 'Solana Mainnet' : 'Solana Devnet';
     this.connection = new Connection(rpcEndpoint, 'confirmed');
-    this.programId = new PublicKey(programId);
-    this.signer = signer;
+
+    // Automatic discovery via environment variables
+    if (!this.agentSigner) {
+      this.agentSigner =
+        loadKeypair(process.env.SENTINEL_AGENT_KEYPAIR) ||
+        loadKeypair(process.env.SOLANA_AGENT_KEYPAIR);
+    }
+    if (!this.ownerSigner) {
+      this.ownerSigner =
+        ownerSigner ||
+        loadKeypair(process.env.SENTINEL_OWNER_KEYPAIR) ||
+        loadKeypair(process.env.SOLANA_OWNER_KEYPAIR);
+    }
+    if (!this.signer) {
+      this.signer = this.agentSigner || this.ownerSigner;
+    }
+    if (!this.ownerSigner && this.signer) {
+      this.ownerSigner = this.signer;
+    }
+    if (!this.agentSigner && this.signer) {
+      this.agentSigner = this.signer;
+    }
   }
 
   getMode(): 'LIVE' {
@@ -118,14 +174,33 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
 
   setSignerKeypair(keypair: Keypair): void {
     this.signer = keypair;
+    this.agentSigner = keypair;
   }
 
   setWalletSigner(signer: WalletSigner): void {
     this.signer = signer;
+    this.agentSigner = signer;
+  }
+
+  setAgentSigner(signer: Keypair | WalletSigner): void {
+    this.agentSigner = signer;
+    if (!this.signer) this.signer = signer;
+  }
+
+  setOwnerSigner(signer: Keypair | WalletSigner): void {
+    this.ownerSigner = signer;
   }
 
   getSigner(): Keypair | WalletSigner | undefined {
     return this.signer;
+  }
+
+  getAgentSigner(): Keypair | WalletSigner | undefined {
+    return this.agentSigner || this.signer;
+  }
+
+  getOwnerSigner(): Keypair | WalletSigner | undefined {
+    return this.ownerSigner || this.signer;
   }
 
   getConnection(): Connection {
@@ -135,9 +210,10 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
   /**
    * Initializes a typed Anchor Program client instance targeting the Sentinel IDL
    */
-  public getProgram(): Program<Sentinel> {
+  public getProgram(customSigner?: Keypair | WalletSigner): Program<Sentinel> {
+    const activeSigner = customSigner || this.agentSigner || this.signer;
     const dummyWallet = {
-      publicKey: this.signer?.publicKey ?? PublicKey.default,
+      publicKey: activeSigner?.publicKey ?? PublicKey.default,
       signTransaction: async (tx: any) => tx,
       signAllTransactions: async (txs: any[]) => txs,
     };
@@ -182,7 +258,8 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
       );
     }
 
-    if (!this.signer) {
+    const activeSigner = this.agentSigner || this.signer;
+    if (!activeSigner) {
       throw new Error(
         'Live execution requires an authorized Solana signer keypair or connected wallet. ' +
         'Please connect a funded Solana wallet or use SIMULATION mode for deterministic offline evaluation.'
@@ -200,21 +277,25 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
       const outputAmount = isBuy ? intent.tradeAmountUsd / intent.referencePriceUsd : intent.tradeAmountUsd;
 
       // Derive PDAs matching Anchor on-chain constraints
-      const authorityPubkey = this.signer.publicKey;
+      const authorityPubkey = activeSigner.publicKey;
+      const ownerPubkey = _preState?.owner
+        ? new PublicKey(_preState.owner)
+        : (this.ownerSigner?.publicKey || authorityPubkey);
+
       const [vaultPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from('vault'), authorityPubkey.toBuffer()],
+        [Buffer.from('vault'), ownerPubkey.toBuffer()],
         this.programId
       );
 
       const [policyPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from('policy'), authorityPubkey.toBuffer()],
+        [Buffer.from('policy'), ownerPubkey.toBuffer()],
         this.programId
       );
 
       const rawAgentId = intent.agentId === 'sentinel-robo-01' ? 'robo-01' : (intent.agentId || 'robo-01');
       const agentId = rawAgentId.slice(0, 28);
       const [agentPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from('agent'), authorityPubkey.toBuffer(), Buffer.from(agentId)],
+        [Buffer.from('agent'), ownerPubkey.toBuffer(), Buffer.from(agentId)],
         this.programId
       );
 
@@ -225,85 +306,8 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
         this.programId
       );
 
-      const program = this.getProgram();
+      const program = this.getProgram(activeSigner);
       const tx = new Transaction();
-
-      // Synchronize vault baseline if VaultAccount exists on-chain
-      const vaultAccountInfo = await this.connection.getAccountInfo(vaultPda);
-      if (vaultAccountInfo) {
-        const usdcBalanceCents = new BN(Math.round((_preState.stablecoinValueUsd || 25_000) * 100));
-
-        let mintPubkey: PublicKey;
-        try {
-          mintPubkey = new PublicKey(intent.assetMint);
-        } catch {
-          mintPubkey = PublicKey.default;
-        }
-
-        const positions: Array<{
-          mint: PublicKey;
-          symbol: number[];
-          amountUnits: BN;
-          priceCents: BN;
-          isIndex: boolean;
-        }> = [];
-
-        const nonStableAssets = (_preState.assets || []).filter(
-          (a) => !a.isStablecoin && a.symbol !== 'USDC'
-        );
-
-        let targetFound = false;
-        for (const asset of nonStableAssets) {
-          let assetMint: PublicKey;
-          try {
-            assetMint = new PublicKey(asset.mint);
-          } catch {
-            assetMint = asset.symbol === intent.assetSymbol ? mintPubkey : PublicKey.default;
-          }
-
-          const isTarget = asset.symbol === intent.assetSymbol || assetMint.equals(mintPubkey);
-          if (isTarget) targetFound = true;
-
-          const refPrice = isTarget
-            ? intent.referencePriceUsd
-            : (asset.priceUsd || (asset.valueUsd > 0 && asset.amount ? asset.valueUsd / asset.amount : 100));
-          const priceCents = new BN(Math.round(refPrice * 100));
-
-          const amountUnitsVal = asset.amount && asset.amount > 0
-            ? Math.round(asset.amount)
-            : Math.round(asset.valueUsd / (refPrice || 1));
-          const amountUnits = new BN(Math.max(0, amountUnitsVal));
-
-          positions.push({
-            mint: assetMint,
-            symbol: encodeSymbol8(asset.symbol),
-            amountUnits,
-            priceCents,
-            isIndex: Boolean(asset.isIndex),
-          });
-        }
-
-        if (!targetFound) {
-          positions.push({
-            mint: mintPubkey,
-            symbol: encodeSymbol8(intent.assetSymbol),
-            amountUnits: new BN(0),
-            priceCents: new BN(Math.round(intent.referencePriceUsd * 100)),
-            isIndex: false,
-          });
-        }
-
-        const cappedPositions = positions.slice(0, 8);
-
-        const syncVaultIx = await program.methods
-          .syncVault(usdcBalanceCents, cappedPositions)
-          .accountsPartial({
-            vault: vaultPda,
-            owner: authorityPubkey,
-          })
-          .instruction();
-        tx.add(syncVaultIx);
-      }
 
       // Check if promise exists, otherwise build create_promise instruction via Anchor IDL
       const promiseAccountInfo = await this.connection.getAccountInfo(promisePda);
@@ -390,7 +394,7 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
         tx.add(recordEvidenceIx);
       }
 
-      const txSignature = await this.sendTransactionWithSigner(tx);
+      const txSignature = await this.sendTransactionWithSigner(tx, activeSigner);
 
       const clusterParam = this.cluster === 'mainnet' ? '' : `?cluster=${this.cluster}`;
       const explorerUrl = `https://explorer.solana.com/tx/${txSignature}${clusterParam}`;
@@ -439,20 +443,25 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
     failureCode: number = 6000,
     authorization?: SentinelAuthorizationTicket
   ): Promise<{ rejectionTxSignature: string; promisePda: string; evidencePda: string }> {
-    if (!this.signer) {
+    const activeSigner = this.agentSigner || this.signer;
+    if (!activeSigner) {
       throw new Error('Live rejection requires an authorized Solana signer keypair or connected wallet.');
     }
 
-    const authorityPubkey = this.signer.publicKey;
+    const authorityPubkey = activeSigner.publicKey;
+    const ownerPubkey = _preState?.owner
+      ? new PublicKey(_preState.owner)
+      : (this.ownerSigner?.publicKey || authorityPubkey);
+
     const rawAgentId = intent.agentId === 'sentinel-robo-01' ? 'robo-01' : (intent.agentId || 'robo-01');
     const agentId = rawAgentId.slice(0, 28);
     const [agentPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from('agent'), authorityPubkey.toBuffer(), Buffer.from(agentId)],
+      [Buffer.from('agent'), ownerPubkey.toBuffer(), Buffer.from(agentId)],
       this.programId
     );
 
     const [policyPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from('policy'), authorityPubkey.toBuffer()],
+      [Buffer.from('policy'), ownerPubkey.toBuffer()],
       this.programId
     );
 
@@ -468,7 +477,7 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
       this.programId
     );
 
-    const program = this.getProgram();
+    const program = this.getProgram(activeSigner);
 
     // 1. Ensure promise exists on-chain
     const promiseAccountInfo = await this.connection.getAccountInfo(promisePda);
@@ -501,7 +510,7 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
         })
         .instruction();
       createPromiseTx.add(createPromiseIx);
-      await this.sendTransactionWithSigner(createPromiseTx);
+      await this.sendTransactionWithSigner(createPromiseTx, activeSigner);
     }
 
     // 2. Reject promise and record evidence (status 4)
@@ -542,7 +551,7 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
       rejectTx.add(recordEvidenceIx);
     }
 
-    const rejectionTxSignature = await this.sendTransactionWithSigner(rejectTx);
+    const rejectionTxSignature = await this.sendTransactionWithSigner(rejectTx, activeSigner);
     return {
       rejectionTxSignature,
       promisePda: promisePda.toBase58(),
@@ -550,16 +559,71 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
     };
   }
 
-  private async sendTransactionWithSigner(tx: Transaction): Promise<string> {
-    if (!this.signer) throw new Error('Signer required');
+  /**
+   * Synchronizes an existing PortfolioVault account with owner-verified positions.
+   * STRICT ACCESS CONTROL: Must be signed by the Vault Owner key.
+   * If an agent key attempts to call this, the on-chain instruction will fail with ConstraintHasOne or ConstraintSeeds.
+   */
+  async syncVault(
+    usdcBalanceCents: number | BN,
+    positions: Array<{
+      mint: PublicKey | string;
+      symbol: string | number[];
+      amountUnits: number | BN;
+      priceCents: number | BN;
+      isIndex: boolean;
+    }>,
+    signerOverride?: Keypair | WalletSigner,
+    vaultOwnerPubkey?: PublicKey
+  ): Promise<string> {
+    const activeSigner = signerOverride || this.ownerSigner || this.signer;
+    if (!activeSigner) {
+      throw new Error('syncVault requires an authorized owner signer keypair or connected wallet.');
+    }
+
+    const ownerPubkey = activeSigner.publicKey;
+    const targetOwner = vaultOwnerPubkey || ownerPubkey;
+    const [vaultPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('vault'), targetOwner.toBuffer()],
+      this.programId
+    );
+
+    const formattedPositions = positions.map((p) => ({
+      mint: p.mint instanceof PublicKey ? p.mint : new PublicKey(p.mint),
+      symbol: Array.isArray(p.symbol) ? p.symbol : encodeSymbol8(p.symbol),
+      amountUnits: BN.isBN(p.amountUnits) ? p.amountUnits : new BN(Math.round(Number(p.amountUnits))),
+      priceCents: BN.isBN(p.priceCents) ? p.priceCents : new BN(Math.round(Number(p.priceCents))),
+      isIndex: Boolean(p.isIndex),
+    }));
+
+    const program = this.getProgram(activeSigner);
+    const tx = new Transaction();
+    const syncIx = await program.methods
+      .syncVault(
+        BN.isBN(usdcBalanceCents) ? usdcBalanceCents : new BN(Math.round(Number(usdcBalanceCents))),
+        formattedPositions
+      )
+      .accountsPartial({
+        vault: vaultPda,
+        owner: ownerPubkey,
+      })
+      .instruction();
+
+    tx.add(syncIx);
+    return await this.sendTransactionWithSigner(tx, activeSigner);
+  }
+
+  private async sendTransactionWithSigner(tx: Transaction, explicitSigner?: Keypair | WalletSigner): Promise<string> {
+    const signer = explicitSigner || this.signer;
+    if (!signer) throw new Error('Signer required');
     const { blockhash } = await this.connection.getLatestBlockhash('confirmed');
     tx.recentBlockhash = blockhash;
-    tx.feePayer = this.signer.publicKey;
+    tx.feePayer = signer.publicKey;
 
-    if ('secretKey' in this.signer) {
-      return await sendAndConfirmTransaction(this.connection, tx, [this.signer]);
-    } else if (this.signer.signTransaction) {
-      const signedTx = await this.signer.signTransaction(tx);
+    if ('secretKey' in signer) {
+      return await sendAndConfirmTransaction(this.connection, tx, [signer]);
+    } else if (signer.signTransaction) {
+      const signedTx = await signer.signTransaction(tx);
       const sig = await this.connection.sendRawTransaction(signedTx.serialize(), {
         skipPreflight: false,
         preflightCommitment: 'confirmed',
@@ -574,8 +638,8 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
         'confirmed'
       );
       return sig;
-    } else if (this.signer.sendTransaction) {
-      const sig = await this.signer.sendTransaction(tx, this.connection);
+    } else if (signer.sendTransaction) {
+      const sig = await signer.sendTransaction(tx, this.connection);
       const latestBlockhash = await this.connection.getLatestBlockhash('confirmed');
       await this.connection.confirmTransaction(
         {
