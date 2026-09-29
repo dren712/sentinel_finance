@@ -33,6 +33,58 @@ export {
 } from './meteora-adapter';
 export { PreStocksExecutionAdapter, PRESTOCKS_SECONDARY_POOLS } from './prestocks-adapter';
 
+function encodeSymbol8(sym: string): number[] {
+  const buf = Buffer.alloc(8, 0);
+  buf.write(sym.slice(0, 8), 'utf8');
+  return Array.from(buf);
+}
+
+function to32Bytes(str: string): number[] {
+  if (/^[0-9a-fA-F]{64}$/.test(str)) {
+    return Array.from(Buffer.from(str, 'hex'));
+  }
+  const buf = Buffer.alloc(32, 0);
+  buf.write(str.slice(0, 32), 'utf8');
+  return Array.from(buf);
+}
+
+function extractErrorCode(err: unknown): number {
+  if (err && typeof err === 'object') {
+    const anyErr = err as any;
+    if (anyErr.error?.errorCode?.number) {
+      return anyErr.error.errorCode.number;
+    }
+  }
+  const str = String(err instanceof Error ? err.message : err);
+  const match = str.match(/Error Code: (\w+)|custom program error: (0x[0-9a-fA-F]+)|Error Number: (\d+)/);
+  if (match) {
+    if (match[3]) return parseInt(match[3], 10);
+    if (match[2]) return parseInt(match[2], 16);
+    const nameMap: Record<string, number> = {
+      ExposureExceeded: 6000,
+      StablecoinReserveBreached: 6001,
+      TradeSizeExceeded: 6002,
+      SlippageExceeded: 6003,
+      PolicyInactive: 6004,
+      UnauthorizedAgent: 6005,
+      UnauthorizedExecution: 6006,
+      InvalidPromiseStatus: 6007,
+      MathOverflow: 6008,
+      InvalidPolicyBounds: 6009,
+      AssetNotFound: 6010,
+      InsufficientStablecoinReserve: 6011,
+      PromiseExpired: 6012,
+      SecurityDomainMismatch: 6013,
+      AgentInactive: 6014,
+      TradeAmountMismatch: 6015,
+      InvalidTradeDirection: 6016,
+      InvalidPrice: 6017,
+    };
+    if (nameMap[match[1]]) return nameMap[match[1]];
+  }
+  return 6000;
+}
+
 /**
  * LiveExecutionAdapter:
  * Connects to Solana RPC and builds on-chain transactions targeting the Sentinel Anchor program.
@@ -176,16 +228,75 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
       const program = this.getProgram();
       const tx = new Transaction();
 
-      // Synchronize vault baseline ($100k total, $25k USDC, $20k target) if VaultAccount exists on-chain
+      // Synchronize vault baseline if VaultAccount exists on-chain
       const vaultAccountInfo = await this.connection.getAccountInfo(vaultPda);
       if (vaultAccountInfo) {
-        const preTotalCents = new BN(Math.round((_preState.totalValueUsd || 100_000) * 100));
-        const preStableCents = new BN(Math.round((_preState.stablecoinValueUsd || 25_000) * 100));
-        const targetAssetPre = _preState.assets.find((a) => a.symbol === intent.assetSymbol);
-        const preTargetCents = new BN(Math.round(((targetAssetPre?.valueUsd ?? 20_000)) * 100));
+        const usdcBalanceCents = new BN(Math.round((_preState.stablecoinValueUsd || 25_000) * 100));
 
-        const syncVaultIx = await (program.methods as any)
-          .syncVault(preTotalCents, preStableCents, preTargetCents)
+        let mintPubkey: PublicKey;
+        try {
+          mintPubkey = new PublicKey(intent.assetMint);
+        } catch {
+          mintPubkey = PublicKey.default;
+        }
+
+        const positions: Array<{
+          mint: PublicKey;
+          symbol: number[];
+          amountUnits: BN;
+          priceCents: BN;
+          isIndex: boolean;
+        }> = [];
+
+        const nonStableAssets = (_preState.assets || []).filter(
+          (a) => !a.isStablecoin && a.symbol !== 'USDC'
+        );
+
+        let targetFound = false;
+        for (const asset of nonStableAssets) {
+          let assetMint: PublicKey;
+          try {
+            assetMint = new PublicKey(asset.mint);
+          } catch {
+            assetMint = asset.symbol === intent.assetSymbol ? mintPubkey : PublicKey.default;
+          }
+
+          const isTarget = asset.symbol === intent.assetSymbol || assetMint.equals(mintPubkey);
+          if (isTarget) targetFound = true;
+
+          const refPrice = isTarget
+            ? intent.referencePriceUsd
+            : (asset.priceUsd || (asset.valueUsd > 0 && asset.amount ? asset.valueUsd / asset.amount : 100));
+          const priceCents = new BN(Math.round(refPrice * 100));
+
+          const amountUnitsVal = asset.amount && asset.amount > 0
+            ? Math.round(asset.amount)
+            : Math.round(asset.valueUsd / (refPrice || 1));
+          const amountUnits = new BN(Math.max(0, amountUnitsVal));
+
+          positions.push({
+            mint: assetMint,
+            symbol: encodeSymbol8(asset.symbol),
+            amountUnits,
+            priceCents,
+            isIndex: Boolean(asset.isIndex),
+          });
+        }
+
+        if (!targetFound) {
+          positions.push({
+            mint: mintPubkey,
+            symbol: encodeSymbol8(intent.assetSymbol),
+            amountUnits: new BN(0),
+            priceCents: new BN(Math.round(intent.referencePriceUsd * 100)),
+            isIndex: false,
+          });
+        }
+
+        const cappedPositions = positions.slice(0, 8);
+
+        const syncVaultIx = await program.methods
+          .syncVault(usdcBalanceCents, cappedPositions)
           .accountsPartial({
             vault: vaultPda,
             owner: authorityPubkey,
@@ -204,10 +315,7 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
           mintPubkey = PublicKey.default;
         }
 
-        const intentHashBytes = Array.from(Buffer.from(authorization.intentHash.slice(0, 32), 'utf8'));
-        while (intentHashBytes.length < 32) {
-          intentHashBytes.push(0);
-        }
+        const intentHashBytes = to32Bytes(authorization.intentHash);
 
         const createPromiseIx = await program.methods
           .createPromise(
@@ -251,46 +359,38 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
 
       tx.add(executeTradeIx);
 
-      tx.recentBlockhash = blockhash;
-      tx.feePayer = authorityPubkey;
+      // On success, record evidence (result=3: Settled)
+      const [evidencePda] = PublicKey.findProgramAddressSync(
+        [Buffer.from('evidence'), promisePda.toBuffer()],
+        this.programId
+      );
+      const evidenceAccountInfo = await this.connection.getAccountInfo(evidencePda);
+      if (!evidenceAccountInfo) {
+        const rawEvidenceId = `ev_${promiseId}`;
+        const evidenceId = rawEvidenceId.slice(0, 28);
+        const preStateHashBytes = to32Bytes(authorization.preStateHash || hashTradeIntent(intent));
+        const postStateHashBytes = to32Bytes(authorization.intentHash || authorization.preStateHash || hashTradeIntent(intent));
 
-      let txSignature: string;
-      if ('secretKey' in this.signer) {
-        txSignature = await sendAndConfirmTransaction(
-          this.connection,
-          tx,
-          [this.signer]
-        );
-      } else if (this.signer.signTransaction) {
-        // Preferred browser wallet pipeline: signTransaction -> sendRawTransaction -> confirmTransaction -> Explorer
-        const signedTx = await this.signer.signTransaction(tx);
-        txSignature = await this.connection.sendRawTransaction(signedTx.serialize(), {
-          skipPreflight: false,
-          preflightCommitment: 'confirmed',
-        });
-        const latestBlockhash = await this.connection.getLatestBlockhash('confirmed');
-        await this.connection.confirmTransaction(
-          {
-            signature: txSignature,
-            blockhash: latestBlockhash.blockhash,
-            lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
-          },
-          'confirmed'
-        );
-      } else if (this.signer.sendTransaction) {
-        txSignature = await this.signer.sendTransaction(tx, this.connection);
-        const latestBlockhash = await this.connection.getLatestBlockhash('confirmed');
-        await this.connection.confirmTransaction(
-          {
-            signature: txSignature,
-            blockhash: latestBlockhash.blockhash,
-            lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
-          },
-          'confirmed'
-        );
-      } else {
-        throw new Error('Signer cannot sign or send transaction');
+        const recordEvidenceIx = await program.methods
+          .recordEvidence(
+            evidenceId,
+            preStateHashBytes,
+            postStateHashBytes,
+            3, // 3 = Settled
+            0  // 0 = Success
+          )
+          .accountsPartial({
+            evidence: evidencePda,
+            promise: promisePda,
+            agent: agentPda,
+            authority: authorityPubkey,
+            systemProgram: SystemProgram.programId,
+          })
+          .instruction();
+        tx.add(recordEvidenceIx);
       }
+
+      const txSignature = await this.sendTransactionWithSigner(tx);
 
       const clusterParam = this.cluster === 'mainnet' ? '' : `?cluster=${this.cluster}`;
       const explorerUrl = `https://explorer.solana.com/tx/${txSignature}${clusterParam}`;
@@ -319,7 +419,175 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
       };
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
+      const failureCode = extractErrorCode(err);
+      try {
+        await this.rejectTrade(intent, _preState, failureCode, authorization);
+      } catch (rejectErr) {
+        console.error('[LiveExecutionAdapter] Warning: failed to anchor on-chain rejection:', rejectErr);
+      }
       throw new Error(`Live on-chain execution failed: ${message}`);
+    }
+  }
+
+  /**
+   * Executes an on-chain rejection flow:
+   * Ensures the promise exists on-chain, calls reject_promise(failure_code), and records evidence (status = 4).
+   */
+  async rejectTrade(
+    intent: TradeIntent,
+    _preState: PortfolioSnapshot,
+    failureCode: number = 6000,
+    authorization?: SentinelAuthorizationTicket
+  ): Promise<{ rejectionTxSignature: string; promisePda: string; evidencePda: string }> {
+    if (!this.signer) {
+      throw new Error('Live rejection requires an authorized Solana signer keypair or connected wallet.');
+    }
+
+    const authorityPubkey = this.signer.publicKey;
+    const rawAgentId = intent.agentId === 'sentinel-robo-01' ? 'robo-01' : (intent.agentId || 'robo-01');
+    const agentId = rawAgentId.slice(0, 28);
+    const [agentPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('agent'), authorityPubkey.toBuffer(), Buffer.from(agentId)],
+      this.programId
+    );
+
+    const [policyPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('policy'), authorityPubkey.toBuffer()],
+      this.programId
+    );
+
+    const rawPromiseId = intent.intentId || `prm_${Date.now()}`;
+    const promiseId = rawPromiseId.length > 28 ? rawPromiseId.slice(-28) : rawPromiseId;
+    const [promisePda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('promise'), agentPda.toBuffer(), Buffer.from(promiseId)],
+      this.programId
+    );
+
+    const [evidencePda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('evidence'), promisePda.toBuffer()],
+      this.programId
+    );
+
+    const program = this.getProgram();
+
+    // 1. Ensure promise exists on-chain
+    const promiseAccountInfo = await this.connection.getAccountInfo(promisePda);
+    if (!promiseAccountInfo) {
+      let mintPubkey: PublicKey;
+      try {
+        mintPubkey = new PublicKey(intent.assetMint);
+      } catch {
+        mintPubkey = PublicKey.default;
+      }
+
+      const intentHashStr = authorization?.intentHash || hashTradeIntent(intent);
+      const intentHashBytes = to32Bytes(intentHashStr);
+
+      const createPromiseTx = new Transaction();
+      const createPromiseIx = await program.methods
+        .createPromise(
+          promiseId,
+          intentHashBytes,
+          mintPubkey,
+          intent.direction === 'BUY' ? 0 : 1,
+          new BN(Math.round(intent.tradeAmountUsd))
+        )
+        .accountsPartial({
+          promise: promisePda,
+          agent: agentPda,
+          policy: policyPda,
+          authority: authorityPubkey,
+          systemProgram: SystemProgram.programId,
+        })
+        .instruction();
+      createPromiseTx.add(createPromiseIx);
+      await this.sendTransactionWithSigner(createPromiseTx);
+    }
+
+    // 2. Reject promise and record evidence (status 4)
+    const rejectTx = new Transaction();
+    const rejectIx = await program.methods
+      .rejectPromise(failureCode)
+      .accountsPartial({
+        promise: promisePda,
+        agent: agentPda,
+        authority: authorityPubkey,
+      })
+      .instruction();
+    rejectTx.add(rejectIx);
+
+    const evidenceAccountInfo = await this.connection.getAccountInfo(evidencePda);
+    if (!evidenceAccountInfo) {
+      const rawEvidenceId = `ev_rej_${promiseId}`;
+      const evidenceId = rawEvidenceId.slice(0, 28);
+      const preStateHashBytes = to32Bytes(authorization?.preStateHash || hashTradeIntent(intent));
+      const postStateHashBytes = to32Bytes(authorization?.intentHash || authorization?.preStateHash || hashTradeIntent(intent));
+
+      const recordEvidenceIx = await program.methods
+        .recordEvidence(
+          evidenceId,
+          preStateHashBytes,
+          postStateHashBytes,
+          4, // 4 = Rejected
+          failureCode
+        )
+        .accountsPartial({
+          evidence: evidencePda,
+          promise: promisePda,
+          agent: agentPda,
+          authority: authorityPubkey,
+          systemProgram: SystemProgram.programId,
+        })
+        .instruction();
+      rejectTx.add(recordEvidenceIx);
+    }
+
+    const rejectionTxSignature = await this.sendTransactionWithSigner(rejectTx);
+    return {
+      rejectionTxSignature,
+      promisePda: promisePda.toBase58(),
+      evidencePda: evidencePda.toBase58(),
+    };
+  }
+
+  private async sendTransactionWithSigner(tx: Transaction): Promise<string> {
+    if (!this.signer) throw new Error('Signer required');
+    const { blockhash } = await this.connection.getLatestBlockhash('confirmed');
+    tx.recentBlockhash = blockhash;
+    tx.feePayer = this.signer.publicKey;
+
+    if ('secretKey' in this.signer) {
+      return await sendAndConfirmTransaction(this.connection, tx, [this.signer]);
+    } else if (this.signer.signTransaction) {
+      const signedTx = await this.signer.signTransaction(tx);
+      const sig = await this.connection.sendRawTransaction(signedTx.serialize(), {
+        skipPreflight: false,
+        preflightCommitment: 'confirmed',
+      });
+      const latestBlockhash = await this.connection.getLatestBlockhash('confirmed');
+      await this.connection.confirmTransaction(
+        {
+          signature: sig,
+          blockhash: latestBlockhash.blockhash,
+          lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+        },
+        'confirmed'
+      );
+      return sig;
+    } else if (this.signer.sendTransaction) {
+      const sig = await this.signer.sendTransaction(tx, this.connection);
+      const latestBlockhash = await this.connection.getLatestBlockhash('confirmed');
+      await this.connection.confirmTransaction(
+        {
+          signature: sig,
+          blockhash: latestBlockhash.blockhash,
+          lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+        },
+        'confirmed'
+      );
+      return sig;
+    } else {
+      throw new Error('Signer cannot sign or send transaction');
     }
   }
 }

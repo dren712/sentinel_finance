@@ -11,9 +11,9 @@ Trigger via **"Run 5-Step Demo"** in the header or `POST /api/agent/run`:
 | :--- | :--- | :--- | :--- | :--- |
 | **1** | `OBSERVE` | Inspect `$100,000` portfolio (`NVDAx 20%`, `AAPLx 20%`, `SPYx 20%`, `USDC 25%`, `Pre-IPO 15%`) | `4/4` guarantees healthy | Ready |
 | **2** | `PROPOSE` | `Robo-01` proposes `BUY NVDAx $15,000` | `NVDAx: 20% → 35%` (`> 25%` cap)<br>`USDC: 25% → 10%` (`< 20%` floor)<br>`Trade: $15K` (`> $10K` max) | Proposed |
-| **3** | `REJECT` | Sentinel evaluates post-state invariants | `3` invariant breaches detected | **✕ BLOCKED** (`0` tokens moved, Devnet TX [`2haBLUK...`](https://explorer.solana.com/tx/2haBLUKavXYzqa6nTtDMNaNNUu4ax5rqSnYmQKMAxCwJeqzaUw4tPSSMtDdynbWjqSW32EgqmHxaeHj4eGWsTjCD?cluster=devnet)) |
+| **3** | `REJECT` | Sentinel evaluates post-state invariants | `3` invariant breaches detected | **✕ BLOCKED** (`0` tokens moved, Devnet TX [`Yj4VQjWB...`](https://explorer.solana.com/tx/Yj4VQjWBtjhYZZpUvKeeuoWRL674jDawZ3HKk4rysriGPumK1Mqz7sLuB59dGD8nk4L5z7aWe27nqqnTt1G91AB?cluster=devnet)) |
 | **4** | `ADAPT` | `Robo-01` calls `readRejection()` and computes exact compliant headroom (`$5,000`) | `NVDAx: 20% → 25.0%` (`≤ 25%` cap)<br>`USDC: 25% → 20.0%` (`≥ 20%` floor)<br>`Trade: $5K` (`≤ $10K` max) | Re-proposed `BUY NVDAx $5,000` |
-| **5** | `SETTLE` | Sentinel re-verifies postconditions and settles on Solana Devnet | All pre-trade & on-chain guards pass | **✓ SETTLED** (Devnet TX [`59KCBronda...`](https://explorer.solana.com/tx/59KCBrondaKxhKmTqeib4cMGFZRh1mRQW815GUeazmAK5PYwD3Vomy957XreERfXmsLQKDc3XibcjURPnWJVmqUd?cluster=devnet)) |
+| **5** | `SETTLE` | Sentinel re-verifies postconditions and settles on Solana Devnet | All pre-trade & on-chain guards pass | **✓ SETTLED** (Devnet TX [`424aJbYW...`](https://explorer.solana.com/tx/424aJbYWGVFs6o8tDttYURYnZdBiFXtcbCGtHewF6uRBaj2oZ8sZmSDs25ws8r5dmMBH8fZGCw9w7Z8yTMj6mZvU?cluster=devnet)) |
 
 ---
 

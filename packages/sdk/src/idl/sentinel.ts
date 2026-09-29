@@ -452,7 +452,10 @@ export type Sentinel = {
           "name": "promise"
         },
         {
-          "name": "agent"
+          "name": "agent",
+          "relations": [
+            "promise"
+          ]
         },
         {
           "name": "authority",
@@ -491,6 +494,69 @@ export type Sentinel = {
           "name": "verificationResult",
           "type": "u8"
         },
+        {
+          "name": "failureCode",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "rejectPromise",
+      "docs": [
+        "Marks a promise as rejected on-chain when risk postconditions or policy checks fail"
+      ],
+      "discriminator": [
+        156,
+        218,
+        29,
+        144,
+        96,
+        170,
+        24,
+        128
+      ],
+      "accounts": [
+        {
+          "name": "promise",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  109,
+                  105,
+                  115,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agent"
+              },
+              {
+                "kind": "account",
+                "path": "promise.promise_id",
+                "account": "promiseAccount"
+              }
+            ]
+          }
+        },
+        {
+          "name": "agent",
+          "relations": [
+            "promise"
+          ]
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": [
         {
           "name": "failureCode",
           "type": "u16"
@@ -552,6 +618,69 @@ export type Sentinel = {
         {
           "name": "isActive",
           "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "syncVault",
+      "docs": [
+        "Synchronizes an existing PortfolioVault account with owner-verified positions"
+      ],
+      "discriminator": [
+        19,
+        211,
+        150,
+        118,
+        94,
+        208,
+        138,
+        204
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "vault"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "usdcBalanceCents",
+          "type": "u64"
+        },
+        {
+          "name": "positions",
+          "type": {
+            "vec": {
+              "defined": {
+                "name": "assetPosition"
+              }
+            }
+          }
         }
       ]
     },
@@ -757,6 +886,19 @@ export type Sentinel = {
         65,
         227,
         221
+      ]
+    },
+    {
+      "name": "promiseRejectedEvent",
+      "discriminator": [
+        237,
+        200,
+        211,
+        76,
+        157,
+        2,
+        25,
+        151
       ]
     },
     {
@@ -1268,6 +1410,26 @@ export type Sentinel = {
           {
             "name": "tradeAmountUsd",
             "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "promiseRejectedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "promiseId",
+            "type": "string"
+          },
+          {
+            "name": "failureCode",
+            "type": "u16"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
           }
         ]
       }

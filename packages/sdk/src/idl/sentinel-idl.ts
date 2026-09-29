@@ -449,7 +449,10 @@ export const SENTINEL_IDL: Idl = {
           "name": "promise"
         },
         {
-          "name": "agent"
+          "name": "agent",
+          "relations": [
+            "promise"
+          ]
         },
         {
           "name": "authority",
@@ -488,6 +491,69 @@ export const SENTINEL_IDL: Idl = {
           "name": "verification_result",
           "type": "u8"
         },
+        {
+          "name": "failure_code",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "reject_promise",
+      "docs": [
+        "Marks a promise as rejected on-chain when risk postconditions or policy checks fail"
+      ],
+      "discriminator": [
+        156,
+        218,
+        29,
+        144,
+        96,
+        170,
+        24,
+        128
+      ],
+      "accounts": [
+        {
+          "name": "promise",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  109,
+                  105,
+                  115,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agent"
+              },
+              {
+                "kind": "account",
+                "path": "promise.promise_id",
+                "account": "PromiseAccount"
+              }
+            ]
+          }
+        },
+        {
+          "name": "agent",
+          "relations": [
+            "promise"
+          ]
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": [
         {
           "name": "failure_code",
           "type": "u16"
@@ -549,6 +615,69 @@ export const SENTINEL_IDL: Idl = {
         {
           "name": "is_active",
           "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "sync_vault",
+      "docs": [
+        "Synchronizes an existing PortfolioVault account with owner-verified positions"
+      ],
+      "discriminator": [
+        19,
+        211,
+        150,
+        118,
+        94,
+        208,
+        138,
+        204
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "vault"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "usdc_balance_cents",
+          "type": "u64"
+        },
+        {
+          "name": "positions",
+          "type": {
+            "vec": {
+              "defined": {
+                "name": "AssetPosition"
+              }
+            }
+          }
         }
       ]
     },
@@ -754,6 +883,19 @@ export const SENTINEL_IDL: Idl = {
         65,
         227,
         221
+      ]
+    },
+    {
+      "name": "PromiseRejectedEvent",
+      "discriminator": [
+        237,
+        200,
+        211,
+        76,
+        157,
+        2,
+        25,
+        151
       ]
     },
     {
@@ -1265,6 +1407,26 @@ export const SENTINEL_IDL: Idl = {
           {
             "name": "trade_amount_usd",
             "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PromiseRejectedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "promise_id",
+            "type": "string"
+          },
+          {
+            "name": "failure_code",
+            "type": "u16"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
           }
         ]
       }

@@ -58,12 +58,12 @@ NVDAx    20% → 35%      LIMIT 25%   ✕
 USDC     25% → 10%      MIN   20%   ✕
 Trade    —   → $15K     MAX   $10K  ✕
 ```
-**`✕ BLOCKED`** — Transaction reverts before capital moves ([Devnet TX `2haBLUK...`](https://explorer.solana.com/tx/2haBLUKavXYzqa6nTtDMNaNNUu4ax5rqSnYmQKMAxCwJeqzaUw4tPSSMtDdynbWjqSW32EgqmHxaeHj4eGWsTjCD?cluster=devnet)).
+**`✕ BLOCKED`** — Transaction reverts before capital moves ([Devnet TX `Yj4VQjWB...`](https://explorer.solana.com/tx/Yj4VQjWBtjhYZZpUvKeeuoWRL674jDawZ3HKk4rysriGPumK1Mqz7sLuB59dGD8nk4L5z7aWe27nqqnTt1G91AB?cluster=devnet)).
 
 `Robo-01` reads the structured rejection, recalculates exact compliant headroom, and adapts to:
 `BUY NVDAx $5,000` (`NVDAx 20% → 25.0%`, `USDC 25% → 20.0%`).
 
-**`✓ APPROVED & SETTLED`** — Sentinel's on-chain `VaultAccount` state transition commits on Solana Devnet with a PROVN SHA-256 receipt ([Devnet TX `59KCBronda...`](https://explorer.solana.com/tx/59KCBrondaKxhKmTqeib4cMGFZRh1mRQW815GUeazmAK5PYwD3Vomy957XreERfXmsLQKDc3XibcjURPnWJVmqUd?cluster=devnet)). No external Meteora/PreStocks DEX swap is performed in the current Devnet build.
+**`✓ APPROVED & SETTLED`** — Sentinel's on-chain `VaultAccount` state transition commits on Solana Devnet with a PROVN SHA-256 receipt ([Devnet TX `424aJbYW...`](https://explorer.solana.com/tx/424aJbYWGVFs6o8tDttYURYnZdBiFXtcbCGtHewF6uRBaj2oZ8sZmSDs25ws8r5dmMBH8fZGCw9w7Z8yTMj6mZvU?cluster=devnet)). No external Meteora/PreStocks DEX swap is performed in the current Devnet build.
 
 ---
 
@@ -76,9 +76,9 @@ To provide complete technical transparency for judges, code auditors, and review
 | **Anchor Program** | Deployed Solana program (`3gh1Cc2Q...`) enforcing `execute_guarded_trade` atomic postconditions | Client-side what-if projection simulator on Overview |
 | **Account State** | On-chain `PolicyAccount`, `AgentAccount`, `VaultAccount`, `PromiseAccount`, `EvidenceAccount` PDAs | Simulated preview headroom calculations |
 | **Policy Updates** | Signed by user's browser wallet (Phantom/Solflare) committing on Devnet RPC via Anchor | Local UI candidate state prior to on-chain signing |
-| **Flagship Rejection** | Real rejected $15K Devnet transaction ([TX `2haBLUK...`](https://explorer.solana.com/tx/2haBLUKavXYzqa6nTtDMNaNNUu4ax5rqSnYmQKMAxCwJeqzaUw4tPSSMtDdynbWjqSW32EgqmHxaeHj4eGWsTjCD?cluster=devnet)) | Preflight client-side rejection preview |
-| **Flagship Settlement** | Real $5K guarded `VaultAccount` state transition ([TX `59KCBronda...`](https://explorer.solana.com/tx/59KCBrondaKxhKmTqeib4cMGFZRh1mRQW815GUeazmAK5PYwD3Vomy957XreERfXmsLQKDc3XibcjURPnWJVmqUd?cluster=devnet)) | Target allocation slider projection curves |
-| **Evidence Proofs** | PROVN SHA-256 on-chain evidence transaction ([TX `3pvsnpVZ...`](https://explorer.solana.com/tx/3pvsnpVZ7A2f2ESd8jeHjbMbTYFsPv7g7RstKnNzBRpiR4mdUtCkQY5RQEPSb1fL8934sArLRp9KRDNXzFfT19Lw?cluster=devnet)) | Two-tier evidence receipt inspection drawer |
+| **Flagship Rejection** | Real rejected $15K Devnet transaction ([TX `Yj4VQjWB...`](https://explorer.solana.com/tx/Yj4VQjWBtjhYZZpUvKeeuoWRL674jDawZ3HKk4rysriGPumK1Mqz7sLuB59dGD8nk4L5z7aWe27nqqnTt1G91AB?cluster=devnet)) | Preflight client-side rejection preview |
+| **Flagship Settlement** | Real $5K guarded `VaultAccount` state transition ([TX `424aJbYW...`](https://explorer.solana.com/tx/424aJbYWGVFs6o8tDttYURYnZdBiFXtcbCGtHewF6uRBaj2oZ8sZmSDs25ws8r5dmMBH8fZGCw9w7Z8yTMj6mZvU?cluster=devnet)) | Target allocation slider projection curves |
+| **Evidence Proofs** | PROVN SHA-256 on-chain evidence transaction ([TX `hZFTL14Y...`](https://explorer.solana.com/tx/hZFTL14Y17EQx44JskkbPMXEivsSWLDsaUfDtC6cAnmFAo84guhBLQ1ap2VV9ZQXbX334PdYiWfLmXxKjH1MNoF?cluster=devnet)) | Two-tier evidence receipt inspection drawer |
 | **Price Feeds** | Pyth Hermes v2 sub-second price streaming in `LIVE` mode (`https://hermes.pyth.network`) | Injected 140s stale-quote demo scenario |
 | **Sponsor Scenarios** | Meteora DBC deterministic pool PDA derivations; PreStocks 409A NAV normalization | Simulated shallow DBC pool impact (`1.7% > 1.0%`) & $30K OPENAIx breach |
 | **LLM Provider** | OpenAI GPT-4o function-calling supported when `OPENAI_API_KEY` is configured | Deterministic `DemoProvider` running on the hosted deployment |
@@ -151,9 +151,9 @@ Agent Intelligence ➔ Sentinel Policy Postconditions ➔ SVM Execution ➔ Sola
 | **PolicyAccount PDA** | `3wTp1YDSG3xmf9TtuwZ64b11uLuLNUgQRwdesMbFJUUh` | [Policy PDA](https://explorer.solana.com/address/3wTp1YDSG3xmf9TtuwZ64b11uLuLNUgQRwdesMbFJUUh?cluster=devnet) |
 | **AgentAccount PDA (`robo-01`)** | `G9MwRFgstx8Ee4dC6CYLb4CuwhR5YXXpYUhbyHrsxSpv` *(Live/Hosted)* <br>`62vpHzSG92GUbAXtNh4czG6U6HyTpndrY4NvZM9euUnQ` *(Test Harness)* | [Live Agent PDA](https://explorer.solana.com/address/G9MwRFgstx8Ee4dC6CYLb4CuwhR5YXXpYUhbyHrsxSpv?cluster=devnet) · [Test PDA](https://explorer.solana.com/address/62vpHzSG92GUbAXtNh4czG6U6HyTpndrY4NvZM9euUnQ?cluster=devnet) |
 | **VaultAccount PDA** | `7TffMKzUgVme4eod8Wh9ANAQ3YrRMzj4c2JrfKm6AY4Y` | [Vault PDA](https://explorer.solana.com/address/7TffMKzUgVme4eod8Wh9ANAQ3YrRMzj4c2JrfKm6AY4Y?cluster=devnet) |
-| **Rejected `$15K` Trade Proof TX** | `2haBLUKavXYzqa6nTtDMNaNNUu4ax5rqSnYmQKMAxCwJeqzaUw4tPSSMtDdynbWjqSW32EgqmHxaeHj4eGWsTjCD` | [View TX](https://explorer.solana.com/tx/2haBLUKavXYzqa6nTtDMNaNNUu4ax5rqSnYmQKMAxCwJeqzaUw4tPSSMtDdynbWjqSW32EgqmHxaeHj4eGWsTjCD?cluster=devnet) |
-| **Settled `$5K` Adapted Trade TX** | `59KCBrondaKxhKmTqeib4cMGFZRh1mRQW815GUeazmAK5PYwD3Vomy957XreERfXmsLQKDc3XibcjURPnWJVmqUd` | [View TX](https://explorer.solana.com/tx/59KCBrondaKxhKmTqeib4cMGFZRh1mRQW815GUeazmAK5PYwD3Vomy957XreERfXmsLQKDc3XibcjURPnWJVmqUd?cluster=devnet) |
-| **PROVN Evidence Anchor TX** | `3pvsnpVZ7A2f2ESd8jeHjbMbTYFsPv7g7RstKnNzBRpiR4mdUtCkQY5RQEPSb1fL8934sArLRp9KRDNXzFfT19Lw` | [View TX](https://explorer.solana.com/tx/3pvsnpVZ7A2f2ESd8jeHjbMbTYFsPv7g7RstKnNzBRpiR4mdUtCkQY5RQEPSb1fL8934sArLRp9KRDNXzFfT19Lw?cluster=devnet) |
+| **Rejected `$15K` Trade Proof TX** | `Yj4VQjWBtjhYZZpUvKeeuoWRL674jDawZ3HKk4rysriGPumK1Mqz7sLuB59dGD8nk4L5z7aWe27nqqnTt1G91AB` | [View TX](https://explorer.solana.com/tx/Yj4VQjWBtjhYZZpUvKeeuoWRL674jDawZ3HKk4rysriGPumK1Mqz7sLuB59dGD8nk4L5z7aWe27nqqnTt1G91AB?cluster=devnet) |
+| **Settled `$5K` Adapted Trade TX** | `424aJbYWGVFs6o8tDttYURYnZdBiFXtcbCGtHewF6uRBaj2oZ8sZmSDs25ws8r5dmMBH8fZGCw9w7Z8yTMj6mZvU` | [View TX](https://explorer.solana.com/tx/424aJbYWGVFs6o8tDttYURYnZdBiFXtcbCGtHewF6uRBaj2oZ8sZmSDs25ws8r5dmMBH8fZGCw9w7Z8yTMj6mZvU?cluster=devnet) |
+| **PROVN Evidence Anchor TX** | `hZFTL14Y17EQx44JskkbPMXEivsSWLDsaUfDtC6cAnmFAo84guhBLQ1ap2VV9ZQXbX334PdYiWfLmXxKjH1MNoF` | [View TX](https://explorer.solana.com/tx/hZFTL14Y17EQx44JskkbPMXEivsSWLDsaUfDtC6cAnmFAo84guhBLQ1ap2VV9ZQXbX334PdYiWfLmXxKjH1MNoF?cluster=devnet) |
 
 ---
 

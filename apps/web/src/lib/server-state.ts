@@ -201,7 +201,7 @@ export async function ensureSeededDevnetHistory(
     created_at: now - 120_000,
   });
 
-  // 1. Rejected $15,000 BUY NVDAx (Devnet TX 2haBLUK...)
+  // 1. Rejected $15,000 BUY NVDAx (Devnet TX Yj4VQjWB...)
   const badIntent = store.client.getAgent().proposeIntent({
     assetSymbol: 'NVDAx',
     assetMint: 'NVDAxMint1111111111111111111111111111111111',
@@ -264,7 +264,7 @@ export async function ensureSeededDevnetHistory(
   });
   await store.db.recordEvidenceIndex(badReport.evidenceRecord, dec1Id, owner);
 
-  // 2. Adapted & Settled $5,000 BUY NVDAx (Devnet TX 59KCBronda...)
+  // 2. Adapted & Settled $5,000 BUY NVDAx (Devnet TX 424aJbYW...)
   const goodIntent = store.client.getAgent().proposeIntent({
     assetSymbol: 'NVDAx',
     assetMint: 'NVDAxMint1111111111111111111111111111111111',
