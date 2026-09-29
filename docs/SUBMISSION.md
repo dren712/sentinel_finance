@@ -1,236 +1,37 @@
-# Sentinel Finance (Sentinel Robo) — Stocklana Hackathon Submission
+# Sentinel Finance — Hackathon Submission Form Responses
 
-## 1. Project Overview & Meta Information
-
-- **Project Name**: Sentinel Finance (Sentinel Robo)
-- **Tagline**: Autonomous Robo-Portfolio for Tokenized Equities on Solana with Authoritative On-Chain Financial Postcondition Guarantees.
-- **Submission Track**: **Investing → Robo-Portfolios ($100,000 Main Track)**
-- **Target Sponsor Bounties**:
-  1. **Pyth Network (Pyth Pro)**: Pyth as an authoritative **Security Input** (`STALE / LOW CONFIDENCE ➔ NO EXECUTION`). Dual-feed oracle mark-to-market pricing, staleness protection via Pyth pull model (Hermès on-demand updates), confidence intervals ($\pm \sigma$), and tracking error checks.
-  2. **PreStocks ($10,000 Bounty)**: Certified pre-IPO tech universe (`OPENAIx`, `SPACEXx`, `ANTHROPICx`, `STRIPEx`), strict ecosystem exclusivity, and macro asset class allocation limits (`Pre-IPO ≤ 20%`).
-  3. **Meteora ($5,000 Bounty)**: **Sentinel Equity Market Guard** — pairing Meteora Dynamic Bonding Curve (DBC) market quality ($25k reserve floor, $\le 200\text{ bps}$ price divergence) with Sentinel account protection.
-- **GitHub Repository**: [https://github.com/dren712/sentinel_finance](https://github.com/dren712/sentinel_finance)
-- **Live Solana Devnet Program ID**: [`3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK`](https://explorer.solana.com/address/3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK?cluster=devnet)
-- **On-Chain IDL Account**: [`H28SmQxnyeTQFUQFFyKjwbLBi77w78vtHmbQzQWrGHx6`](https://explorer.solana.com/address/H28SmQxnyeTQFUQFFyKjwbLBi77w78vtHmbQzQWrGHx6?cluster=devnet)
-- **On-Chain Policy PDA**: [`3wTp1YDSG3xmf9TtuwZ64b11uLuLNUgQRwdesMbFJUUh`](https://explorer.solana.com/address/3wTp1YDSG3xmf9TtuwZ64b11uLuLNUgQRwdesMbFJUUh?cluster=devnet)
-- **On-Chain Agent PDA (`robo-01`)**: [`G9MwRFgstx8Ee4dC6CYLb4CuwhR5YXXpYUhbyHrsxSpv`](https://explorer.solana.com/address/G9MwRFgstx8Ee4dC6CYLb4CuwhR5YXXpYUhbyHrsxSpv?cluster=devnet)
-- **On-Chain Portfolio Vault PDA**: [`7TffMKzUgVme4eod8Wh9ANAQ3YrRMzj4c2JrfKm6AY4Y`](https://explorer.solana.com/address/7TffMKzUgVme4eod8Wh9ANAQ3YrRMzj4c2JrfKm6AY4Y?cluster=devnet)
-
-### Verified On-Chain Solana Devnet Lifecycle Transactions
-
-| Step | Operation | Solana Devnet Signature | Explorer Link |
-| :--- | :--- | :--- | :--- |
-| **0** | **Program Upgrade (`anchor deploy`)** | `4NvEtHck7E2zyt9W6SogYvw5BoDzUJsE7rrUAMyHAdbvwTTt6Z9kWvyu5f5ujpeXugr7HE2SmGyP3ikLCCPBy1ov` | [Explorer ↗](https://explorer.solana.com/tx/4NvEtHck7E2zyt9W6SogYvw5BoDzUJsE7rrUAMyHAdbvwTTt6Z9kWvyu5f5ujpeXugr7HE2SmGyP3ikLCCPBy1ov?cluster=devnet) |
-| **1** | **Initialize / Update Policy** (`25% cap, 20% floor, $10K max`) | `5FStukmor2DmjU49o8s2LRxfHyp67rLzu2Ds3bbZQEg4KKKwpFcoAt14HQEvLgrkrPT1ZDtnnZGVrAbrBuE5HEnV` | [Explorer ↗](https://explorer.solana.com/tx/5FStukmor2DmjU49o8s2LRxfHyp67rLzu2Ds3bbZQEg4KKKwpFcoAt14HQEvLgrkrPT1ZDtnnZGVrAbrBuE5HEnV?cluster=devnet) |
-| **2** | **Initialize / Activate Agent (`robo-01`)** | `3h9Gjcxjqmd6DWr4ST8RMEEvTVWZrejRcCSfoeQn6CoEYyKLMmGN6tdE6JEQZmaXkQEePQoobDfJU3WwNHYHz8hm` | [Explorer ↗](https://explorer.solana.com/tx/3h9Gjcxjqmd6DWr4ST8RMEEvTVWZrejRcCSfoeQn6CoEYyKLMmGN6tdE6JEQZmaXkQEePQoobDfJU3WwNHYHz8hm?cluster=devnet) |
-| **3** | **Create Promise** (`bad-$15K` & `good-$5K`) | `3THaeBEjH5W166NxefUcxtd8RwUPSX8ryWHcM9QcSwJWFMnpScfwmFQxUYvVggXQg29JEMNeNgFr2W3PZPvSD5e4` | [Explorer ↗](https://explorer.solana.com/tx/3THaeBEjH5W166NxefUcxtd8RwUPSX8ryWHcM9QcSwJWFMnpScfwmFQxUYvVggXQg29JEMNeNgFr2W3PZPvSD5e4?cluster=devnet) |
-| **4** | **Reject Bad Trade** (`BUY NVDAx $15,000` ➔ Revert & Evidence) | `Yj4VQjWBtjhYZZpUvKeeuoWRL674jDawZ3HKk4rysriGPumK1Mqz7sLuB59dGD8nk4L5z7aWe27nqqnTt1G91AB` | [Explorer ↗](https://explorer.solana.com/tx/Yj4VQjWBtjhYZZpUvKeeuoWRL674jDawZ3HKk4rysriGPumK1Mqz7sLuB59dGD8nk4L5z7aWe27nqqnTt1G91AB?cluster=devnet) |
-| **5** | **Execute Valid Trade** (`BUY NVDAx $5,000` ➔ `NVDAx 25%`, `USDC 20%`) | `424aJbYWGVFs6o8tDttYURYnZdBiFXtcbCGtHewF6uRBaj2oZ8sZmSDs25ws8r5dmMBH8fZGCw9w7Z8yTMj6mZvU` | [Explorer ↗](https://explorer.solana.com/tx/424aJbYWGVFs6o8tDttYURYnZdBiFXtcbCGtHewF6uRBaj2oZ8sZmSDs25ws8r5dmMBH8fZGCw9w7Z8yTMj6mZvU?cluster=devnet) |
-| **6** | **Record Evidence** (`PROVN SHA-256 Receipt` PDA `AQhr...bpiE`) | `hZFTL14Y17EQx44JskkbPMXEivsSWLDsaUfDtC6cAnmFAo84guhBLQ1ap2VV9ZQXbX334PdYiWfLmXxKjH1MNoF` | [Explorer ↗](https://explorer.solana.com/tx/hZFTL14Y17EQx44JskkbPMXEivsSWLDsaUfDtC6cAnmFAo84guhBLQ1ap2VV9ZQXbX334PdYiWfLmXxKjH1MNoF?cluster=devnet) |
+## 1-Sentence Elevator Pitch
+Sentinel is an outcome-bounded execution firewall on Solana that deterministically guarantees autonomous AI agents cannot breach user portfolio risk caps, reserve floors, or oracle bounds.
 
 ---
 
-## 2. The Four Proof Layers of Sentinel
-
-When a judge evaluates Sentinel Finance, every element of our repository and submission serves one of four concrete proof layers:
-
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│  PROOF 1: PRODUCT   │ "I understand what this does."                   │
-│                     │ Autonomous robo-manager where agent proposes,    │
-│                     │ but Sentinel enforces what portfolio can become. │
-├─────────────────────┼──────────────────────────────────────────────────┤
-│  PROOF 2: LIVE DEMO │ "I saw it actually work."                        │
-│                     │ 3 Flagship Aha cases: NVDA $15k ➔ Block ➔ $5k;   │
-│                     │ Meteora 1.70% slippage ➔ Block ➔ Adapt along DBC;│
-│                     │ Pyth 140s stale ➔ Refuse ➔ Hermès pull update.   │
-├─────────────────────┼──────────────────────────────────────────────────┤
-│  PROOF 3: PROTOCOL  │ "I can inspect the Anchor logic."                │
-│                     │ On-chain Solana Devnet program (3gh1Cc2Q...),    │
-│                     │ u128 fixed-point math, Policy/Agent/Vault PDAs.  │
-├─────────────────────┼──────────────────────────────────────────────────┤
-│  PROOF 4: EVIDENCE  │ "I can verify what happened."                    │
-│                     │ Two-tier PROVN receipts with deterministic       │
-│                     │ SHA-256 pre/post state roots & transaction sigs. │
-└────────────────────────────────────────────────────────────────────────┘
-```
+## 50-Word Project Description
+Sentinel Robo is an autonomous investment manager for tokenized equities on Solana. While AI agents propose trades, Sentinel's on-chain Anchor program intercepts execution, projecting post-state against deterministic policy bounds. Non-compliant trades atomically revert, allowing the agent to read on-chain telemetry, adapt order sizing to compliant headroom, and settle with cryptographic receipts.
 
 ---
 
-## 3. The Three Flagship "Aha!" Cases
-
-We don't overwhelm judges with 30 superficial features. We prove one core thesis through **three mathematically rigorous flagship demonstrations**:
-
-$$\mathbf{Sentinel\ doesn't\ blindly\ trust:\ The\ Agent,\ The\ Market,\ or\ The\ Data.}$$
-
-### Case A — Doesn't Trust The Agent: Portfolio Invariant Violation
-1. **The Intent**: Robo-01 spots Nvidia momentum and proposes an aggressive trade: `BUY NVDAx $15,000`.
-2. **Atomic Revert on Solana**: Sentinel intercepts the trade. Projected post-state triggers three simultaneous failures: NVDA hits 35% (> 25% cap), cash drops to 10% (< 20% floor), and trade exceeds $10,000. Anchor program **atomically reverts** the transaction. 0 tokens moved; 100% capital protected.
-3. **Autonomous Adaptation**: Agent reads invariant failure telemetry, calculates exact compliant headroom ($5,000), and reproposes `BUY NVDAx $5,000`.
-4. **Settlement**: All guarantees pass: trade is approved and settled on-chain.
-
-### Case B — Doesn't Trust The Market: Meteora DBC Slippage & Depth Breach
-1. **The Intent**: Agent proposes `BUY NVDAx $8,000`. User sizing passes ($8k ≤ $10k ✓) and portfolio exposure passes (28% ≤ 30% ✓).
-2. **Sentinel Equity Market Guard Interception**: Sentinel inspects the underlying Meteora DBC pool. Bonding curve price impact is estimated at **1.70% (170 bps)**, violating user's 1.00% max slippage policy, and pool depth is shallow ($12k < $25k floor). Sentinel **BLOCKS** execution atomically!
-3. **DBC Curve Sizing Adaptation**: Agent reads the Meteora DBC bonding curve equation and auto-adapts trade size down to **$2,500** along the curve (where price impact compresses to **0.45% ≤ 1.00%**).
-4. **Settlement**: `BUY NVDAx $2,500` settles cleanly on Meteora DBC Bonding Curve PDA with zero market dislocation.
-
-### Case C — Doesn't Trust The Data: Pyth Oracle Staleness Refusal
-1. **The Intent**: Agent proposes `BUY AAPLx $4,000`. User policy passes, but Pyth oracle price quote is 140s old (exceeds 60s freshness ceiling).
-2. **Security Input Refusal**: Sentinel halts execution before submission: `STALE / LOW CONFIDENCE ➔ NO EXECUTION` (`ERR_QUOTE_STALE`). Zero capital is risked on stale market truth.
-3. **Pyth Pull Model via Hermès**: Sentinel triggers an on-demand Pyth price update from Hermès, posting fresh benchmark data on Solana (quote age = 0s, ±$0.03 confidence).
-4. **Settlement**: With authoritative market truth restored, the trade executes and settles cleanly.
-
-### Bonus PreStocks Asset-Class Demonstration
-* In addition to single-trade limits, Sentinel proves awareness of **macro asset classes**: Public Equity ($57k) + Pre-IPO ($18k / 18%) + Reserve ($25k / 25%).
-* Agent proposes `BUY OPENAIx $5,000` (individual trade sizing passes). But Pre-IPO surges from 18% to 23% (> 20% cap) ➔ **REJECTED** on asset class invariant!
-* Agent solves remaining headroom `($100k × 20%) - $18k = $2,000` ➔ Reproposes `BUY OPENAIx $2,000` ➔ Settles via PreStocks Secondary Vault PDA.
+## Track Selection
+- **Primary Track**: Investing → Robo-Portfolios ($100,000 Main Track)
+- **Deployment**: Live on Solana Devnet (`3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK`) and hosted on Railway (`https://sentinel-finance-production-4560.up.railway.app/`).
 
 ---
 
-## 4. Technical Architecture: The Modular Monolith
+## Sponsor Paragraphs
 
-Sentinel avoids distributed infrastructure bloat (no unnecessary message queues, microservices, or complex databases) by organizing into a clean, battle-tested modular monolith:
+### Pyth Network (Authoritative Security Input)
+Sentinel integrates Pyth not merely for pricing, but as an on-chain security input where bad data halts execution. The Anchor program reads Pyth `PriceUpdateV2` on-chain, enforcing a strict 60-second staleness ceiling and 200 bps confidence interval. Rather than trusting untrusted caller-supplied quotes, Sentinel derives benchmark prices directly from Pyth, atomically reverting trades if execution deviates beyond policy slippage tolerance.
 
-```text
-┌────────────────────────────────────────────────────────────────────────┐
-│                              CLIENT LAYER                              │
-│       apps/web (Next.js 14, Tailwind, Solana Wallet Adapter)           │
-│   • Portfolio (NAV & Assets)          • Agent (10-Stage Loop)          │
-│   • Protection (On-Chain PDA Caps)    • Activity (PROVN Receipts)      │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                       SDK & ORCHESTRATION LAYER                        │
-│                         packages/sdk                                   │
-│   • SentinelClient                    • AutonomousRoboAgent            │
-│   • Meteora DBC Adapter               • PreStocks Secondary Adapter    │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                      DOMAIN & VERIFICATION LAYER                       │
-│                        packages/domain                                 │
-│   • PolicyEngine (Basis Points Math)  • SWARM-Lite 6-Verifier Consensus│
-│   • PROVN Evidence & State Hashing    • Asset & SPV Registry           │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                     ON-CHAIN ENFORCEMENT BOUNDARY                      │
-│                  programs/sentinel (Anchor on Solana)                  │
-│   • Program ID: 3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK           │
-│   • u128 Fixed-Point Postcondition Verification                        │
-│   • Atomic Reversion upon invariant breach (0 tokens moved)            │
-└────────────────────────────────────────────────────────────────────────┘
-```
+### PreStocks (Asset Class Concentration Invariants)
+Sentinel secures allocations into tokenized private technology equity (`OPENAIx`, `SPACEXx`, `STRIPEx`). Beyond single-asset caps, Sentinel enforces macro asset-class boundaries (`Pre-IPO ≤ 20%`). When an agent proposes an allocation that pushes Pre-IPO holdings past risk thresholds, Sentinel blocks execution; the agent reads the rejection telemetry and auto-adapts order size to exact compliant headroom.
 
-### 4.1 Why Solana? Enforcement at the Financial State-Transition Boundary
-
-When judges ask *"Why does this belong on Solana?"*, the answer is not generic marketing speed or low fees.
-
-**Sentinel belongs on Solana because our enforcement lives directly at the financial state-transition boundary.**
-
-- **The Failure of Off-Chain APIs**: Off-chain risk APIs (`POST /verify -> { "approved": true }`) cannot protect vaults. A rogue or hallucinating agent simply bypasses the API and signs directly with its keypair. Furthermore, off-chain checks suffer from race conditions against AMM slippage and concurrent block state.
-- **The Solana State-Transition Boundary**: On Solana, the **Policy PDA** (user's immutable risk bounds), the **Promise PDA** (agent's committed trade intent), the **Portfolio Vault** (SPL token accounts), and the **Execution Instruction** (Meteora DBC swap or PreStocks secondary transfer) all co-exist within the **exact same atomic transaction runtime**.
-- **Atomic Rollback**: Sentinel's `execute_guarded_trade` instruction calculates the prospective post-trade portfolio allocation in 128-bit fixed-point math. If any user invariant is violated (e.g. NVDA > 25% or Cash < 20%), the transaction emits `PolicyInvariantViolated` and **atomically rolls back the entire instruction chain**. Zero tokens move.
-
-### 4.2 Two-Tier PROVN Receipt Architecture
-
-PROVN is not a detached crypto dashboard tab; it is the cryptographic receipt of Sentinel's decision:
-- **Tier 1 (Investor View)**: Reassuring, clear status (`Protected by Sentinel`, `0 tokens moved · Capital safe`, visual guarantee health indicators).
-- **Tier 2 (Auditor & Engineer Drawer)**: Full deterministic cryptographic evidence containing SHA-256 pre-state root, post-state root, intent hash, policy hash, and transaction signature verification.
+### Meteora (Dynamic Bonding Curve Quality Guard)
+Sentinel pairs portfolio safety with Meteora Dynamic Bonding Curve (DBC) market quality verification. Before proposing execution, the agent evaluates deterministic pool PDAs against user slippage limits and pool depth reserves ($25,000 floor). If shallow liquidity causes excessive curve impact, execution halts before capital is risked, prompting the agent to resize trades along the bonding curve.
 
 ---
 
-## 5. Sponsor Integration Breakdown
-
-### 5.1 Pyth Network (Pyth Pro Track)
-- **Centrality to Product**: Pyth price feeds are not just market indicators—they are an authoritative **Security Input**. Sentinel enforces: *"Is this price trustworthy enough to let the agent act?"* If stale or wide-confidence, execution is atomically refused (`STALE / LOW CONFIDENCE ➔ NO EXECUTION`).
-- **Capabilities Delivered**:
-  - **Pyth as a Security Input**: Enforcing hard limits on quote age ($\le 60\text{s}$) and confidence interval width ($\pm \sigma \le 150\text{ bps}$) before any trade is permitted to execute.
-  - **Pyth Pull Model Architecture**: Leveraging Pyth Hermès on-demand updates to refresh on-chain benchmark truth before program execution.
-  - **Dual-feed pricing**: Comparing tokenized stock prices with underlying US equity benchmarks to detect depegging or basis tracking error (> 100 bps).
-  - **Mark-to-market portfolio NAV**: Continuous valuation updates with confidence intervals ($\pm \sigma$).
-
-### 5.2 PreStocks ($10,000 Bounty)
-- **Centrality to Product**: Broadens Sentinel's tokenized universe beyond public equities into high-demand pre-IPO secondary tech shares.
-- **Strict Exclusivity Compliance**: 100% PreStocks certified asset universe (`OPENAIx`, `SPACEXx`, `ANTHROPICx`, `STRIPEx`) with Certified 409A / Forge NAV pricing and Secondary Vault PDA settlement. All competing/unaffiliated pre-IPO tokens are strictly excluded to preserve full bounty eligibility.
-- **Capabilities Delivered**:
-  - Full Asset Universe supporting pre-IPO market leaders (`SPACEXx`, `OPENAIx`, `ANTHROPICx`, `STRIPEx`).
-  - Portfolio Builder with macro asset class policy enforcement (`Public Equities ≤ 70%`, `Pre-IPO ≤ 20%`, `USDC Cash Reserves ≥ 10%`).
-  - Autonomous mathematical headroom solver that down-sizes aggressive private equity orders to remain precisely within the 20% illiquidity cap.
-
-### 5.3 Meteora ($5,000 Bounty)
-- **Centrality to Product**: **Sentinel Equity Market Guard** — unifying Meteora market infrastructure with Sentinel on-chain portfolio guarantees.
-- **The Core Formula**:
-  $$\text{Meteora Market Quality} + \text{Sentinel Portfolio Protection} = \mathbf{Market\ Protection\ +\ Account\ Protection}$$
-  - **Meteora Market Quality**: Bonding curve health, reserve liquidity floor, price divergence bounds, dynamic LP fee capture, and graduation readiness.
-  - **Sentinel Portfolio Protection**: User-defined risk boundaries, macro asset allocation ceilings, and execution postconditions.
-- **Capabilities Delivered**:
-  - `MeteoraDBCMarketQualityVerifier` inspecting curve liquidity depth (≥ $25,000 floor) and price stability (≤ 200 bps divergence from reference index).
-  - Bidirectional Protection: Sentinel protects investors from toxic slippage in shallow pools *and* protects Meteora DBC pools from reckless algorithmic draining.
-
----
-
-## 6. Verification, P22 Gate & P23 Adversarial Security Matrix
-
-Sentinel Finance boasts a **100% test pass rate (131 / 131 automated tests + Live Devnet RPC Gate)** across its entire codebase:
-
-| Suite | Command | Test Count | Result |
-| :--- | :--- | :--- | :--- |
-| **Rust Anchor Invariant Tests** | `cargo test --manifest-path programs/sentinel/Cargo.toml --lib` | 16 tests | **PASS (0 failures)** |
-| **Domain Policy Engine** | `pnpm --filter @sentinel/domain test` | 39 tests | **PASS (0 failures)** |
-| **SDK, Agent & P23 Adversarial Suite** | `pnpm --filter @sentinel/sdk test` | 76 tests | **PASS (0 failures)** |
-| **Live Devnet & Pyth Verification Gate** | `node packages/sdk/scripts/verify-p22-p23-devnet.mjs` | 8 checks | **PASS (Confirmed on Devnet)** |
-| **Production Web Build** | `pnpm --filter @sentinel/web run build` | 7/7 routes | **Exit code 0** |
-| **Total Automated Tests** | — | **131 tests** | **131 / 131 passed (100%)** |
-
-### 6.1 P22 Final Verification Gate (6 Core + 2 Sponsor Proofs)
-- `[x]` **Wallet connects to Devnet**: Verified via `@solana/wallet-adapter-react` (`SOLANA` venue + `cluster = devnet`, Program `3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK`).
-- `[x]` **Policy change creates a real on-chain state change**: Verified via `initialize_policy` / `update_policy` on Policy PDA `3wTp1YDSG3xmf9TtuwZ64b11uLuLNUgQRwdesMbFJUUh` (TX `5FStukmor2DmjU49o8s2LRxfHyp67rLzu2Ds3bbZQEg4KKKwpFcoAt14HQEvLgrkrPT1ZDtnnZGVrAbrBuE5HEnV`).
-- `[x]` **Invalid Promise/trade produces a real Sentinel failure**: Verified via $15,000 `BUY NVDAx` rejection (`SentinelError::TradeSizeExceeded` / `ExposureExceeded` / `StablecoinReserveBreached`, TX `Yj4VQjWBtjhYZZpUvKeeuoWRL674jDawZ3HKk4rysriGPumK1Mqz7sLuB59dGD8nk4L5z7aWe27nqqnTt1G91AB`).
-- `[x]` **Valid trade produces a real confirmed transaction**: Verified via adapted $5,000 `BUY NVDAx` settlement (`execute_guarded_trade`, TX `424aJbYWGVFs6o8tDttYURYnZdBiFXtcbCGtHewF6uRBaj2oZ8sZmSDs25ws8r5dmMBH8fZGCw9w7Z8yTMj6mZvU`).
-- `[x]` **Pyth data shown by UI is actually sourced from Pyth**: Verified via `PythLivePriceProvider` (`PYTH_HERMES_LIVE` vs `PYTH_BENCHMARK` explicitly distinguished in UI and API).
-- `[x]` **PROVN receipt points to real transaction/state**: Verified via on-chain Evidence PDA `record_evidence` (TX `hZFTL14Y17EQx44JskkbPMXEivsSWLDsaUfDtC6cAnmFAo84guhBLQ1ap2VV9ZQXbX334PdYiWfLmXxKjH1MNoF`).
-- `[x]` **Sponsor 1 — PreStocks**: Uses actual current Pre-IPO asset registry metadata (`SPACEXx`, `OPENAIx`, `ANTHROPICx`, `STRIPEx`) with explicit `PRE_IPO` exposure ceiling (`<= 20%`).
-- `[x]` **Sponsor 2 — Meteora**: Uses deterministic Meteora DBC PDA derivation + `MeteoraDBCMarketQualityVerifier` (`liquidityDepthUsd >= $25,000`, `priceDeviationBps <= 200`), explicitly labeled where curve swaps are simulated vs. verified on-chain.
-
-### 6.2 P23 Adversarial Security Test Matrix (11 Attack Vectors + 1 Valid Control)
-Tested in [`packages/sdk/tests/adversarial-security.test.ts`](file:///Users/darshangaikwad/Desktop/stocklana/packages/sdk/tests/adversarial-security.test.ts) and [`programs/sentinel/src/lib.rs`](file:///Users/darshangaikwad/Desktop/stocklana/programs/sentinel/src/lib.rs):
-
-| # | Vector | Attack Scenario | Expected Outcome | Sentinel Enforcement Mechanism |
-| :- | :--- | :--- | :--- | :--- |
-| **01** | Direct Bypass | Agent calls program directly without authorized PDA/Ticket | **`REJECT`** | Anchor `seeds = [b"agent", owner, agent_id]` + `has_one = agent_authority` |
-| **02** | Wrong Owner | Cross-tenant Alice Agent + Bob Policy/Vault | **`REJECT`** | `require_keys_eq!(agent.owner, policy.owner, SecurityDomainMismatch)` (`6008`) |
-| **03** | Wrong Policy | Substitution of inactive or revoked Policy account | **`REJECT`** | `require!(policy.is_active, PolicyInactive)` (`6005`) |
-| **04** | Wrong Promise | Replay or substitution of mismatched `PromiseAccount` | **`REJECT`** | `seeds = [b"promise", agent.key(), promise_id]` + `has_one = agent` (`6006`) |
-| **05** | Wrong Amount | Executing $15K against a $5K `PromiseAccount` | **`REJECT`** | `require!(trade_amount_cents == promised_cents, TradeAmountMismatch)` (`6009`) |
-| **06** | Expired Promise | Executing after `expires_at` TTL window | **`REJECT`** | `require!(clock.unix_timestamp <= promise.expires_at, PromiseExpired)` (`6007`) |
-| **07** | Inactive Agent | Agent executes while Emergency Kill-Switch is active | **`REJECT`** | `require!(agent.is_active, AgentInactive)` (`6000`) / `ERR_EMERGENCY_PAUSE` |
-| **08** | Stale Pyth Price | Oracle quote older than `maxQuoteAgeSeconds` (60s) | **`REJECT`** | `checkQuoteFreshness` -> `ERR_QUOTE_STALE` |
-| **09** | Bad Slippage | Execution price deviates 150 bps (> 75 bps max) | **`REJECT`** | `SentinelError::SlippageExceeded` (`6004`) / `ERR_SLIPPAGE_EXCEEDED` |
-| **10** | Exposure Breach | `BUY NVDAx $15,000` pushes weight `20% -> 35%` (> 25%) | **`REJECT`** | `SentinelError::ExposureExceeded` (`6001`) / `ERR_EXPOSURE_EXCEEDED` |
-| **11** | Reserve Breach | `BUY NVDAx $15,000` drops USDC `25% -> 10%` (< 20%) | **`REJECT`** | `SentinelError::StablecoinReserveBreached` (`6002`) / `ERR_STABLECOIN_RESERVE_BREACHED` |
-| **12** | **Valid Control** | Adapted `BUY NVDAx $5,000` (`25% NVDAx`, `20% USDC`) | **`APPROVE`** | `verify_vault_postconditions` passes -> Settled on Solana Devnet (`59KC...mqUd`) |
-
----
-
-## 7. Product Pitch Structure
-
-Our pitch is structured concisely under the standard hackathon narrative:
-
-* **0:00–0:20 | The Problem**: The delegation dilemma. Standard wallet delegation checks *if the agent can sign*, never *what financial state results*. Rogue drift, hallucinations, and liquidations.
-* **0:20–0:40 | The Sentinel Idea**: Authoritative financial postconditions at the state-transition boundary. Agent proposes any trade; Anchor atomically reverts any invariant breach.
-* **0:40–1:50 | The Flagship Demo**: Live screen share: `BUY NVDAx $15,000` ➔ 3 simultaneous failures (NVDA 35% > 25%, Cash 10% < 20%, Size $15k > $10k) ➔ Atomic Revert on Solana ➔ Agent auto-adapts remaining headroom to `$5,000` ➔ Approved & Settled on-chain ➔ PROVN two-tier cryptographic audit receipt sealed.
-* **1:50–2:30 | Real Solana + Sponsors**: Why Solana (state-transition boundary execution). We don't blindly trust **The Agent** (Portfolio Guard), **The Market** (Meteora DBC curve price impact 1.70% > 1.00% ➔ adapt to $2,500), or **The Data** (Pyth 140s stale quote refused ➔ Hermès pull update).
-* **2:30–3:00 | Vision & Moat**: Trust rails for autonomous finance. Managing billions in AI capital safely. Live on Solana Devnet today.
-
----
-
-## 8. Colosseum Graduation Roadmap
-
-1. **Testnet / Mainnet-Beta Tokenized Stock Whitelisting**: Onboard regulated tokenized stock issuers (Backed Finance, Ondo, Dinari).
-2. **Permissionless Policy Attestation**: Allow third-party algorithmic agents (Eliza, LangChain, Autonomous SDKs) to bind to Sentinel vaults via standard CPI.
-3. **Institutional Multi-Sig Delegation**: Support Squads v4 multi-sig governance for institutional fund managers delegating sub-vaults to automated strategies.
+## Key Links & Devnet Proofs
+- **Live App**: [https://sentinel-finance-production-4560.up.railway.app/](https://sentinel-finance-production-4560.up.railway.app/)
+- **Program ID**: [`3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK`](https://explorer.solana.com/address/3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK?cluster=devnet)
+- **Devnet Rejection**: [`Yj4VQjWB...`](https://explorer.solana.com/tx/Yj4VQjWBtjhYZZpUvKeeuoWRL674jDawZ3HKk4rysriGPumK1Mqz7sLuB59dGD8nk4L5z7aWe27nqqnTt1G91AB?cluster=devnet)
+- **Devnet Settlement**: [`424aJbYW...`](https://explorer.solana.com/tx/424aJbYWGVFs6o8tDttYURYnZdBiFXtcbCGtHewF6uRBaj2oZ8sZmSDs25ws8r5dmMBH8fZGCw9w7Z8yTMj6mZvU?cluster=devnet)
+- **Devnet Evidence**: [`hZFTL14Y...`](https://explorer.solana.com/tx/hZFTL14Y17EQx44JskkbPMXEivsSWLDsaUfDtC6cAnmFAo84guhBLQ1ap2VV9ZQXbX334PdYiWfLmXxKjH1MNoF?cluster=devnet)
