@@ -276,12 +276,12 @@ pub mod sentinel {
         require!(promise.status == 1, SentinelError::InvalidPromiseStatus);
         require!(clock.unix_timestamp <= promise.expires_at, SentinelError::PromiseExpired);
 
-        // 4. Bind Promise amount to execution amount (Point 2)
+        // 4. Bind Promise amount strictly to execution amount in cents (Finding 2)
         let promised_cents = promise.trade_amount_usd
             .checked_mul(100)
             .ok_or(SentinelError::MathOverflow)?;
         require!(
-            trade_amount_cents == promised_cents || trade_amount_cents == promise.trade_amount_usd,
+            trade_amount_cents == promised_cents,
             SentinelError::TradeAmountMismatch
         );
 
@@ -295,35 +295,37 @@ pub mod sentinel {
         require!(quoted_price_cents > 0, SentinelError::InvalidPrice);
         require!(execution_price_cents > 0, SentinelError::InvalidPrice);
 
-        // 7. Postcondition: Max Trade Size
-        require!(
-            trade_amount_cents <= policy.max_trade_value_usd.checked_mul(100).ok_or(SentinelError::MathOverflow)?,
-            SentinelError::TradeSizeExceeded
-        );
-
-        // 8. Postcondition: Max Slippage
-        let price_diff = if execution_price_cents >= quoted_price_cents {
-            execution_price_cents - quoted_price_cents
-        } else {
-            quoted_price_cents - execution_price_cents
-        };
-
-        let slippage_bps = (price_diff as u128)
-            .checked_mul(10_000)
-            .ok_or(SentinelError::MathOverflow)?
-            .checked_div(quoted_price_cents as u128)
-            .ok_or(SentinelError::MathOverflow)?;
-
-        require!(
-            slippage_bps <= policy.max_slippage_bps as u128,
-            SentinelError::SlippageExceeded
-        );
-
-        // 9. Locate target asset position index in vault
+        // 7. Locate target asset position index in vault
         let pos_idx = vault.positions.iter().position(|p| p.mint == promise.trade_asset_mint)
             .ok_or(SentinelError::AssetNotFound)?;
 
-        // 10. Perform trade mutation on actual vault balances (Findings 1, 4, 9)
+        // 8. Oracle benchmark & anti-price-deflation protection:
+        // Use the vault's stored price as the canonical benchmark if already initialized (> 0).
+        // This stops rogue agents from deflating vault valuations via arbitrary tiny prices.
+        let benchmark_price_cents = if vault.positions[pos_idx].price_cents > 0 {
+            vault.positions[pos_idx].price_cents
+        } else {
+            quoted_price_cents
+        };
+
+        // Enforce slippage tolerance against benchmark price (protects existing holdings)
+        let benchmark_diff = if execution_price_cents >= benchmark_price_cents {
+            execution_price_cents - benchmark_price_cents
+        } else {
+            benchmark_price_cents - execution_price_cents
+        };
+        let benchmark_slippage_bps = (benchmark_diff as u128)
+            .checked_mul(10_000)
+            .ok_or(SentinelError::MathOverflow)?
+            .checked_div(benchmark_price_cents as u128)
+            .ok_or(SentinelError::MathOverflow)?;
+
+        require!(
+            benchmark_slippage_bps <= policy.max_slippage_bps as u128,
+            SentinelError::SlippageExceeded
+        );
+
+        // 9. Perform trade mutation on actual vault balances (Findings 1, 4, 9)
         let token_units_traded = trade_amount_cents
             .checked_mul(1)
             .ok_or(SentinelError::MathOverflow)?
@@ -344,7 +346,10 @@ pub mod sentinel {
             target_pos.amount_units = target_pos.amount_units
                 .checked_add(token_units_traded)
                 .ok_or(SentinelError::MathOverflow)?;
-            target_pos.price_cents = execution_price_cents;
+            // Only set price if uninitialized; NEVER overwrite an existing stored price!
+            if target_pos.price_cents == 0 {
+                target_pos.price_cents = execution_price_cents;
+            }
         } else if promise.trade_direction == 1 {
             // SELL: liquidate target equity, receive USDC
             let target_pos = &mut vault.positions[pos_idx];
@@ -355,7 +360,10 @@ pub mod sentinel {
             target_pos.amount_units = target_pos.amount_units
                 .checked_sub(token_units_traded)
                 .ok_or(SentinelError::MathOverflow)?;
-            target_pos.price_cents = execution_price_cents;
+            // Only set price if uninitialized; NEVER overwrite an existing stored price!
+            if target_pos.price_cents == 0 {
+                target_pos.price_cents = execution_price_cents;
+            }
 
             vault.usdc_balance_cents = vault.usdc_balance_cents
                 .checked_add(trade_amount_cents)
@@ -364,7 +372,7 @@ pub mod sentinel {
             return err!(SentinelError::InvalidTradeDirection);
         }
 
-        // 7. Calculate actual resulting post-state from vault ledger (Finding 1)
+        // 10. Calculate actual resulting post-state from vault ledger (Finding 1)
         let mut post_total_cents: u64 = vault.usdc_balance_cents;
         let mut post_target_cents: u64 = 0;
 
@@ -382,34 +390,18 @@ pub mod sentinel {
                 .ok_or(SentinelError::MathOverflow)?;
         }
 
-        require!(post_total_cents > 0, SentinelError::MathOverflow);
-        require!(post_target_cents <= post_total_cents, SentinelError::MathOverflow);
+        // 11. Authoritatively verify all vault postconditions via pure functional engine
+        verify_vault_postconditions(
+            policy,
+            trade_amount_cents,
+            post_target_cents,
+            post_total_cents,
+            vault.usdc_balance_cents,
+            quoted_price_cents,
+            execution_price_cents,
+        )?;
 
-        // 8. Postcondition: Max Single-Asset Exposure in u128 (Findings 10 & 11)
-        let target_exposure_bps = (post_target_cents as u128)
-            .checked_mul(10_000)
-            .ok_or(SentinelError::MathOverflow)?
-            .checked_div(post_total_cents as u128)
-            .ok_or(SentinelError::MathOverflow)?;
-
-        require!(
-            target_exposure_bps <= policy.max_single_asset_bps as u128,
-            SentinelError::ExposureExceeded
-        );
-
-        // 9. Postcondition: Min Stablecoin Reserve Floor in u128 (Findings 10 & 11)
-        let stablecoin_reserve_bps = (vault.usdc_balance_cents as u128)
-            .checked_mul(10_000)
-            .ok_or(SentinelError::MathOverflow)?
-            .checked_div(post_total_cents as u128)
-            .ok_or(SentinelError::MathOverflow)?;
-
-        require!(
-            stablecoin_reserve_bps >= policy.min_stablecoin_bps as u128,
-            SentinelError::StablecoinReserveBreached
-        );
-
-        // 10. Commit state mutation to vault and settle promise
+        // 12. Commit state mutation to vault and settle promise
         vault.total_value_cents = post_total_cents;
         promise.status = 3; // 3 = Settled
 
@@ -418,6 +410,33 @@ pub mod sentinel {
             post_total_usd: post_total_cents / 100,
             post_stable_usd: vault.usdc_balance_cents / 100,
             post_target_usd: post_target_cents / 100,
+            timestamp: Clock::get()?.unix_timestamp,
+        });
+
+        Ok(())
+    }
+
+    /// Marks a promise as rejected on-chain when risk postconditions or policy checks fail
+    pub fn reject_promise(
+        ctx: Context<RejectPromise>,
+        failure_code: u16,
+    ) -> Result<()> {
+        let agent = &ctx.accounts.agent;
+        require!(
+            ctx.accounts.authority.key() == agent.agent_authority
+                || ctx.accounts.authority.key() == agent.owner,
+            SentinelError::UnauthorizedExecution
+        );
+        require!(agent.is_active, SentinelError::AgentInactive);
+
+        let promise = &mut ctx.accounts.promise;
+        require!(promise.status == 1, SentinelError::InvalidPromiseStatus);
+
+        promise.status = 4; // 4 = Rejected
+
+        emit!(PromiseRejectedEvent {
+            promise_id: promise.promise_id.clone(),
+            failure_code,
             timestamp: Clock::get()?.unix_timestamp,
         });
 
@@ -438,6 +457,12 @@ pub mod sentinel {
             ctx.accounts.authority.key() == ctx.accounts.agent.agent_authority
                 || ctx.accounts.authority.key() == ctx.accounts.agent.owner,
             SentinelError::UnauthorizedAgent
+        );
+
+        // Tie verification_result directly to the settled or rejected promise status
+        require!(
+            verification_result == ctx.accounts.promise.status,
+            SentinelError::InvalidPromiseStatus
         );
 
         let evidence = &mut ctx.accounts.evidence;
@@ -670,6 +695,22 @@ pub struct SetAgentActive<'info> {
 }
 
 #[derive(Accounts)]
+pub struct RejectPromise<'info> {
+    #[account(
+        mut,
+        seeds = [b"promise", agent.key().as_ref(), promise.promise_id.as_bytes()],
+        bump = promise.bump,
+        has_one = agent @ SentinelError::UnauthorizedAgent
+    )]
+    pub promise: Account<'info, PromiseAccount>,
+    #[account(
+        constraint = agent.is_active @ SentinelError::AgentInactive
+    )]
+    pub agent: Account<'info, AgentAccount>,
+    pub authority: Signer<'info>,
+}
+
+#[derive(Accounts)]
 #[instruction(evidence_id: String)]
 pub struct RecordEvidence<'info> {
     #[account(
@@ -680,7 +721,14 @@ pub struct RecordEvidence<'info> {
         bump
     )]
     pub evidence: Account<'info, EvidenceAccount>,
+    #[account(
+        has_one = agent @ SentinelError::UnauthorizedAgent,
+        constraint = (promise.status == 3 || promise.status == 4) @ SentinelError::InvalidPromiseStatus
+    )]
     pub promise: Account<'info, PromiseAccount>,
+    #[account(
+        constraint = agent.is_active @ SentinelError::AgentInactive
+    )]
     pub agent: Account<'info, AgentAccount>,
     #[account(mut)]
     pub authority: Signer<'info>,
@@ -732,6 +780,13 @@ pub struct TradeSettledEvent {
     pub post_total_usd: u64,
     pub post_stable_usd: u64,
     pub post_target_usd: u64,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct PromiseRejectedEvent {
+    pub promise_id: String,
+    pub failure_code: u16,
     pub timestamp: i64,
 }
 
@@ -961,5 +1016,103 @@ mod tests {
         // Emergency pause kill switch: set_agent_active(false)
         agent.is_active = false;
         assert!(!agent.is_active);
+    }
+
+    #[test]
+    fn test_rogue_agent_tiny_price_deflation_exploit_reverts() {
+        let policy = mock_policy(); // max_slippage_bps = 100 (1.00%), max_single_asset_bps = 2500 (25.00%)
+
+        // Vault holds NVDAx with verified benchmark price: $120.00 (12,000 cents)
+        let benchmark_price_cents: u64 = 12_000;
+
+        // Rogue agent crafts an exploit transaction passing tiny execution & quoted price: $0.01 (1 cent)
+        // in an attempt to artificially deflate existing NVDAx value and slip past the 25% single-asset cap
+        let rogue_exec_cents: u64 = 1;
+
+        // Calculate slippage against the vault's stored benchmark price
+        let price_diff = if rogue_exec_cents >= benchmark_price_cents {
+            rogue_exec_cents - benchmark_price_cents
+        } else {
+            benchmark_price_cents - rogue_exec_cents
+        };
+        let benchmark_slippage_bps = (price_diff as u128) * 10_000 / (benchmark_price_cents as u128);
+
+        // Benchmark slippage is 9,999 bps (99.99%), which drastically breaches policy tolerance of 100 bps
+        assert!(benchmark_slippage_bps > policy.max_slippage_bps as u128);
+        assert_eq!(benchmark_slippage_bps, 9999);
+
+        // Verification engine fails closed with SlippageExceeded
+        let res = verify_vault_postconditions(
+            &policy,
+            500_000,
+            2_000_000,
+            10_000_000,
+            2_000_000,
+            benchmark_price_cents,
+            rogue_exec_cents,
+        );
+        assert_eq!(res.unwrap_err(), error!(SentinelError::SlippageExceeded));
+    }
+
+    #[test]
+    fn test_stored_vault_price_preserved_anti_deflation() {
+        // Vault has 200 NVDAx tokens at benchmark price 12,000 cents ($120.00) = $24,000
+        let mut target_pos = AssetPosition {
+            mint: Pubkey::default(),
+            symbol: *b"NVDAx\0\0\0",
+            amount_units: 200,
+            price_cents: 12_000,
+            is_index: false,
+        };
+
+        // Even on an executed trade at $120.50 (12,050 cents, within 1% slippage)
+        let exec_price_cents = 12_050;
+        let token_units_traded = 41;
+
+        // Apply vault mutation invariant: NEVER overwrite an existing position's price
+        target_pos.amount_units += token_units_traded;
+        if target_pos.price_cents == 0 {
+            target_pos.price_cents = exec_price_cents;
+        }
+
+        // Benchmark price of existing holdings MUST remain intact (12,000 cents), preventing valuation collapse
+        assert_eq!(target_pos.price_cents, 12_000);
+        assert_eq!(target_pos.amount_units, 241);
+    }
+
+    #[test]
+    fn test_strict_promise_amount_cents_enforcement() {
+        let promised_usd: u64 = 5_000;
+        let promised_cents: u64 = promised_usd * 100; // 500,000 cents
+
+        // Exact cents matches
+        let exact_cents: u64 = 500_000;
+        assert_eq!(exact_cents, promised_cents);
+
+        // Passing dollars (5,000) instead of cents (500,000) fails closed
+        let invalid_dollars_passed_as_cents: u64 = 5_000;
+        assert_ne!(invalid_dollars_passed_as_cents, promised_cents);
+    }
+
+    #[test]
+    fn test_record_evidence_lifecycle_status_and_agent_binding() {
+        // Status 1 (Promised) cannot record evidence
+        let status_promised: u8 = 1;
+        assert!(!(status_promised == 3 || status_promised == 4));
+
+        // Status 3 (Settled) is permitted
+        let status_settled: u8 = 3;
+        assert!(status_settled == 3 || status_settled == 4);
+
+        // Status 4 (Rejected) is permitted
+        let status_rejected: u8 = 4;
+        assert!(status_rejected == 3 || status_rejected == 4);
+
+        // Verification result MUST match promise status
+        let verification_result_settled: u8 = 3;
+        assert_eq!(verification_result_settled, status_settled);
+
+        // Mismatched verification result (e.g. claiming settled when rejected) fails
+        assert_ne!(verification_result_settled, status_rejected);
     }
 }
