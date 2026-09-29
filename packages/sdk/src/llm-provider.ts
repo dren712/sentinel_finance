@@ -229,6 +229,9 @@ export function executeAgentTool(
 
 export interface LLMProvider {
   readonly providerName: string;
+  readonly isScripted?: boolean;
+  lastPrompt?: string;
+  lastResponse?: string;
   proposeTrade(context: AgentPromptContext): Promise<TradeIntentDraft>;
 }
 
@@ -239,10 +242,19 @@ export interface LLMProvider {
  */
 export class DemoProvider implements LLMProvider {
   public readonly providerName = 'DemoProvider';
+  public readonly isScripted = true;
+  public lastPrompt?: string;
+  public lastResponse?: string;
 
   constructor(private scenario: 'flagship' | 'prestocks' | 'meteora' | 'pyth' = 'flagship') {}
 
   async proposeTrade(context: AgentPromptContext): Promise<TradeIntentDraft> {
+    this.lastPrompt = `System: You are Sentinel Autonomous Robo-Agent (Robo-01) on Solana.
+Mandate: Autonomous portfolio management under Sentinel deterministic on-chain postconditions.
+User Goal: ${context.userGoal || 'Capital growth and prudent risk-adjusted returns'}
+Portfolio Valuation: $${(context.portfolio.totalValueUsd || 100000).toLocaleString()} (Cash: $${(context.portfolio.stablecoinValueUsd || 25000).toLocaleString()})
+Active Policy Caps: Max Single-Asset ${(context.policy.maxSingleAssetBps / 100).toFixed(0)}%, Min Cash Floor ${(context.policy.minStablecoinBps / 100).toFixed(0)}%, Max Trade $${context.policy.maxTradeValueUsd.toLocaleString()}
+${context.rejectionHistory ? `Previous Sentinel Rejection: ${context.rejectionHistory.failureReason || 'Invariant breached'}` : 'Status: Fresh decision cycle'}`;
     // If agent previously experienced a rejection, read failure details and adapt:
     if (context.rejectionHistory) {
       const breached = context.rejectionHistory.breachedInvariants || [];
@@ -257,41 +269,49 @@ export class DemoProvider implements LLMProvider {
       const headroomCash = Math.max(0, currentCash - minRequiredCash);
       const adaptedAmount = Math.floor(Math.min(headroomExposure, headroomCash, context.policy.maxTradeValueUsd));
 
-      return TradeIntentDraftSchema.parse({
-        action: 'BUY',
+      const result = {
+        action: 'BUY' as const,
         asset: context.rejectionHistory.intent.assetSymbol,
         amountUsd: adaptedAmount > 0 ? adaptedAmount : 2000,
         rationale: `Autonomous adaptation: read Sentinel rejection (${breached.map(b => b.name).join(', ')}). Recalculated compliant trade size to satisfy all 4 invariant boundaries.`,
-      });
+      };
+      this.lastResponse = JSON.stringify(result, null, 2);
+      return TradeIntentDraftSchema.parse(result);
     }
 
     // Initial proposal based on scenario or context:
     if (this.scenario === 'prestocks' || context.targetAsset === 'OPENAIx' || 'OPENAIx' in (context.marketPrices || {})) {
-      return TradeIntentDraftSchema.parse({
-        action: 'BUY',
+      const result = {
+        action: 'BUY' as const,
         asset: 'OPENAIx',
         amountUsd: 5000,
         rationale: 'PreStocks secondary allocation targeting 409A tender tranche in OpenAI private equity.',
-      });
+      };
+      this.lastResponse = JSON.stringify(result, null, 2);
+      return TradeIntentDraftSchema.parse(result);
     }
 
     if (this.scenario === 'meteora') {
-      return TradeIntentDraftSchema.parse({
-        action: 'BUY',
+      const result = {
+        action: 'BUY' as const,
         asset: 'NVDAx',
         amountUsd: 8000,
         rationale: 'Meteora DBC dynamic bonding curve liquidity routing for NVDAx tokenized equity.',
-      });
+      };
+      this.lastResponse = JSON.stringify(result, null, 2);
+      return TradeIntentDraftSchema.parse(result);
     }
 
     // Default flagship case: Aggressive growth allocation ($15,000) that will trigger Sentinel protection
     const assetToPropose = context.targetAsset || Object.keys(context.marketPrices || {})[0] || 'NVDAx';
-    return TradeIntentDraftSchema.parse({
-      action: 'BUY',
+    const result = {
+      action: 'BUY' as const,
       asset: assetToPropose,
       amountUsd: 15000,
       rationale: `Aggressive ${assetToPropose} allocation to capture data center GPU compute cycle momentum.`,
-    });
+    };
+    this.lastResponse = JSON.stringify(result, null, 2);
+    return TradeIntentDraftSchema.parse(result);
   }
 }
 
@@ -311,6 +331,9 @@ export interface OpenAIProviderConfig {
  */
 export class OpenAIProvider implements LLMProvider {
   public readonly providerName = 'OpenAIProvider';
+  public readonly isScripted = false;
+  public lastPrompt?: string;
+  public lastResponse?: string;
   private apiKey: string | undefined;
   private model: string;
   private baseUrl: string;
@@ -328,7 +351,10 @@ export class OpenAIProvider implements LLMProvider {
   async proposeTrade(context: AgentPromptContext): Promise<TradeIntentDraft> {
     if (!this.apiKey) {
       if (this.fallbackToDemo) {
-        return this.demoFallback.proposeTrade(context);
+        const res = await this.demoFallback.proposeTrade(context);
+        this.lastPrompt = this.demoFallback.lastPrompt;
+        this.lastResponse = this.demoFallback.lastResponse;
+        return res;
       }
       throw new Error('OpenAIProvider requires OPENAI_API_KEY');
     }
@@ -357,6 +383,7 @@ When you are ready to propose a trade, you MUST return a final JSON object confo
       ];
 
       for (let turn = 0; turn < 5; turn++) {
+        this.lastPrompt = JSON.stringify(messages, null, 2);
         const response = await fetch(`${this.baseUrl}/chat/completions`, {
           method: 'POST',
           headers: {
@@ -406,6 +433,7 @@ When you are ready to propose a trade, you MUST return a final JSON object confo
 
         // Parse and validate final JSON output
         const content = message.content || '{}';
+        this.lastResponse = content;
         const parsedJson = JSON.parse(content);
 
         const normalized = {
@@ -421,7 +449,10 @@ When you are ready to propose a trade, you MUST return a final JSON object confo
       throw new Error('Exceeded max tool iterations without final trade proposal');
     } catch (err) {
       if (this.fallbackToDemo) {
-        return this.demoFallback.proposeTrade(context);
+        const res = await this.demoFallback.proposeTrade(context);
+        this.lastPrompt = this.demoFallback.lastPrompt;
+        this.lastResponse = this.demoFallback.lastResponse;
+        return res;
       }
       throw err;
     }

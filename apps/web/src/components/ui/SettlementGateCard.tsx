@@ -205,9 +205,14 @@ export const SettlementGateCard: React.FC<SettlementGateProps> = ({
           <span className="text-[10px] text-sentinel-textSubtle block font-sans">SENTINEL FINAL VERDICT</span>
           <div className="flex items-center gap-1.5 mt-0.5">
             {isOverallApproved ? (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-bold border border-emerald-500/30 text-xs">
-                ✓ APPROVED FOR ANCHOR SETTLEMENT
-              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-bold border border-emerald-500/30 text-xs">
+                  ✓ APPROVED FOR ANCHOR SETTLEMENT
+                </span>
+                <span className="px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300 font-mono text-[10px] font-bold tracking-wider">
+                  LEDGER-ONLY SETTLEMENT -- NO SPL TRANSFERS
+                </span>
+              </div>
             ) : (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-rose-500/15 text-rose-400 font-bold border border-rose-500/30 text-xs">
                 ✕ BLOCKED — STATE TRANSITION FORBIDDEN

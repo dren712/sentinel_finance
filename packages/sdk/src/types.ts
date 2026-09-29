@@ -201,6 +201,13 @@ export interface AutonomousAdaptationResult {
   loopState: AgentLoopState;
   adaptationDetails: AdaptationDetails;
   summary: string;
+  llmMetadata?: {
+    providerName: string;
+    isScripted: boolean;
+    hasApiKey?: boolean;
+    lastPrompt?: string;
+    lastResponse?: string;
+  };
 }
 
 export interface MeteoraDBCMetrics {

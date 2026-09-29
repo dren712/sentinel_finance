@@ -566,7 +566,10 @@ export async function runServerAgentCycle(params: {
   ]);
 
   let provider: LLMProvider;
-  if (params.llmProvider === 'openai' && process.env.OPENAI_API_KEY) {
+  const hasOpenAiKey = Boolean(process.env.OPENAI_API_KEY);
+  if (hasOpenAiKey && params.llmProvider !== 'demo') {
+    provider = new OpenAIProvider({ apiKey: process.env.OPENAI_API_KEY, fallbackToDemo: true });
+  } else if (params.llmProvider === 'openai' && hasOpenAiKey) {
     provider = new OpenAIProvider({ apiKey: process.env.OPENAI_API_KEY, fallbackToDemo: true });
   } else {
     provider = new DemoProvider(scenario);

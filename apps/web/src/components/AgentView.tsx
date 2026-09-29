@@ -60,6 +60,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
   const activeVenue = externalVenue ?? internalVenue;
   const [llmProvider, setLlmProvider] = useState<'DEMO' | 'OPENAI'>('DEMO');
   const [isLlmConnectorOpen, setIsLlmConnectorOpen] = useState(true);
+  const [rawLlmTab, setRawLlmTab] = useState<'DRAFT' | 'PROMPT' | 'RESPONSE'>('DRAFT');
 
   const handleVenueChange = (venue: ExecutionVenueType) => {
     setInternalVenue(venue);
@@ -246,6 +247,33 @@ export const AgentView: React.FC<AgentViewProps> = ({
         }
       />
 
+      {/* PROMINENT LLM MODE / SCRIPTED FALLBACK BANNER */}
+      {llmProvider === 'DEMO' ? (
+        <div className="p-3.5 sm:p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0 animate-pulse" />
+            <span className="font-semibold text-amber-200">
+              DEMO MODE: Using scripted agent proposals. Set OPENAI_API_KEY for autonomous LLM decisions.
+            </span>
+          </div>
+          <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-amber-300 bg-amber-500/20 px-2.5 py-1 rounded border border-amber-500/30 self-start sm:self-auto shrink-0">
+            SCRIPTED FALLBACK ACTIVE
+          </span>
+        </div>
+      ) : (
+        <div className="p-3.5 sm:p-4 rounded-xl bg-blue-500/10 border border-blue-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-blue-400 shrink-0" />
+            <span className="font-semibold text-blue-200">
+              AUTONOMOUS LLM MODE: Proposing trades via OpenAI with Sentinel deterministic invariant verification.
+            </span>
+          </div>
+          <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-blue-300 bg-blue-500/20 px-2.5 py-1 rounded border border-blue-500/30 self-start sm:self-auto shrink-0">
+            OPENAI GPT-4o ACTIVE
+          </span>
+        </div>
+      )}
+
       {/* ========================================================================= */}
       {/* PRIMARY FOCAL POINT: PROPOSE → PROJECT → BLOCK/APPROVE → ADAPT → SETTLE   */}
       {/* ========================================================================= */}
@@ -385,12 +413,17 @@ export const AgentView: React.FC<AgentViewProps> = ({
                 {formatCurrency(adaptedAmountUsd)} {targetSymbol} order passes all 4 on-chain execution invariants and records a SHA-256 receipt.
               </p>
             </div>
-            <div className="pt-2 border-t border-emerald-500/20 text-[11px] font-mono text-emerald-300 truncate">
-              {adaptationResult
-                ? isRealOnChainTx
-                  ? 'Devnet Tx Confirmed'
-                  : 'Simulated Settlement'
-                : 'Click Run Autonomous Cycle'}
+            <div className="pt-2 border-t border-emerald-500/20 text-[11px] font-mono text-emerald-300 space-y-1">
+              <div className="truncate">
+                {adaptationResult
+                  ? isRealOnChainTx
+                    ? 'Devnet Tx Confirmed'
+                    : 'Simulated Settlement'
+                  : 'Click Run Autonomous Cycle'}
+              </div>
+              <span className="inline-block px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[9px] font-bold tracking-wider">
+                LEDGER-ONLY SETTLEMENT -- NO SPL TRANSFERS
+              </span>
             </div>
           </div>
         </div>
@@ -398,9 +431,13 @@ export const AgentView: React.FC<AgentViewProps> = ({
         {/* Truthful Settlement Receipt Summary when adaptationResult is present */}
         {adaptationResult && settledDecision && (
           <div className="pt-4 border-t border-sentinel-border flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono text-sentinel-textMuted">
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2.5">
               <span className="text-emerald-400 font-semibold">
                 ✓ Cycle Completed ({isRealOnChainTx ? 'Solana Devnet' : 'Simulated Execution'})
+              </span>
+              <span>·</span>
+              <span className="px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300 font-mono text-[10px] font-bold tracking-wider">
+                LEDGER-ONLY SETTLEMENT -- NO SPL TRANSFERS
               </span>
               <span>·</span>
               <span>
@@ -509,42 +546,111 @@ export const AgentView: React.FC<AgentViewProps> = ({
                 </div>
               </div>
 
-              {/* Right: Structured TradeIntentDraft JSON Output */}
+              {/* Right: Structured TradeIntentDraft JSON Output & Raw LLM Inspector */}
               <div className="lg:col-span-7">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[11px] font-mono uppercase tracking-wider text-sentinel-textSubtle">
-                    Validated TradeIntentDraft Payload (Zod Schema)
-                  </span>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1 bg-sentinel-surface p-0.5 rounded-lg border border-sentinel-border text-[11px] font-mono">
+                    <button
+                      type="button"
+                      onClick={() => setRawLlmTab('DRAFT')}
+                      className={`px-2.5 py-1 rounded transition cursor-pointer ${
+                        rawLlmTab === 'DRAFT'
+                          ? 'bg-sentinel-surfaceElevated text-white font-semibold shadow-xs'
+                          : 'text-sentinel-textMuted hover:text-white'
+                      }`}
+                    >
+                      Validated Draft (Zod)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRawLlmTab('PROMPT')}
+                      className={`px-2.5 py-1 rounded transition cursor-pointer ${
+                        rawLlmTab === 'PROMPT'
+                          ? 'bg-sentinel-surfaceElevated text-white font-semibold shadow-xs'
+                          : 'text-sentinel-textMuted hover:text-white'
+                      }`}
+                    >
+                      Raw LLM Prompt
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRawLlmTab('RESPONSE')}
+                      className={`px-2.5 py-1 rounded transition cursor-pointer ${
+                        rawLlmTab === 'RESPONSE'
+                          ? 'bg-sentinel-surfaceElevated text-white font-semibold shadow-xs'
+                          : 'text-sentinel-textMuted hover:text-white'
+                      }`}
+                    >
+                      Raw LLM Response
+                    </button>
+                  </div>
                   <span className="text-[10px] font-mono text-emerald-400">
-                    ✓ TradeIntentDraftSchema Validated
+                    {rawLlmTab === 'DRAFT'
+                      ? '✓ Zod Schema Validated'
+                      : rawLlmTab === 'PROMPT'
+                      ? 'System + Context'
+                      : 'Structured Output'}
                   </span>
                 </div>
-                <pre className="p-3.5 rounded-xl bg-sentinel-surface border border-sentinel-border font-mono text-[11px] text-sentinel-text overflow-x-auto leading-relaxed">
-                  {JSON.stringify(
-                    {
-                      provider: llmProvider === 'OPENAI' ? 'OpenAIProvider (gpt-4o)' : 'DemoProvider (Deterministic)',
-                      initialDraft: {
-                        action: 'BUY',
-                        asset: targetSymbol,
-                        amountUsd: initialAmountUsd,
-                        rationale:
-                          initialDecision?.intent.strategyRationale ||
-                          `Increase ${targetSymbol} position to capture momentum signal`,
+
+                {rawLlmTab === 'DRAFT' && (
+                  <pre className="p-3.5 rounded-xl bg-sentinel-surface border border-sentinel-border font-mono text-[11px] text-sentinel-text overflow-x-auto leading-relaxed max-h-80">
+                    {JSON.stringify(
+                      {
+                        provider: llmProvider === 'OPENAI' ? 'OpenAIProvider (gpt-4o)' : 'DemoProvider (Deterministic)',
+                        initialDraft: {
+                          action: 'BUY',
+                          asset: targetSymbol,
+                          amountUsd: initialAmountUsd,
+                          rationale:
+                            initialDecision?.intent.strategyRationale ||
+                            `Increase ${targetSymbol} position to capture momentum signal`,
+                        },
+                        sentinelVerdict: breachedRuleNames.length > 0 ? 'REJECTED_BY_POLICY_GUARD' : 'APPROVED',
+                        adaptedDraftAfterRejection: {
+                          action: 'BUY',
+                          asset: targetSymbol,
+                          amountUsd: adaptedAmountUsd,
+                          rationale:
+                            settledDecision?.intent.strategyRationale ||
+                            `Resized via calculate_compliant_headroom to ${formatCurrency(adaptedAmountUsd)} (${targetSymbol} ${adaptedAssetPct.toFixed(1)}% ≤ ${maxSingleAssetPct.toFixed(0)}%, Cash ${adaptedCashPct.toFixed(1)}% ≥ ${minCashReservePct.toFixed(0)}%)`,
+                        },
                       },
-                      sentinelVerdict: breachedRuleNames.length > 0 ? 'REJECTED_BY_POLICY_GUARD' : 'APPROVED',
-                      adaptedDraftAfterRejection: {
-                        action: 'BUY',
-                        asset: targetSymbol,
-                        amountUsd: adaptedAmountUsd,
-                        rationale:
-                          settledDecision?.intent.strategyRationale ||
-                          `Resized via calculate_compliant_headroom to ${formatCurrency(adaptedAmountUsd)} (${targetSymbol} ${adaptedAssetPct.toFixed(1)}% ≤ ${maxSingleAssetPct.toFixed(0)}%, Cash ${adaptedCashPct.toFixed(1)}% ≥ ${minCashReservePct.toFixed(0)}%)`,
-                      },
-                    },
-                    null,
-                    2
-                  )}
-                </pre>
+                      null,
+                      2
+                    )}
+                  </pre>
+                )}
+
+                {rawLlmTab === 'PROMPT' && (
+                  <pre className="p-3.5 rounded-xl bg-sentinel-surface border border-sentinel-border font-mono text-[11px] text-blue-200 overflow-x-auto leading-relaxed max-h-80 whitespace-pre-wrap">
+                    {adaptationResult?.llmMetadata?.lastPrompt ||
+                      `System: You are Sentinel Autonomous Robo-Agent (Robo-01), an intelligent portfolio manager on Solana.
+Mandate: Autonomous portfolio management under Sentinel deterministic on-chain postconditions.
+User Goal: Capital growth and prudent risk-adjusted returns
+Active Constraints: Max Single-Stock ${maxSingleAssetPct.toFixed(0)}%, Min Cash Floor ${minCashReservePct.toFixed(0)}%, Max Order $${maxOrderSizeUsd.toLocaleString()}
+Reference Quote: ${targetSymbol} @ $${refPrice.toFixed(2)} (Pyth Hermès)
+Tools: [getPortfolio, getPolicy, getMarketPrice, getMarketHealth, simulateTrade, readRejection]`}
+                  </pre>
+                )}
+
+                {rawLlmTab === 'RESPONSE' && (
+                  <pre className="p-3.5 rounded-xl bg-sentinel-surface border border-sentinel-border font-mono text-[11px] text-emerald-300 overflow-x-auto leading-relaxed max-h-80 whitespace-pre-wrap">
+                    {adaptationResult?.llmMetadata?.lastResponse ||
+                      JSON.stringify(
+                        {
+                          action: 'BUY',
+                          asset: targetSymbol,
+                          amountUsd: initialAmountUsd,
+                          rationale:
+                            initialDecision?.intent.strategyRationale ||
+                            `Aggressive ${targetSymbol} allocation to capture data center GPU compute cycle momentum.`,
+                        },
+                        null,
+                        2
+                      )}
+                  </pre>
+                )}
               </div>
             </div>
           </div>

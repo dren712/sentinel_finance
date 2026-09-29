@@ -49,7 +49,7 @@ To ensure technical accuracy for code reviewers and judges, Sentinel explicitly 
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-> **Important Note on Devnet Settlement**: On Current Devnet, `execute_guarded_trade` executes a real Anchor instruction on Solana Devnet that verifies all `PolicyAccount` and `VaultAccount` invariants on-chain and mutates `VaultAccount` + `PromiseAccount` state, after the SDK verifies Meteora DBC pool quality and Pyth Hermes oracle freshness pre-trade. It mutates the Sentinel Vault ledger on-chain and does **not** perform a live SPL token CPI swap into an external DEX pool on Devnet.
+> **Important Note on Devnet Settlement**: Sentinel's PortfolioVault is an on-chain ledger that tracks balances and enforces invariants. Token settlement is simulated; tokens do not move between SPL accounts. On Current Devnet, `execute_guarded_trade` executes a real Anchor instruction on Solana Devnet that verifies all `PolicyAccount` and `VaultAccount` invariants on-chain and mutates `VaultAccount` + `PromiseAccount` state on-chain, followed by `record_evidence`. No external DEX swap or SPL token transfer is claimed or performed.
 
 
 ---

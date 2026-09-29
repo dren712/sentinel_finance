@@ -572,6 +572,11 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2.5 self-end sm:self-auto">
+                    {(item.status === 'SETTLED' || item.status === 'ADAPTED') && (
+                      <span className="hidden xl:inline-block text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold tracking-wider">
+                        LEDGER-ONLY SETTLEMENT -- NO SPL TRANSFERS
+                      </span>
+                    )}
                     <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-sentinel-border bg-sentinel-surface text-sentinel-textSubtle">
                       {isShowingDemoReference
                         ? 'Demo Reference'
@@ -722,10 +727,17 @@ export const ActivityView: React.FC<ActivityViewProps> = ({
 
             {/* Resolution Summary */}
             {selectedTimelineItem.adaptationNarrative && (
-              <div className="bg-sentinel-surfaceMuted/40 border border-sentinel-border rounded-xl p-3.5 text-xs space-y-1">
-                <span className="text-[10px] uppercase font-semibold text-sentinel-textSubtle tracking-wider block">
-                  Outcome &amp; Settlement
-                </span>
+              <div className="bg-sentinel-surfaceMuted/40 border border-sentinel-border rounded-xl p-3.5 text-xs space-y-1.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-[10px] uppercase font-semibold text-sentinel-textSubtle tracking-wider block">
+                    Outcome &amp; Settlement
+                  </span>
+                  {(selectedTimelineItem.status === 'SETTLED' || selectedTimelineItem.status === 'ADAPTED') && (
+                    <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold tracking-wider">
+                      LEDGER-ONLY SETTLEMENT -- NO SPL TRANSFERS
+                    </span>
+                  )}
+                </div>
                 <div className="font-semibold text-sm text-white">
                   {selectedTimelineItem.adaptationNarrative.adaptedAction}
                 </div>

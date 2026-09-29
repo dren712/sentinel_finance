@@ -22,6 +22,7 @@ export async function POST(req: Request) {
     return Response.json({
       success: true,
       result,
+      llmMetadata: result.llmMetadata,
       resultingPortfolio: result.step2SettledDecision.resultingPortfolio,
       cycleId: result.cycleId,
       agentId: result.agentId,

@@ -943,6 +943,13 @@ export class AutonomousRoboAgent {
       loopState: this.currentLoopState!,
       adaptationDetails,
       summary: `Autonomous Agent Adaptation Complete: Initially proposed $${initialProposedAmountUsd.toLocaleString()} (rejected: ${step1Report.evidenceRecord.failureReason}); Agent read failure, recalculated constraints to $${compliantAmount.toLocaleString()}, and settled with 6/6 SWARM verifiers approved.`,
+      llmMetadata: {
+        providerName: activeLlm.providerName,
+        isScripted: activeLlm.isScripted ?? (activeLlm.providerName === 'DemoProvider'),
+        hasApiKey: typeof process !== 'undefined' ? Boolean(process.env.OPENAI_API_KEY) : false,
+        lastPrompt: activeLlm.lastPrompt,
+        lastResponse: activeLlm.lastResponse,
+      },
     };
   }
 
