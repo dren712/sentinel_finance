@@ -122,7 +122,7 @@ Solana Explorer: https://explorer.solana.com/address/3gh1Cc2Qc65hJhxZKneXphWJa27
 
 ---
 
-## 5. The Flagship 5-Step "Aha!" Demo Flow
+## 5. The 5-Stage Policy Enforcement & Adaptation Flow
 
 ```
 1. Connect & Portfolio Overview

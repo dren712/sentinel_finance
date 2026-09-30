@@ -288,7 +288,7 @@ export default function Home() {
     }
   };
 
-  // Flagship 5-Step "Aha!" Demo Flow
+  // 5-Stage Policy Enforcement & Adaptation Flow
   const handleRunDemo = async () => {
     setIsRunningDemo(true);
     setSelectedHeroScenario('FLAGSHIP');

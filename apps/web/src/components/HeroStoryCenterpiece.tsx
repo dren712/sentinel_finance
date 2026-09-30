@@ -176,14 +176,14 @@ export const HeroStoryCenterpiece: React.FC<HeroStoryCenterpieceProps> = ({
         </div>
       </div>
 
-      {/* THREE AUTONOMOUS FLAGSHIP AHA CASES */}
+      {/* THREE PROOF DOMAINS: AGENT, MARKET, DATA */}
       <div className="mt-4 pt-3 pb-3 border-b border-slate-800/80 space-y-2 relative z-10">
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-mono font-bold tracking-widest text-slate-400 uppercase">
             SENTINEL DOES NOT BLINDLY TRUST: THE AGENT · THE MARKET · THE DATA
           </span>
           <span className="text-[10px] font-mono text-slate-500 hidden sm:inline">
-            3 Flagship Aha Demonstrations
+            3 Institutional Proof Cases
           </span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 text-xs font-mono">
