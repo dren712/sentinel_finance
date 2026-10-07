@@ -400,10 +400,10 @@ describe('P22 — Final Verification Gate (6 Core Checks + 2 Sponsor Checks)', (
     );
     const vaultPda = deriveSentinelPda(owner.toBase58(), SENTINEL_PROGRAM_ID.toBase58());
 
-    assert.equal(SENTINEL_PROGRAM_ID.toBase58(), '3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK');
-    assert.equal(policyPda.toBase58(), '3wTp1YDSG3xmf9TtuwZ64b11uLuLNUgQRwdesMbFJUUh');
-    assert.equal(agentPda.toBase58(), 'G9MwRFgstx8Ee4dC6CYLb4CuwhR5YXXpYUhbyHrsxSpv');
-    assert.equal(vaultPda, '7TffMKzUgVme4eod8Wh9ANAQ3YrRMzj4c2JrfKm6AY4Y');
+    assert.equal(SENTINEL_PROGRAM_ID.toBase58(), '3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH');
+    assert.equal(policyPda.toBase58(), 'F6RK4nqSQS6UL1XxnosmeoCZ9XKM7uACnkpmdhkMznfc');
+    assert.equal(agentPda.toBase58(), '2dcgs8yd8PmEUEEWrYaTZXHAUmu7i2BdTgPXrhBu1KWU');
+    assert.equal(vaultPda, '2aczPyz6Cf3Qtm8X9E61rmHHhA3NK8QCwfRk7Fz1nHZi');
 
     // PROVN SHA-256 deterministic hashes
     const policyHash = hashFinancialPolicy(BALANCED_MULTI_ASSET_POLICY);

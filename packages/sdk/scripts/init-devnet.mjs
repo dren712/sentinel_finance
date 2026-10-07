@@ -24,7 +24,7 @@ async function main() {
   console.log(`Deployer SOL Balance: ${(balance / 1e9).toFixed(4)} SOL\n`);
 
   // 2. Program Setup
-  const programId = new PublicKey('3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK');
+  const programId = new PublicKey('3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH');
   const idlPath = new URL('../../../target/idl/sentinel.json', import.meta.url).pathname;
   const idl = JSON.parse(fs.readFileSync(idlPath, 'utf-8'));
 

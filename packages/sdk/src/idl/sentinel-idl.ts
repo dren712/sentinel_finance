@@ -1,5 +1,5 @@
 export const SENTINEL_IDL = {
-  "address": "3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK",
+  "address": "3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH",
   "metadata": {
     "name": "sentinel",
     "version": "0.1.0",

@@ -6,7 +6,7 @@ pub mod state;
 use errors::SentinelError;
 use state::*;
 
-declare_id!("3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK");
+declare_id!("3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH");
 
 #[program]
 pub mod sentinel {

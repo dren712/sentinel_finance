@@ -1,0 +1,35 @@
+# Sentinel Finance — CWF Disclosure & Provenance Log
+
+## Baseline Reference
+- **Baseline Commit Hash**: [`f8734ef`](https://github.com/dren712/sentinel_finance/commit/f8734ef)
+- **Baseline Tag**: `stocklana-baseline`
+- **Baseline Branch**: `main`
+- **Stocklana Devnet Program ID**: [`3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK`](https://explorer.solana.com/address/3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK?cluster=devnet)
+- **CWF Devnet Program ID**: [`3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH`](https://explorer.solana.com/address/3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH?cluster=devnet)
+
+---
+
+## What Existed Before (Stocklana Baseline @ `f8734ef`)
+1. **Anchor Smart Contract**:
+   - Program ID `3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK` deployed on Solana Devnet.
+   - Instructions: `initialize_policy`, `initialize_agent`, `initialize_vault`, `set_agent_active`, `sync_vault`, `create_promise`, `execute_guarded_trade`, `reject_promise`, `record_evidence`.
+   - On-chain postconditions: Concentration cap (≤25%), stablecoin floor (≥20%), order size limit (≤$10K), and price slippage bounds.
+   - PDAs: `PolicyAccount`, `AgentAccount`, `PortfolioVault`, `PromiseAccount`, `EvidenceAccount`.
+   - Temporary testing harness: `post_price_update` instruction allowing mock price accounts on-chain.
+2. **SDK & Runtime**:
+   - `LiveExecutionAdapter` with split keys privilege separation (`OWNER` vs `AGENT`).
+   - 10-stage autonomous loop with LLM draft proposal, tool execution, and reactive adaptation.
+   - PROVN cryptographic evidence generator with SHA-256 state hashing.
+3. **Verification & Tests**:
+   - 95 passing SDK unit and adversarial security tests.
+   - 16 Anchor integration tests on localnet asserting exact error codes.
+
+---
+
+## New in CWF (Crypto's World Fair)
+
+| Phase | Component | Change / Feature | Git Commit / Evidence |
+| :--- | :--- | :--- | :--- |
+| **Phase 0** | Infrastructure | Tagged `stocklana-baseline` (`f8734ef`), branched `cwf/main`, deployed dedicated CWF Program ID `3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH` to Devnet (preserving Stocklana links). | *(Phase 0 Commit)* |
+| **Phase A** | Oracle Security | *Pending implementation (Phase A)* | *TBD* |
+| **Phase B** | Quarantine Engine | *Pending implementation (Phase B)* | *TBD* |

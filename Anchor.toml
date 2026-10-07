@@ -7,13 +7,13 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-sentinel = "3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK"
+sentinel = "3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH"
 
 [programs.devnet]
-sentinel = "3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK"
+sentinel = "3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH"
 
 [programs.mainnet]
-sentinel = "3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK"
+sentinel = "3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH"
 
 [registry]
 url = "https://api.apr.dev"

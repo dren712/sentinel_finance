@@ -682,10 +682,10 @@ describe('Sentinel Domain & Policy Engine Unit Tests', () => {
       assert.strictEqual(config.roles.isEvidenceAnchor, true);
 
       // Verify exact Anchor on-chain PDA matches
-      assert.strictEqual(config.pdaAddress, '7TffMKzUgVme4eod8Wh9ANAQ3YrRMzj4c2JrfKm6AY4Y');
-      assert.strictEqual(config.policyPda, '3wTp1YDSG3xmf9TtuwZ64b11uLuLNUgQRwdesMbFJUUh');
-      assert.strictEqual(config.agentPda, '62vpHzSG92GUbAXtNh4czG6U6HyTpndrY4NvZM9euUnQ');
-      assert.strictEqual(config.bump, 254);
+      assert.strictEqual(config.pdaAddress, '2aczPyz6Cf3Qtm8X9E61rmHHhA3NK8QCwfRk7Fz1nHZi');
+      assert.strictEqual(config.policyPda, 'F6RK4nqSQS6UL1XxnosmeoCZ9XKM7uACnkpmdhkMznfc');
+      assert.strictEqual(config.agentPda, 'JBi5VohtEhY9pmmxEPnCpavDUhCiw6aCpmjjWY5kT3qL');
+      assert.strictEqual(config.bump, 252);
     });
   });
 

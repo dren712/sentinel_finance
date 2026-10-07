@@ -674,12 +674,12 @@ export class SentinelClient {
       timestamp: record.timestamp,
       formattedTimestamp: new Date(record.timestamp).toISOString(),
       solanaVerification: {
-        programId: '3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK',
+        programId: '3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH',
         pda,
         slot,
         cluster: 'Solana Devnet',
         explorerUrl: isDevnet
-          ? `https://explorer.solana.com/address/3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK?cluster=devnet`
+          ? `https://explorer.solana.com/address/3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH?cluster=devnet`
           : undefined,
         isMainnetEquivalent: false,
       },

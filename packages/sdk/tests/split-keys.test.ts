@@ -98,7 +98,7 @@ describe('P24 — Split Keys Security & Access Control Suite', () => {
       rpcEndpoint: 'https://api.devnet.solana.com',
       agentKeypair: agentKp,
       ownerKeypair: ownerKp,
-      programId: '3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK',
+      programId: '3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH',
     });
 
     assert.strictEqual(

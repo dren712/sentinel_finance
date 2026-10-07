@@ -117,7 +117,7 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
   constructor(
     rpcEndpointOrOptions: string | LiveExecutionAdapterOptions = 'https://api.devnet.solana.com',
     signer?: Keypair | WalletSigner,
-    programId: string = '3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK',
+    programId: string = '3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH',
     cluster: SolanaCluster = 'devnet',
     ownerSigner?: Keypair | WalletSigner
   ) {

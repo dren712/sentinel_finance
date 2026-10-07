@@ -121,7 +121,7 @@ describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
       const program = liveAdapter.getProgram();
 
       assert.ok(program);
-      assert.strictEqual(program.programId.toBase58(), '3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK');
+      assert.strictEqual(program.programId.toBase58(), '3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH');
       assert.ok(typeof program.methods.createPromise === 'function');
       assert.ok(typeof program.methods.executeGuardedTrade === 'function');
       assert.ok(typeof program.methods.setAgentActive === 'function');
@@ -208,7 +208,7 @@ describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
       const adapter = new LiveExecutionAdapter(
         'https://api.devnet.solana.com',
         mockWalletSigner,
-        '3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK',
+        '3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH',
         'devnet'
       );
 
