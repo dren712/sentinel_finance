@@ -91,4 +91,22 @@ pub enum SentinelError {
 
     #[msg("Recovery window has not expired yet")]
     RecoveryNotExpired,
+
+    #[msg("Recovery window has expired or is not open")]
+    RecoveryWindowClosed,
+
+    #[msg("Provided recovery nonce does not match current vault recovery nonce")]
+    StaleRecoveryNonce,
+
+    #[msg("Recovery violates portfolio value conservation bounds")]
+    ValueConservationBreached,
+
+    #[msg("Recovery failed to restore compliant portfolio policy invariants")]
+    PostconditionFailed,
+
+    #[msg("Recovery sold beyond allowed oversell band")]
+    OversellGuard,
+
+    #[msg("Recovery sell amount is zero or exceeds position holdings")]
+    InvalidAmount,
 }

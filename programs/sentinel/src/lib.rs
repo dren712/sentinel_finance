@@ -142,6 +142,8 @@ pub mod sentinel {
         vault.quarantine_slot = 0;
         vault.recovery_expires_slot = 0;
         vault.recovery_nonce = 0;
+        vault.last_recovery_slot = 0;
+        vault.last_recovery_solver = Pubkey::default();
 
         // Compute cached initial total value in cents
         let mut total_equity_cents: u64 = 0;
@@ -631,6 +633,166 @@ pub mod sentinel {
 
         Ok(())
     }
+
+    /// Solves an invariant breach on a quarantined vault via permissionless, reduce-only rebalancing.
+    pub fn recover(
+        ctx: Context<Recover>,
+        sell_units: u64,
+        expected_nonce: u64,
+    ) -> Result<()> {
+        let vault = &mut ctx.accounts.vault;
+        let policy = &ctx.accounts.policy;
+
+        // a. vault.status == Quarantined -> VaultNotQuarantined
+        require!(vault.status == VaultStatus::Quarantined, SentinelError::VaultNotQuarantined);
+
+        let clock = Clock::get()?;
+        let current_slot = clock.slot;
+
+        // b. current_slot <= recovery_expires_slot -> RecoveryWindowClosed
+        require!(current_slot <= vault.recovery_expires_slot, SentinelError::RecoveryWindowClosed);
+
+        // c. expected_nonce == vault.recovery_nonce -> StaleRecoveryNonce
+        require!(expected_nonce == vault.recovery_nonce, SentinelError::StaleRecoveryNonce);
+
+        // Volatile (non-index) position
+        let pos_idx = vault.positions.iter().position(|p| !p.is_index)
+            .ok_or(SentinelError::AssetNotFound)?;
+        let feed_id = vault.positions[pos_idx].feed_id;
+
+        // d. price = parse_and_verify_pyth_price(...) with the position's feed_id
+        let price_cents = parse_and_verify_pyth_price(
+            &ctx.accounts.price_update,
+            clock.unix_timestamp,
+            200, // 200 bps = 2.0% max confidence
+            feed_id,
+        )?;
+
+        // e. 0 < sell_units <= amount_units -> InvalidAmount
+        let current_amount_units = vault.positions[pos_idx].amount_units;
+        require!(
+            sell_units > 0 && sell_units <= current_amount_units,
+            SentinelError::InvalidAmount
+        );
+
+        // f. proceeds_cents = sell_units * price_cents * (10000 - RECOVERY_VENUE_FEE_BPS) / 10000 (u128 math, checked)
+        let proceeds_cents = compute_recovery_proceeds(
+            sell_units,
+            price_cents,
+            RECOVERY_VENUE_FEE_BPS,
+        )?;
+
+        // g. pre_total = usdc + amount_units * price (Pyth price, not the stored price).
+        // Post state: amount_units -= sell_units, usdc += proceeds_cents. post_total from the same formula.
+        let pre_target_cents = (current_amount_units as u128)
+            .checked_mul(price_cents as u128)
+            .ok_or(SentinelError::MathOverflow)?;
+        let pre_target_cents = u64::try_from(pre_target_cents)
+            .map_err(|_| error!(SentinelError::MathOverflow))?;
+
+        let pre_total_cents = vault.usdc_balance_cents
+            .checked_add(pre_target_cents)
+            .ok_or(SentinelError::MathOverflow)?;
+
+        let post_amount_units = current_amount_units
+            .checked_sub(sell_units)
+            .ok_or(SentinelError::MathOverflow)?;
+
+        let post_target_cents = (post_amount_units as u128)
+            .checked_mul(price_cents as u128)
+            .ok_or(SentinelError::MathOverflow)?;
+        let post_target_cents = u64::try_from(post_target_cents)
+            .map_err(|_| error!(SentinelError::MathOverflow))?;
+
+        let post_usdc_cents = vault.usdc_balance_cents
+            .checked_add(proceeds_cents)
+            .ok_or(SentinelError::MathOverflow)?;
+
+        let post_total_cents = post_usdc_cents
+            .checked_add(post_target_cents)
+            .ok_or(SentinelError::MathOverflow)?;
+
+        // h. Value conservation: post_total >= pre_total * (10000 - policy.max_recovery_cost_bps) / 10000 -> ValueConservationBreached
+        check_value_conservation(
+            pre_total_cents,
+            post_total_cents,
+            policy.max_recovery_cost_bps,
+        )?;
+
+        // i. Postconditions via the SAME pure functions the trade path uses (check_exposure_and_reserve):
+        // exposure <= max_single_asset_bps AND stablecoin ratio >= min_stablecoin_bps -> PostconditionFailed
+        check_exposure_and_reserve(
+            policy,
+            post_target_cents,
+            post_total_cents,
+            post_usdc_cents,
+        ).map_err(|_| error!(SentinelError::PostconditionFailed))?;
+
+        // Calculate exposure basis points for strict improvement, oversell guard, and event
+        require!(pre_total_cents > 0 && post_total_cents > 0, SentinelError::MathOverflow);
+        let pre_exposure_bps = ((pre_target_cents as u128)
+            .checked_mul(10_000)
+            .ok_or(SentinelError::MathOverflow)?
+            .checked_div(pre_total_cents as u128)
+            .ok_or(SentinelError::MathOverflow)?) as u16;
+
+        let post_exposure_bps = ((post_target_cents as u128)
+            .checked_mul(10_000)
+            .ok_or(SentinelError::MathOverflow)?
+            .checked_div(post_total_cents as u128)
+            .ok_or(SentinelError::MathOverflow)?) as u16;
+
+        // j. Strict improvement: post_exposure_bps < pre_exposure_bps -> PostconditionFailed
+        check_strict_improvement(pre_exposure_bps, post_exposure_bps)?;
+
+        // k. Oversell guard: post_exposure_bps >= max_single_asset_bps - OVERSELL_BAND_BPS (saturating) -> OversellGuard
+        check_oversell_guard(post_exposure_bps, policy.max_single_asset_bps, OVERSELL_BAND_BPS)?;
+
+        // 1.4 On success, atomically:
+        // status = Active; pending_violation_slot = 0; quarantine_slot = 0;
+        // recovery_expires_slot = 0; recovery_nonce += 1 (replay protection);
+        // save last_recovery_slot and last_recovery_solver on the vault.
+        let new_nonce = vault.recovery_nonce
+            .checked_add(1)
+            .ok_or(SentinelError::MathOverflow)?;
+
+        vault.status = VaultStatus::Active;
+        vault.pending_violation_slot = 0;
+        vault.quarantine_slot = 0;
+        vault.recovery_expires_slot = 0;
+        vault.recovery_nonce = new_nonce;
+        vault.last_recovery_slot = current_slot;
+        vault.last_recovery_solver = ctx.accounts.solver.key();
+
+        vault.positions[pos_idx].amount_units = post_amount_units;
+        vault.positions[pos_idx].price_cents = price_cents;
+        vault.usdc_balance_cents = post_usdc_cents;
+        vault.total_value_cents = post_total_cents;
+
+        // 1.5 Bounty: do NOT implement a payout. Compute and emit bounty_cap_cents
+        // = proceeds_cents * max_bounty_bps / 10000 in the event only, labeled SIMULATED / NOT PAID.
+        let bounty_cap_cents = ((proceeds_cents as u128)
+            .checked_mul(policy.max_bounty_bps as u128)
+            .ok_or(SentinelError::MathOverflow)?
+            .checked_div(10_000)
+            .ok_or(SentinelError::MathOverflow)?) as u64;
+
+        emit!(RecoveryExecutedEvent {
+            vault: vault.key(),
+            solver: ctx.accounts.solver.key(),
+            sell_units,
+            proceeds_cents,
+            pre_exposure_bps,
+            post_exposure_bps,
+            pre_total_cents,
+            post_total_cents,
+            new_nonce,
+            slot: current_slot,
+            bounty_cap_cents,
+        });
+
+        Ok(())
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -702,6 +864,11 @@ pub fn check_evidence_lifecycle(
     require!(verification_result == promise_status, SentinelError::InvalidPromiseStatus);
     Ok(())
 }
+
+/// SIMULATED venue fee in basis points (0.30%)
+pub const RECOVERY_VENUE_FEE_BPS: u16 = 30;
+/// Oversell guard tolerance band in basis points (5.00%)
+pub const OVERSELL_BAND_BPS: u16 = 500;
 
 pub const PYTH_RECEIVER_ID: Pubkey = Pubkey::new_from_array([
     12, 183, 250, 187, 82, 247, 166, 72, 187, 91, 49, 125, 154, 1, 139, 144, 87, 203, 2, 71, 116,
@@ -861,6 +1028,61 @@ pub fn verify_vault_postconditions(
         policy.max_slippage_bps,
     )?;
 
+    Ok(())
+}
+
+pub fn compute_recovery_proceeds(sell_units: u64, price_cents: u64, fee_bps: u16) -> Result<u64> {
+    require!(fee_bps <= 10_000, SentinelError::MathOverflow);
+    let gross = (sell_units as u128)
+        .checked_mul(price_cents as u128)
+        .ok_or(SentinelError::MathOverflow)?;
+    let net = gross
+        .checked_mul((10_000 - fee_bps) as u128)
+        .ok_or(SentinelError::MathOverflow)?
+        .checked_div(10_000)
+        .ok_or(SentinelError::MathOverflow)?;
+    u64::try_from(net).map_err(|_| error!(SentinelError::MathOverflow))
+}
+
+pub fn check_value_conservation(
+    pre_total: u64,
+    post_total: u64,
+    max_recovery_cost_bps: u16,
+) -> Result<()> {
+    require!(max_recovery_cost_bps <= 10_000, SentinelError::MathOverflow);
+    let min_allowed = (pre_total as u128)
+        .checked_mul((10_000 - max_recovery_cost_bps) as u128)
+        .ok_or(SentinelError::MathOverflow)?
+        .checked_div(10_000)
+        .ok_or(SentinelError::MathOverflow)?;
+    require!(
+        (post_total as u128) >= min_allowed,
+        SentinelError::ValueConservationBreached
+    );
+    Ok(())
+}
+
+pub fn check_strict_improvement(
+    pre_exposure_bps: u16,
+    post_exposure_bps: u16,
+) -> Result<()> {
+    require!(
+        post_exposure_bps < pre_exposure_bps,
+        SentinelError::PostconditionFailed
+    );
+    Ok(())
+}
+
+pub fn check_oversell_guard(
+    post_exposure_bps: u16,
+    max_single_asset_bps: u16,
+    oversell_band_bps: u16,
+) -> Result<()> {
+    let lower_bound = max_single_asset_bps.saturating_sub(oversell_band_bps);
+    require!(
+        post_exposure_bps >= lower_bound,
+        SentinelError::OversellGuard
+    );
     Ok(())
 }
 
@@ -1088,6 +1310,22 @@ pub struct ExpireQuarantine<'info> {
     pub signer: Signer<'info>,
 }
 
+#[derive(Accounts)]
+pub struct Recover<'info> {
+    #[account(
+        mut,
+        seeds = [b"vault", vault.owner.as_ref()],
+        bump = vault.bump,
+        has_one = policy,
+        constraint = vault.owner == policy.owner @ SentinelError::SecurityDomainMismatch
+    )]
+    pub vault: Account<'info, PortfolioVault>,
+    pub policy: Account<'info, PolicyAccount>,
+    /// CHECK: Verified via parse_and_verify_pyth_price in recover instruction
+    pub price_update: AccountInfo<'info>,
+    pub solver: Signer<'info>,
+}
+
 // -----------------------------------------------------------------------------
 // Events
 // -----------------------------------------------------------------------------
@@ -1191,6 +1429,22 @@ pub struct QuarantineExpiredEvent {
     pub vault: Pubkey,
     pub slot: u64,
     pub recovery_nonce: u64,
+}
+
+#[event]
+pub struct RecoveryExecutedEvent {
+    pub vault: Pubkey,
+    pub solver: Pubkey,
+    pub sell_units: u64,
+    pub proceeds_cents: u64,
+    pub pre_exposure_bps: u16,
+    pub post_exposure_bps: u16,
+    pub pre_total_cents: u64,
+    pub post_total_cents: u64,
+    pub new_nonce: u64,
+    pub slot: u64,
+    /// SIMULATED / NOT PAID: Solver bounty ceiling calculated against policy.max_bounty_bps
+    pub bounty_cap_cents: u64,
 }
 
 // -----------------------------------------------------------------------------
@@ -1639,5 +1893,114 @@ mod tests {
         assert_eq!(price_update.verification_level, VerificationLevel::Full);
         assert_eq!(price_update.price_message.price, 12000000000);
         assert_eq!(price_update.price_message.exponent, -8);
+    }
+
+    #[test]
+    fn test_compute_recovery_proceeds() {
+        // 100 units at $150 (15,000 cents), fee 30 bps (0.3%)
+        // gross = 1,500,000 cents ($15,000)
+        // net = 1,500,000 * 9,970 / 10,000 = 1,495,500 cents ($14,955)
+        let proceeds = compute_recovery_proceeds(100, 15_000, 30).unwrap();
+        assert_eq!(proceeds, 1_495_500);
+
+        // Boundary: 0 units sold -> 0 proceeds
+        assert_eq!(compute_recovery_proceeds(0, 15_000, 30).unwrap(), 0);
+
+        // Boundary: 0 price -> 0 proceeds
+        assert_eq!(compute_recovery_proceeds(100, 0, 30).unwrap(), 0);
+
+        // Boundary: 0 fee -> full gross
+        assert_eq!(compute_recovery_proceeds(10, 10_000, 0).unwrap(), 100_000);
+
+        // Boundary: 10,000 bps fee (100%) -> 0 proceeds
+        assert_eq!(compute_recovery_proceeds(10, 10_000, 10_000).unwrap(), 0);
+
+        // Boundary: > 10,000 bps fee -> MathOverflow error
+        assert_eq!(
+            compute_recovery_proceeds(10, 10_000, 10_001).unwrap_err(),
+            error!(SentinelError::MathOverflow)
+        );
+    }
+
+    #[test]
+    fn test_check_value_conservation() {
+        let pre_total = 10_000;
+        let max_cost_bps = 100; // 1% allowed loss -> min_allowed = 9,900
+
+        // Exact bound passes
+        assert!(check_value_conservation(pre_total, 9_900, max_cost_bps).is_ok());
+
+        // Above bound passes
+        assert!(check_value_conservation(pre_total, 9_950, max_cost_bps).is_ok());
+
+        // Below bound fails with ValueConservationBreached
+        assert_eq!(
+            check_value_conservation(pre_total, 9_899, max_cost_bps).unwrap_err(),
+            error!(SentinelError::ValueConservationBreached)
+        );
+
+        // 0 bps max cost requires post >= pre
+        assert!(check_value_conservation(pre_total, pre_total, 0).is_ok());
+        assert_eq!(
+            check_value_conservation(pre_total, pre_total - 1, 0).unwrap_err(),
+            error!(SentinelError::ValueConservationBreached)
+        );
+
+        // 10,000 bps max cost allows 0 post
+        assert!(check_value_conservation(pre_total, 0, 10_000).is_ok());
+
+        // Fee > 10,000 bps fails
+        assert_eq!(
+            check_value_conservation(pre_total, pre_total, 10_001).unwrap_err(),
+            error!(SentinelError::MathOverflow)
+        );
+    }
+
+    #[test]
+    fn test_check_strict_improvement() {
+        // Strict reduction in exposure bps passes
+        assert!(check_strict_improvement(6000, 4500).is_ok());
+        assert!(check_strict_improvement(10, 0).is_ok());
+
+        // Equal exposure fails with PostconditionFailed
+        assert_eq!(
+            check_strict_improvement(5000, 5000).unwrap_err(),
+            error!(SentinelError::PostconditionFailed)
+        );
+
+        // Increased exposure fails with PostconditionFailed
+        assert_eq!(
+            check_strict_improvement(4000, 4500).unwrap_err(),
+            error!(SentinelError::PostconditionFailed)
+        );
+    }
+
+    #[test]
+    fn test_check_oversell_guard() {
+        let max_single_bps = 5000;
+        let band_bps = 500;
+        // lower_bound = 5000 - 500 = 4500 bps
+
+        // Within band passes
+        assert!(check_oversell_guard(4800, max_single_bps, band_bps).is_ok());
+
+        // Exact lower bound boundary passes
+        assert!(check_oversell_guard(4500, max_single_bps, band_bps).is_ok());
+
+        // Breached below lower bound fails with OversellGuard
+        assert_eq!(
+            check_oversell_guard(4499, max_single_bps, band_bps).unwrap_err(),
+            error!(SentinelError::OversellGuard)
+        );
+
+        // Entire position sold (post_exposure = 0) fails with OversellGuard
+        assert_eq!(
+            check_oversell_guard(0, max_single_bps, band_bps).unwrap_err(),
+            error!(SentinelError::OversellGuard)
+        );
+
+        // Saturating sub boundary (max < band)
+        // max = 300, band = 500 -> lower_bound = 0
+        assert!(check_oversell_guard(0, 300, 500).is_ok());
     }
 }

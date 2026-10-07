@@ -99,12 +99,14 @@ pub struct PortfolioVault {
     pub quarantine_slot: u64,
     pub recovery_expires_slot: u64,
     pub recovery_nonce: u64,
+    pub last_recovery_slot: u64,
+    pub last_recovery_solver: Pubkey,
 }
 
 impl PortfolioVault {
     pub const MAX_POSITIONS: usize = 8;
-    // 8 disc + 32 owner + 32 policy + 8 usdc + 8 total + (4 len + 8 * (32 + 8 + 8 + 8 + 1 + 32)) + 1 bump + 1 status + 8 pending + 8 quarantine + 8 recovery_expires + 8 recovery_nonce
-    pub const LEN: usize = 8 + 32 + 32 + 8 + 8 + (4 + Self::MAX_POSITIONS * 89) + 1 + 1 + 8 + 8 + 8 + 8;
+    // 8 disc + 32 owner + 32 policy + 8 usdc + 8 total + (4 len + 8 * (32 + 8 + 8 + 8 + 1 + 32)) + 1 bump + 1 status + 8 pending + 8 quarantine + 8 recovery_expires + 8 recovery_nonce + 8 last_recovery_slot + 32 last_recovery_solver
+    pub const LEN: usize = 8 + 32 + 32 + 8 + 8 + (4 + Self::MAX_POSITIONS * 89) + 1 + 1 + 8 + 8 + 8 + 8 + 8 + 32;
 }
 
 pub type VaultAccount = PortfolioVault;
