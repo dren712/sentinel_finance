@@ -14,6 +14,7 @@ import {
   SolanaCluster,
   VaultStatusType,
   OnChainVaultStatus,
+  RecoveryExecutedEventData,
 } from '../types';
 import {
   Connection,
@@ -754,6 +755,56 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
   }
 
   /**
+   * Permissionless recover: executes reduce-only rebalancing recovery on a quarantined vault.
+   * Can be signed by any solver wallet.
+   */
+  async recover(options: {
+    vaultOwner: PublicKey | string;
+    sellUnits: number | bigint;
+    expectedNonce: number | bigint;
+    priceUpdatePubkey: PublicKey | string;
+    solverSigner?: Keypair | WalletSigner;
+  }): Promise<{ signature: string }> {
+    const activeSigner = options.solverSigner || this.signer;
+    if (!activeSigner) {
+      throw new Error('recover requires a solver signer keypair or connected wallet.');
+    }
+
+    const ownerPubkey = typeof options.vaultOwner === 'string'
+      ? new PublicKey(options.vaultOwner)
+      : options.vaultOwner;
+
+    const [vaultPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('vault'), ownerPubkey.toBuffer()],
+      this.programId
+    );
+    const [policyPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('policy'), ownerPubkey.toBuffer()],
+      this.programId
+    );
+
+    const priceUpdate = typeof options.priceUpdatePubkey === 'string'
+      ? new PublicKey(options.priceUpdatePubkey)
+      : options.priceUpdatePubkey;
+
+    const program = this.getProgram(activeSigner);
+    const tx = new Transaction();
+    const recoverIx = await program.methods
+      .recover(new BN(options.sellUnits.toString()), new BN(options.expectedNonce.toString()))
+      .accountsPartial({
+        vault: vaultPda,
+        policy: policyPda,
+        priceUpdate,
+        solver: activeSigner.publicKey,
+      })
+      .instruction();
+
+    tx.add(recoverIx);
+    const signature = await this.sendTransactionWithSigner(tx, activeSigner);
+    return { signature };
+  }
+
+  /**
    * readVaultStatus: authoritatively reads on-chain PortfolioVault account state.
    * No cached or simulated values.
    */
@@ -842,9 +893,52 @@ function formatVaultAccount(vaultAccount: any, vaultPda: PublicKey): OnChainVaul
     quarantineSlot: Number(vaultAccount.quarantineSlot ?? 0),
     recoveryExpiresSlot: Number(vaultAccount.recoveryExpiresSlot ?? 0),
     recoveryNonce: Number(vaultAccount.recoveryNonce ?? 0),
+    lastRecoverySlot: Number(vaultAccount.lastRecoverySlot ?? 0),
+    lastRecoverySolver: vaultAccount.lastRecoverySolver
+      ? (typeof vaultAccount.lastRecoverySolver.toBase58 === 'function'
+          ? vaultAccount.lastRecoverySolver.toBase58()
+          : String(vaultAccount.lastRecoverySolver))
+      : PublicKey.default.toBase58(),
     usdcBalanceCents: Number(vaultAccount.usdcBalanceCents ?? 0),
     totalValueCents: Number(vaultAccount.totalValueCents ?? 0),
   };
+}
+
+/**
+ * Decodes a RecoveryExecutedEvent from Solana transaction logs using the Anchor event parser/coder.
+ */
+export function decodeRecoveryExecutedEvent(
+  programOrCoder: any,
+  logMessages: string[]
+): RecoveryExecutedEventData | null {
+  const coder = programOrCoder?.coder ? programOrCoder.coder : programOrCoder;
+  for (const log of logMessages) {
+    if (log.startsWith('Program data: ')) {
+      const b64 = log.slice('Program data: '.length).trim();
+      try {
+        const decoded = coder.events.decode(b64);
+        if (decoded && (decoded.name === 'RecoveryExecutedEvent' || decoded.name === 'recoveryExecutedEvent')) {
+          const d = decoded.data;
+          return {
+            vault: d.vault.toBase58(),
+            solver: d.solver.toBase58(),
+            sellUnits: Number(d.sellUnits),
+            proceedsCents: Number(d.proceedsCents),
+            preExposureBps: Number(d.preExposureBps),
+            postExposureBps: Number(d.postExposureBps),
+            preTotalCents: Number(d.preTotalCents),
+            postTotalCents: Number(d.postTotalCents),
+            newNonce: Number(d.newNonce),
+            slot: Number(d.slot),
+            bountyCapCents: Number(d.bountyCapCents),
+          };
+        }
+      } catch {
+        // continue
+      }
+    }
+  }
+  return null;
 }
 
 /**

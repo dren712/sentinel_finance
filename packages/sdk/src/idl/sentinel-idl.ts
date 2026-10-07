@@ -694,6 +694,70 @@ export const SENTINEL_IDL = {
       ]
     },
     {
+      "name": "recover",
+      "docs": [
+        "Solves an invariant breach on a quarantined vault via permissionless, reduce-only rebalancing."
+      ],
+      "discriminator": [
+        108,
+        216,
+        38,
+        58,
+        109,
+        146,
+        116,
+        17
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.owner",
+                "account": "PortfolioVault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "policy",
+          "relations": [
+            "vault"
+          ]
+        },
+        {
+          "name": "price_update"
+        },
+        {
+          "name": "solver",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "sell_units",
+          "type": "u64"
+        },
+        {
+          "name": "expected_nonce",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "reject_promise",
       "docs": [
         "Marks a promise as rejected on-chain when risk postconditions or policy checks fail"
@@ -1128,6 +1192,19 @@ export const SENTINEL_IDL = {
       ]
     },
     {
+      "name": "RecoveryExecutedEvent",
+      "discriminator": [
+        186,
+        69,
+        18,
+        177,
+        169,
+        8,
+        24,
+        38
+      ]
+    },
+    {
       "name": "TradeSettledEvent",
       "discriminator": [
         20,
@@ -1356,6 +1433,36 @@ export const SENTINEL_IDL = {
       "code": 6029,
       "name": "RecoveryNotExpired",
       "msg": "Recovery window has not expired yet"
+    },
+    {
+      "code": 6030,
+      "name": "RecoveryWindowClosed",
+      "msg": "Recovery window has expired or is not open"
+    },
+    {
+      "code": 6031,
+      "name": "StaleRecoveryNonce",
+      "msg": "Provided recovery nonce does not match current vault recovery nonce"
+    },
+    {
+      "code": 6032,
+      "name": "ValueConservationBreached",
+      "msg": "Recovery violates portfolio value conservation bounds"
+    },
+    {
+      "code": 6033,
+      "name": "PostconditionFailed",
+      "msg": "Recovery failed to restore compliant portfolio policy invariants"
+    },
+    {
+      "code": 6034,
+      "name": "OversellGuard",
+      "msg": "Recovery sold beyond allowed oversell band"
+    },
+    {
+      "code": 6035,
+      "name": "InvalidAmount",
+      "msg": "Recovery sell amount is zero or exceeds position holdings"
     }
   ],
   "types": [
@@ -1716,6 +1823,14 @@ export const SENTINEL_IDL = {
           {
             "name": "recovery_nonce",
             "type": "u64"
+          },
+          {
+            "name": "last_recovery_slot",
+            "type": "u64"
+          },
+          {
+            "name": "last_recovery_solver",
+            "type": "pubkey"
           }
         ]
       }
@@ -1840,6 +1955,61 @@ export const SENTINEL_IDL = {
           },
           {
             "name": "recovery_nonce",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RecoveryExecutedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "solver",
+            "type": "pubkey"
+          },
+          {
+            "name": "sell_units",
+            "type": "u64"
+          },
+          {
+            "name": "proceeds_cents",
+            "type": "u64"
+          },
+          {
+            "name": "pre_exposure_bps",
+            "type": "u16"
+          },
+          {
+            "name": "post_exposure_bps",
+            "type": "u16"
+          },
+          {
+            "name": "pre_total_cents",
+            "type": "u64"
+          },
+          {
+            "name": "post_total_cents",
+            "type": "u64"
+          },
+          {
+            "name": "new_nonce",
+            "type": "u64"
+          },
+          {
+            "name": "slot",
+            "type": "u64"
+          },
+          {
+            "name": "bounty_cap_cents",
+            "docs": [
+              "SIMULATED / NOT PAID: Solver bounty ceiling calculated against policy.max_bounty_bps"
+            ],
             "type": "u64"
           }
         ]

@@ -238,6 +238,23 @@ export interface OnChainVaultStatus {
   quarantineSlot: number;
   recoveryExpiresSlot: number;
   recoveryNonce: number;
+  lastRecoverySlot: number;
+  lastRecoverySolver: string;
   usdcBalanceCents: number;
   totalValueCents: number;
 }
+
+export interface RecoveryExecutedEventData {
+  vault: string;
+  solver: string;
+  sellUnits: number;
+  proceedsCents: number;
+  preExposureBps: number;
+  postExposureBps: number;
+  preTotalCents: number;
+  postTotalCents: number;
+  newNonce: number;
+  slot: number;
+  bountyCapCents: number;
+}
+

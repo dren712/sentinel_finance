@@ -1,0 +1,57 @@
+{
+  "programId": "3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH",
+  "cluster": "devnet",
+  "timestamp": "2026-10-07T21:33:20.731Z",
+  "pythAccount": "GsZE13nr9acPWUHvpwnajtMzpctFyxfgquNsCnR2P52i",
+  "feedId": "ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace",
+  "vault": "DdaK1oEsBcCfsgyKoYbkhf8BkS927cRZDskvAvjJscrr",
+  "policy": "7jzGugBwgFxFSMNoBbEPvCS4QAkVeFjAEuiqGojwGCGm",
+  "owner": "HJJo1z2MWcCPAwLF1qL22UiXczJ8UQg46WECDVCuMRVC",
+  "solver": "6H5nrFrvoWtAjUE5M8D5XXUU7W6JNzfPkGmytSyA9K2z",
+  "transactions": [
+    {
+      "instruction": "initialize_policy",
+      "signature": "2FY3x93L3j8Uz1Xi5pMutSre8ekUJq12PVtG1udVptvzN4ejWpJUPeeBi779mCUi9Fn62vPikgDUaKcftawzfErQ",
+      "slot": 508591654,
+      "signer": "HJJo1z2MWcCPAwLF1qL22UiXczJ8UQg46WECDVCuMRVC"
+    },
+    {
+      "instruction": "initialize_vault",
+      "signature": "2oD6NEjxX5GSjnVFbaaicfzQtm4zNgUCYDBtBVg5bnEUQyhUcQfPBQnRwZJAaZHZpPbbYG66bPj9HLeQCnHB9RA3",
+      "slot": 508591657,
+      "signer": "HJJo1z2MWcCPAwLF1qL22UiXczJ8UQg46WECDVCuMRVC"
+    },
+    {
+      "instruction": "sync_vault",
+      "signature": "21BeyKUNpLetFhRFxnRTkuw5vWUf2HPSwX7PG3NRBhJVsfZM2mGo5Rac1UVtw5e5THk2j1FBDNfayaCaXXTEULRi",
+      "slot": 508591661,
+      "signer": "HJJo1z2MWcCPAwLF1qL22UiXczJ8UQg46WECDVCuMRVC"
+    },
+    {
+      "instruction": "flag_violation_pending",
+      "signature": "5vSfX1eqkgoEh6GBBAc9WPZi6YMkXkGoZQLV53hWj2ZnsRctC3vAoLx7QMswzFrTTnTsHrKiQXsbTt5VkrosSssf",
+      "slot": 508591665,
+      "signer": "6H5nrFrvoWtAjUE5M8D5XXUU7W6JNzfPkGmytSyA9K2z"
+    },
+    {
+      "instruction": "flag_violation_quarantined",
+      "signature": "PDw3zefCFwawCf8K51vb1bCAGg3TQZ7nSah1ZRJg686BSJbYqZ8UV6okuy9cpvSpoPrFxrY5sSaJRHWhChJ6qpE",
+      "slot": 508591686,
+      "signer": "6H5nrFrvoWtAjUE5M8D5XXUU7W6JNzfPkGmytSyA9K2z"
+    },
+    {
+      "instruction": "recover",
+      "signature": "2zUD46Fqo6NrzVh5E6Er9HZU9bfJZtHcFz62cchtQs1XR8bDM1WhKbRZTygJY4gyhJphRT2X2MUmWnUc4bZiWBob",
+      "slot": 508591692,
+      "signer": "6H5nrFrvoWtAjUE5M8D5XXUU7W6JNzfPkGmytSyA9K2z"
+    }
+  ],
+  "postRecoveryState": {
+    "status": "active",
+    "recoveryNonce": 2,
+    "lastRecoverySlot": 508591692,
+    "lastRecoverySolver": "6H5nrFrvoWtAjUE5M8D5XXUU7W6JNzfPkGmytSyA9K2z",
+    "usdcBalanceCents": 19976576,
+    "remainingUnits": 22
+  }
+}
