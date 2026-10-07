@@ -6,7 +6,7 @@
 FROM node:20-slim AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
-RUN npm install -g pnpm@9
+RUN corepack enable && corepack prepare pnpm@10.4.5 --activate
 WORKDIR /app
 
 # -----------------------------------------------------------------------------
@@ -53,7 +53,7 @@ RUN pnpm --filter @sentinel/sdk run build
 # Build-time arguments with production Solana Devnet defaults
 ARG NEXT_PUBLIC_SOLANA_CLUSTER=devnet
 ARG NEXT_PUBLIC_SOLANA_RPC=https://api.devnet.solana.com
-ARG NEXT_PUBLIC_SENTINEL_PROGRAM_ID=3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK
+ARG NEXT_PUBLIC_SENTINEL_PROGRAM_ID=3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH
 ARG NEXT_PUBLIC_LIVE_PRICES=true
 ARG NEXT_PUBLIC_DEMO_MODE=true
 
@@ -65,13 +65,13 @@ ENV NEXT_PUBLIC_SENTINEL_PROGRAM_ID=$NEXT_PUBLIC_SENTINEL_PROGRAM_ID
 ENV NEXT_PUBLIC_LIVE_PRICES=$NEXT_PUBLIC_LIVE_PRICES
 ENV NEXT_PUBLIC_DEMO_MODE=$NEXT_PUBLIC_DEMO_MODE
 
-# Build Next.js application in production mode
+# Build Next.js application in standalone production mode
 RUN pnpm --filter @sentinel/web run build
 
 # -----------------------------------------------------------------------------
-# Runner stage: Lightweight production runtime
+# Runner stage: Ultra-lightweight standalone production runtime (~150MB)
 # -----------------------------------------------------------------------------
-FROM base AS runner
+FROM node:20-slim AS runner
 WORKDIR /app
 
 LABEL org.opencontainers.image.title="Sentinel Finance"
@@ -82,11 +82,13 @@ ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 ENV NEXT_TELEMETRY_DISABLED=1
+
+# Default runtime configuration
 ENV NEXT_PUBLIC_SOLANA_CLUSTER=devnet
 ENV NEXT_PUBLIC_SOLANA_RPC=https://api.devnet.solana.com
-ENV NEXT_PUBLIC_SENTINEL_PROGRAM_ID=3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK
+ENV NEXT_PUBLIC_SENTINEL_PROGRAM_ID=3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH
 ENV SOLANA_RPC_URL=https://api.devnet.solana.com
-ENV SENTINEL_PROGRAM_ID=3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK
+ENV SENTINEL_PROGRAM_ID=3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH
 ENV NEXT_PUBLIC_LIVE_PRICES=true
 ENV NEXT_PUBLIC_DEMO_MODE=true
 ENV PYTH_HERMES_URL=https://hermes.pyth.network
@@ -95,15 +97,16 @@ ENV PYTH_HERMES_URL=https://hermes.pyth.network
 RUN groupadd --system --gid 1001 nodejs && \
     useradd --system --uid 1001 nextjs
 
-# Copy built application and workspace from builder
-COPY --from=builder --chown=nextjs:nodejs /app ./
+# Copy Next.js standalone server and assets
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
 
 USER nextjs
 
 EXPOSE 3000
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD node -e "fetch('http://localhost:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD node -e "const port = process.env.PORT || 3000; fetch('http://127.0.0.1:' + port + '/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
-CMD ["pnpm", "--filter", "@sentinel/web", "run", "start"]
-
+CMD ["node", "apps/web/server.js"]
