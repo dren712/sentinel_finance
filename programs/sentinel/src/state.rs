@@ -56,6 +56,7 @@ pub struct AssetPosition {
     pub amount_units: u64,      // units of equity tokens
     pub price_cents: u64,       // price in USD cents ($120.00 = 12000 cents)
     pub is_index: bool,         // broad ETF exemption
+    pub feed_id: [u8; 32],      // Pyth PriceFeed ID (owner-configured)
 }
 
 /// PortfolioVault:
@@ -79,8 +80,8 @@ pub struct PortfolioVault {
 
 impl PortfolioVault {
     pub const MAX_POSITIONS: usize = 8;
-    // 8 disc + 32 owner + 32 policy + 8 usdc + 8 total + (4 len + 8 * (32 + 8 + 8 + 8 + 1)) + 1 bump
-    pub const LEN: usize = 8 + 32 + 32 + 8 + 8 + (4 + Self::MAX_POSITIONS * 57) + 1;
+    // 8 disc + 32 owner + 32 policy + 8 usdc + 8 total + (4 len + 8 * (32 + 8 + 8 + 8 + 1 + 32)) + 1 bump
+    pub const LEN: usize = 8 + 32 + 32 + 8 + 8 + (4 + Self::MAX_POSITIONS * 89) + 1;
 }
 
 #[account]

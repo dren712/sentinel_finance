@@ -405,65 +405,6 @@ export const SENTINEL_IDL = {
       ]
     },
     {
-      "name": "post_price_update",
-      "docs": [
-        "Posts or updates a verified Pyth price update account"
-      ],
-      "discriminator": [
-        152,
-        172,
-        180,
-        83,
-        98,
-        71,
-        47,
-        78
-      ],
-      "accounts": [
-        {
-          "name": "price_update",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "payer",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "feed_id",
-          "type": {
-            "array": [
-              "u8",
-              32
-            ]
-          }
-        },
-        {
-          "name": "price",
-          "type": "i64"
-        },
-        {
-          "name": "conf",
-          "type": "u64"
-        },
-        {
-          "name": "exponent",
-          "type": "i32"
-        },
-        {
-          "name": "publish_time",
-          "type": "i64"
-        }
-      ]
-    },
-    {
       "name": "record_evidence",
       "docs": [
         "Anchors an immutable PROVN evidence record on-chain"
@@ -865,19 +806,6 @@ export const SENTINEL_IDL = {
       ]
     },
     {
-      "name": "PriceUpdateV2",
-      "discriminator": [
-        34,
-        241,
-        35,
-        99,
-        157,
-        126,
-        244,
-        205
-      ]
-    },
-    {
       "name": "PromiseAccount",
       "discriminator": [
         27,
@@ -1102,6 +1030,26 @@ export const SENTINEL_IDL = {
       "code": 6020,
       "name": "MismatchedFeedId",
       "msg": "Pyth price feed ID does not match the target asset mint feed"
+    },
+    {
+      "code": 6021,
+      "name": "FeedMismatch",
+      "msg": "Pyth price feed ID does not match the stored feed ID for this asset"
+    },
+    {
+      "code": 6022,
+      "name": "StaleOracle",
+      "msg": "Pyth oracle price is stale (> 60 seconds)"
+    },
+    {
+      "code": 6023,
+      "name": "ConfidenceTooWide",
+      "msg": "Pyth oracle confidence interval is wider than policy tolerance"
+    },
+    {
+      "code": 6024,
+      "name": "UnverifiedPrice",
+      "msg": "Price account is not verified by Pyth or has invalid verification level/owner"
     }
   ],
   "types": [
@@ -1206,6 +1154,15 @@ export const SENTINEL_IDL = {
           {
             "name": "is_index",
             "type": "bool"
+          },
+          {
+            "name": "feed_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           }
         ]
       }
@@ -1414,83 +1371,6 @@ export const SENTINEL_IDL = {
       }
     },
     {
-      "name": "PriceFeedMessage",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "feed_id",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "price",
-            "type": "i64"
-          },
-          {
-            "name": "conf",
-            "type": "u64"
-          },
-          {
-            "name": "exponent",
-            "type": "i32"
-          },
-          {
-            "name": "publish_time",
-            "type": "i64"
-          },
-          {
-            "name": "prev_publish_time",
-            "type": "i64"
-          },
-          {
-            "name": "ema_price",
-            "type": "i64"
-          },
-          {
-            "name": "ema_conf",
-            "type": "u64"
-          }
-        ]
-      }
-    },
-    {
-      "name": "PriceUpdateV2",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "write_authority",
-            "type": "pubkey"
-          },
-          {
-            "name": "verification_level",
-            "type": {
-              "defined": {
-                "name": "VerificationLevel"
-              }
-            }
-          },
-          {
-            "name": "price_message",
-            "type": {
-              "defined": {
-                "name": "PriceFeedMessage"
-              }
-            }
-          },
-          {
-            "name": "posted_slot",
-            "type": "u64"
-          }
-        ]
-      }
-    },
-    {
       "name": "PromiseAccount",
       "type": {
         "kind": "struct",
@@ -1643,26 +1523,6 @@ export const SENTINEL_IDL = {
           {
             "name": "usdc_balance_cents",
             "type": "u64"
-          }
-        ]
-      }
-    },
-    {
-      "name": "VerificationLevel",
-      "type": {
-        "kind": "enum",
-        "variants": [
-          {
-            "name": "Partial",
-            "fields": [
-              {
-                "name": "num_signatures",
-                "type": "u8"
-              }
-            ]
-          },
-          {
-            "name": "Full"
           }
         ]
       }

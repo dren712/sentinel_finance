@@ -22,10 +22,10 @@ Every technical claim made by Sentinel Finance is mapped directly to an on-chain
 
 | Claim | Verification Method | Proof / Identifier | Source Reference |
 | :--- | :--- | :--- | :--- |
-| **On-Chain Pyth Read (`PriceUpdateV2`)** | Anchor Program + Devnet/Localnet Account | Program verifies feed ID, timestamp, and confidence bound | `programs/sentinel/src/lib.rs:572-620` |
-| **Stale Price Rejection (`StaleOraclePrice` 6019)** | Anchor Localnet Test & Rust Test | Test 13 in `tests/sentinel-localnet.test.ts` | Quotes older than 60s fail closed |
-| **Wide Confidence Bound (`WideConfidenceInterval` 6020)** | Anchor Localnet Test & Rust Test | Test 14 in `tests/sentinel-localnet.test.ts` | Confidence > 200 bps (2%) fails closed |
-| **Oracle Benchmark Slippage (`SlippageExceeded` 6007)** | Anchor Localnet Test & Rust Test | Test 15 in `tests/sentinel-localnet.test.ts` | Untrusted caller quote ignored; benchmark read from Pyth |
+| **On-Chain Pyth Read (`PriceUpdateV2`)** | YES — Verified by 6 Anchor Localnet Tests | Tests 13, 14, 16, 17, 18, 19 in `tests/sentinel-localnet.test.ts`:<br>• `16. Phase A: price account owned by program -> UnverifiedPrice (6024)`<br>• `17. Phase A: price account with wrong feed_id -> FeedMismatch (6021)`<br>• `18. Phase A: price account with verification_level != Full -> UnverifiedPrice (6024)`<br>• `13. stale Pyth price (>60s) -> StaleOracle (6022)`<br>• `14. wide Pyth confidence (>2%) -> ConfidenceTooWide (6023)`<br>• `19. Phase A: valid Pyth fixture -> trade proceeds successfully` | `programs/sentinel/src/lib.rs:604-636` |
+| **Stale Price Rejection (`StaleOracle` 6022)** | Anchor Localnet Test & Rust Test | Test 13 in `tests/sentinel-localnet.test.ts` | Quotes older than 60s fail closed |
+| **Wide Confidence Bound (`ConfidenceTooWide` 6023)** | Anchor Localnet Test & Rust Test | Test 14 in `tests/sentinel-localnet.test.ts` | Confidence > 200 bps (2%) fails closed |
+| **Oracle Benchmark Slippage (`SlippageExceeded` 6007)** | NOT ENFORCED until a realized-price check exists | After Phase A oracle hardening, execution price == benchmark == Pyth, so `check_benchmark_slippage` compares Pyth price to itself. Slippage protection is not enforced until a realized-price DEX swap receipt check exists. | `programs/sentinel/src/lib.rs:303` |
 | **Anti-Price-Deflation Protection** | Anchor Localnet Test & Rust Test | Test 1 in `tests/sentinel-localnet.test.ts` | Target position stored price protected against artificial devaluation |
 
 ---

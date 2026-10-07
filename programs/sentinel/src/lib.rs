@@ -281,20 +281,22 @@ pub mod sentinel {
         // 5. Validate trade direction (Point 3)
         check_trade_direction(promise.trade_direction)?;
 
-        // 6. Parse and verify Pyth oracle price on-chain (Phase 4, Point 12)
-        let (pyth_price_cents, _feed_id) = parse_and_verify_pyth_price(
+        // 6. Locate target asset position index in vault
+        let pos_idx = vault.positions.iter().position(|p| p.mint == promise.trade_asset_mint)
+            .ok_or(SentinelError::AssetNotFound)?;
+        let expected_feed_id = vault.positions[pos_idx].feed_id;
+
+        // 7. Parse and verify Pyth oracle price on-chain (Phase 4 / Phase A)
+        let pyth_price_cents = parse_and_verify_pyth_price(
             &ctx.accounts.price_update,
             clock.unix_timestamp,
             200, // 200 bps = 2.0% max confidence interval
+            expected_feed_id,
         )?;
 
-        // Stop trusting caller-supplied quoted prices: benchmark is derived directly from Pyth
+        // Benchmark is derived directly from Pyth
         let benchmark_price_cents = pyth_price_cents;
         let quoted_price_cents = pyth_price_cents;
-
-        // 7. Locate target asset position index in vault
-        let pos_idx = vault.positions.iter().position(|p| p.mint == promise.trade_asset_mint)
-            .ok_or(SentinelError::AssetNotFound)?;
 
         // 8. Oracle benchmark & anti-price-deflation protection:
         // Enforce slippage tolerance against Pyth benchmark price
@@ -471,32 +473,6 @@ pub mod sentinel {
 
         Ok(())
     }
-
-    /// Posts or updates a verified Pyth price update account
-    pub fn post_price_update(
-        ctx: Context<PostPriceUpdate>,
-        feed_id: [u8; 32],
-        price: i64,
-        conf: u64,
-        exponent: i32,
-        publish_time: i64,
-    ) -> Result<()> {
-        let price_update = &mut ctx.accounts.price_update;
-        price_update.write_authority = ctx.accounts.payer.key();
-        price_update.verification_level = VerificationLevel::Full;
-        price_update.price_message = PriceFeedMessage {
-            feed_id,
-            price,
-            conf,
-            exponent,
-            publish_time,
-            prev_publish_time: publish_time.saturating_sub(1),
-            ema_price: price,
-            ema_conf: conf,
-        };
-        price_update.posted_slot = Clock::get()?.slot;
-        Ok(())
-    }
 }
 
 // -----------------------------------------------------------------------------
@@ -582,7 +558,7 @@ pub fn check_pyth_freshness(publish_time: i64, current_timestamp: i64) -> Result
     require!(publish_time <= max_future_time, SentinelError::InvalidPrice);
     require!(
         current_timestamp.saturating_sub(publish_time) <= 60,
-        SentinelError::StaleOraclePrice
+        SentinelError::StaleOracle
     );
     Ok(())
 }
@@ -596,7 +572,7 @@ pub fn check_pyth_confidence(price: i64, conf: u64, max_conf_bps: u16) -> Result
         .ok_or(SentinelError::MathOverflow)?;
     require!(
         (conf as u128) <= max_allowed_conf,
-        SentinelError::WideConfidenceInterval
+        SentinelError::ConfidenceTooWide
     );
     Ok(())
 }
@@ -630,20 +606,33 @@ pub fn parse_and_verify_pyth_price(
     account_info: &AccountInfo,
     current_timestamp: i64,
     max_conf_bps: u16,
-) -> Result<(u64, [u8; 32])> {
+    expected_feed_id: [u8; 32],
+) -> Result<u64> {
     require!(
-        account_info.owner == &PYTH_RECEIVER_ID || account_info.owner == &crate::ID,
-        SentinelError::InvalidPrice
+        account_info.owner == &PYTH_RECEIVER_ID,
+        SentinelError::UnverifiedPrice
     );
 
-    let price_update = PriceUpdateV2::try_from_account_info(account_info)?;
+    let price_update = PriceUpdateV2::try_from_account_info(account_info)
+        .map_err(|_| error!(SentinelError::UnverifiedPrice))?;
+
+    require!(
+        matches!(price_update.verification_level, VerificationLevel::Full),
+        SentinelError::UnverifiedPrice
+    );
+
     let msg = price_update.price_message;
+
+    require!(
+        msg.feed_id == expected_feed_id,
+        SentinelError::FeedMismatch
+    );
 
     check_pyth_freshness(msg.publish_time, current_timestamp)?;
     check_pyth_confidence(msg.price, msg.conf, max_conf_bps)?;
 
     let price_cents = convert_pyth_price_to_cents(msg.price, msg.exponent)?;
-    Ok((price_cents, msg.feed_id))
+    Ok(price_cents)
 }
 
 pub fn verify_vault_postconditions(
@@ -826,19 +815,6 @@ pub struct ExecuteGuardedTrade<'info> {
     /// CHECK: Oracle price update account verified via program ownership and deserialization
     pub price_update: AccountInfo<'info>,
     pub authority: Signer<'info>,
-}
-
-#[derive(Accounts)]
-pub struct PostPriceUpdate<'info> {
-    #[account(
-        init,
-        payer = payer,
-        space = PriceUpdateV2::LEN
-    )]
-    pub price_update: Account<'info, PriceUpdateV2>,
-    #[account(mut)]
-    pub payer: Signer<'info>,
-    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
@@ -1265,6 +1241,7 @@ mod tests {
             amount_units: 200,
             price_cents: 12_000,
             is_index: false,
+            feed_id: [0u8; 32],
         };
 
         // Even on an executed trade at $120.50 (12,050 cents, within 1% slippage)
@@ -1292,16 +1269,16 @@ mod tests {
         // Boundary price (exactly 60s old) passes
         assert!(check_pyth_freshness(current_time - 60, current_time).is_ok());
 
-        // Stale price (61s old) fails closed with StaleOraclePrice
+        // Stale price (61s old) fails closed with StaleOracle
         assert_eq!(
             check_pyth_freshness(current_time - 61, current_time).unwrap_err(),
-            error!(SentinelError::StaleOraclePrice)
+            error!(SentinelError::StaleOracle)
         );
 
         // Very stale price (300s old) fails closed
         assert_eq!(
             check_pyth_freshness(current_time - 300, current_time).unwrap_err(),
-            error!(SentinelError::StaleOraclePrice)
+            error!(SentinelError::StaleOracle)
         );
 
         // Within 10s future drift passes
@@ -1327,11 +1304,11 @@ mod tests {
         let boundary_conf: u64 = 240_000_000;
         assert!(check_pyth_confidence(price, boundary_conf, 200).is_ok());
 
-        // Wide confidence ($3.00 = 2.5% > 2.0% threshold) fails closed with WideConfidenceInterval
+        // Wide confidence ($3.00 = 2.5% > 2.0% threshold) fails closed with ConfidenceTooWide
         let wide_conf: u64 = 300_000_000;
         assert_eq!(
             check_pyth_confidence(price, wide_conf, 200).unwrap_err(),
-            error!(SentinelError::WideConfidenceInterval)
+            error!(SentinelError::ConfidenceTooWide)
         );
 
         // Zero or negative price fails closed with InvalidPrice
@@ -1380,5 +1357,30 @@ mod tests {
             convert_pyth_price_to_cents(-500, -8).unwrap_err(),
             error!(SentinelError::InvalidPrice)
         );
+    }
+
+    #[test]
+    fn test_deserialize_price_update_v2() {
+        let disc = PriceUpdateV2::DISCRIMINATOR;
+        let mut buf = Vec::new();
+        buf.extend_from_slice(&disc);
+        let write_auth = Pubkey::new_unique();
+        buf.extend_from_slice(write_auth.as_ref());
+        buf.push(1); // Full
+        buf.extend_from_slice(&[7u8; 32]); // feed_id
+        buf.extend_from_slice(&12000000000i64.to_le_bytes()); // price
+        buf.extend_from_slice(&50000000u64.to_le_bytes()); // conf
+        buf.extend_from_slice(&(-8i32).to_le_bytes()); // exponent
+        buf.extend_from_slice(&1726000000i64.to_le_bytes()); // publish_time
+        buf.extend_from_slice(&1726000000i64.to_le_bytes()); // prev_publish_time
+        buf.extend_from_slice(&12000000000i64.to_le_bytes()); // ema_price
+        buf.extend_from_slice(&50000000u64.to_le_bytes()); // ema_conf
+        buf.extend_from_slice(&100u64.to_le_bytes()); // posted_slot
+
+        let mut slice = &buf[8..];
+        let price_update = PriceUpdateV2::deserialize(&mut slice).expect("deserialize failed");
+        assert_eq!(price_update.verification_level, VerificationLevel::Full);
+        assert_eq!(price_update.price_message.price, 12000000000);
+        assert_eq!(price_update.price_message.exponent, -8);
     }
 }

@@ -23,4 +23,31 @@ cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
-test = "pnpm test && node --test tests/sentinel-localnet.test.ts"
+test = "node scripts/make-price-fixture.mjs && pnpm test && node --test tests/sentinel-localnet.test.ts"
+
+[test.validator]
+bind_address = "0.0.0.0"
+
+[[test.validator.account]]
+address = "J8opbW6RvmdEmMnrtNjRsDFu9ods126DcFmMPpN132gt"
+filename = "fixtures/valid-price.json"
+
+[[test.validator.account]]
+address = "5Y7SCDZxL8haTNJDaGw3zNyoEkoATac32mT4oyF9uYtZ"
+filename = "fixtures/wrong-feed-price.json"
+
+[[test.validator.account]]
+address = "DZLP8FKPXvpQqSmRDNznZpjgAo9seQ4gCT3w88LN3cWR"
+filename = "fixtures/stale-price.json"
+
+[[test.validator.account]]
+address = "FWcfcxvB8VUt7gnt9tGebsBn5ZYHEWLSXEtqNCDUC9Yo"
+filename = "fixtures/wide-conf-price.json"
+
+[[test.validator.account]]
+address = "6HxqLaYogxnDypS5RToSkzjjUKmQu8VyRfGnBHGZxNGf"
+filename = "fixtures/partial-verif-price.json"
+
+[[test.validator.account]]
+address = "7aAxWintcoT3KWTK96RHM57jg5YSunEAL9wDizAToJVe"
+filename = "fixtures/prog-owned-price.json"

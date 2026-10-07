@@ -11,5 +11,8 @@
     "dev": "pnpm --filter @sentinel/web run dev",
     "start": "pnpm --filter @sentinel/web run start",
     "init:devnet": "node packages/sdk/scripts/init-devnet.mjs"
+  },
+  "devDependencies": {
+    "solana-bankrun": "^0.4.0"
   }
 }

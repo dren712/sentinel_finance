@@ -30,6 +30,6 @@
 
 | Phase | Component | Change / Feature | Git Commit / Evidence |
 | :--- | :--- | :--- | :--- |
-| **Phase 0** | Infrastructure | Tagged `stocklana-baseline` (`f8734ef`), branched `cwf/main`, deployed dedicated CWF Program ID `3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH` to Devnet (preserving Stocklana links). | *(Phase 0 Commit)* |
-| **Phase A** | Oracle Security | *Pending implementation (Phase A)* | *TBD* |
+| **Phase 0** | Infrastructure | Tagged `stocklana-baseline` (`f8734ef`), branched `cwf/main`, deployed dedicated CWF Program ID `3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH` to Devnet (preserving Stocklana links). | [`be93523`](https://github.com/dren712/sentinel_finance/commit/be93523) |
+| **Phase A** | Oracle Security | Deleted `post_price_update` bypass; required Pyth Receiver ownership (`rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ`) and Full verification; added `feed_id: [u8; 32]` to `AssetPosition` (owner-set only via `sync_vault`); added errors `FeedMismatch`, `StaleOracle`, `ConfidenceTooWide`, `UnverifiedPrice`; built `scripts/make-price-fixture.mjs` with localnet fixtures; verified via 6 targeted Anchor localnet tests. | [`7714b5b`](https://github.com/dren712/sentinel_finance/commit/7714b5b) |
 | **Phase B** | Quarantine Engine | *Pending implementation (Phase B)* | *TBD* |

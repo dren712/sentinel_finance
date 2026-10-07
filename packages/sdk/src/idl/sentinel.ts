@@ -411,65 +411,6 @@ export type Sentinel = {
       ]
     },
     {
-      "name": "postPriceUpdate",
-      "docs": [
-        "Posts or updates a verified Pyth price update account"
-      ],
-      "discriminator": [
-        152,
-        172,
-        180,
-        83,
-        98,
-        71,
-        47,
-        78
-      ],
-      "accounts": [
-        {
-          "name": "priceUpdate",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "payer",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "feedId",
-          "type": {
-            "array": [
-              "u8",
-              32
-            ]
-          }
-        },
-        {
-          "name": "price",
-          "type": "i64"
-        },
-        {
-          "name": "conf",
-          "type": "u64"
-        },
-        {
-          "name": "exponent",
-          "type": "i32"
-        },
-        {
-          "name": "publishTime",
-          "type": "i64"
-        }
-      ]
-    },
-    {
       "name": "recordEvidence",
       "docs": [
         "Anchors an immutable PROVN evidence record on-chain"
@@ -871,19 +812,6 @@ export type Sentinel = {
       ]
     },
     {
-      "name": "priceUpdateV2",
-      "discriminator": [
-        34,
-        241,
-        35,
-        99,
-        157,
-        126,
-        244,
-        205
-      ]
-    },
-    {
       "name": "promiseAccount",
       "discriminator": [
         27,
@@ -1108,6 +1036,26 @@ export type Sentinel = {
       "code": 6020,
       "name": "mismatchedFeedId",
       "msg": "Pyth price feed ID does not match the target asset mint feed"
+    },
+    {
+      "code": 6021,
+      "name": "feedMismatch",
+      "msg": "Pyth price feed ID does not match the stored feed ID for this asset"
+    },
+    {
+      "code": 6022,
+      "name": "staleOracle",
+      "msg": "Pyth oracle price is stale (> 60 seconds)"
+    },
+    {
+      "code": 6023,
+      "name": "confidenceTooWide",
+      "msg": "Pyth oracle confidence interval is wider than policy tolerance"
+    },
+    {
+      "code": 6024,
+      "name": "unverifiedPrice",
+      "msg": "Price account is not verified by Pyth or has invalid verification level/owner"
     }
   ],
   "types": [
@@ -1212,6 +1160,15 @@ export type Sentinel = {
           {
             "name": "isIndex",
             "type": "bool"
+          },
+          {
+            "name": "feedId",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           }
         ]
       }
@@ -1420,83 +1377,6 @@ export type Sentinel = {
       }
     },
     {
-      "name": "priceFeedMessage",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "feedId",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "price",
-            "type": "i64"
-          },
-          {
-            "name": "conf",
-            "type": "u64"
-          },
-          {
-            "name": "exponent",
-            "type": "i32"
-          },
-          {
-            "name": "publishTime",
-            "type": "i64"
-          },
-          {
-            "name": "prevPublishTime",
-            "type": "i64"
-          },
-          {
-            "name": "emaPrice",
-            "type": "i64"
-          },
-          {
-            "name": "emaConf",
-            "type": "u64"
-          }
-        ]
-      }
-    },
-    {
-      "name": "priceUpdateV2",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "writeAuthority",
-            "type": "pubkey"
-          },
-          {
-            "name": "verificationLevel",
-            "type": {
-              "defined": {
-                "name": "verificationLevel"
-              }
-            }
-          },
-          {
-            "name": "priceMessage",
-            "type": {
-              "defined": {
-                "name": "priceFeedMessage"
-              }
-            }
-          },
-          {
-            "name": "postedSlot",
-            "type": "u64"
-          }
-        ]
-      }
-    },
-    {
       "name": "promiseAccount",
       "type": {
         "kind": "struct",
@@ -1649,26 +1529,6 @@ export type Sentinel = {
           {
             "name": "usdcBalanceCents",
             "type": "u64"
-          }
-        ]
-      }
-    },
-    {
-      "name": "verificationLevel",
-      "type": {
-        "kind": "enum",
-        "variants": [
-          {
-            "name": "partial",
-            "fields": [
-              {
-                "name": "numSignatures",
-                "type": "u8"
-              }
-            ]
-          },
-          {
-            "name": "full"
           }
         ]
       }

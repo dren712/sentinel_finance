@@ -230,7 +230,8 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
   async executeTrade(
     intent: TradeIntent,
     _preState: PortfolioSnapshot,
-    authorization?: SentinelAuthorizationTicket
+    authorization?: SentinelAuthorizationTicket,
+    options?: { priceUpdateAccount?: PublicKey }
   ): Promise<ExecutionResult> {
     const startTime = Date.now();
 
@@ -342,32 +343,8 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
         tx.add(createPromiseIx);
       }
 
-      // Build Pyth price update account
-      const priceUpdateKeypair = Keypair.generate();
-      const feedIdHex = (intent.assetSymbol && PYTH_FEED_IDS[intent.assetSymbol]?.tokenizedFeedId) ||
-        '0x4244d07890e4610f46bbde67de8f43a4bf8b569eebe904f136b469f148503b7f';
-      const feedIdBytes = to32Bytes(feedIdHex);
-      const pythPrice = new BN(Math.round(intent.referencePriceUsd * 100_000_000)); // expo -8
-      const pythConf = new BN(Math.round(intent.referencePriceUsd * 100_000_000 * 0.005)); // 0.5% conf (<2.0% threshold)
-      const pythExpo = -8;
-      const publishTime = new BN(Math.floor(Date.now() / 1000));
-
-      const postPriceUpdateIx = await program.methods
-        .postPriceUpdate(
-          feedIdBytes,
-          pythPrice,
-          pythConf,
-          pythExpo,
-          publishTime
-        )
-        .accountsPartial({
-          priceUpdate: priceUpdateKeypair.publicKey,
-          payer: authorityPubkey,
-          systemProgram: SystemProgram.programId,
-        })
-        .instruction();
-
-      tx.add(postPriceUpdateIx);
+      // Pyth price update account
+      const priceUpdatePubkey = options?.priceUpdateAccount || (intent as any).priceUpdateAccount || Keypair.generate().publicKey;
 
       // Build execute_guarded_trade instruction via Anchor IDL typed method builder
       const tradeAmountCents = new BN(Math.round(intent.tradeAmountUsd * 100));
@@ -385,7 +362,7 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
           vault: vaultPda,
           agent: agentPda,
           policy: policyPda,
-          priceUpdate: priceUpdateKeypair.publicKey,
+          priceUpdate: priceUpdatePubkey,
           authority: authorityPubkey,
         })
         .instruction();
@@ -423,7 +400,7 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
         tx.add(recordEvidenceIx);
       }
 
-      const txSignature = await this.sendTransactionWithSigner(tx, activeSigner, [priceUpdateKeypair]);
+      const txSignature = await this.sendTransactionWithSigner(tx, activeSigner, []);
 
       const clusterParam = this.cluster === 'mainnet' ? '' : `?cluster=${this.cluster}`;
       const explorerUrl = `https://explorer.solana.com/tx/${txSignature}${clusterParam}`;
@@ -601,6 +578,7 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
       amountUnits: number | BN;
       priceCents: number | BN;
       isIndex: boolean;
+      feedId?: number[] | Uint8Array | string;
     }>,
     signerOverride?: Keypair | WalletSigner,
     vaultOwnerPubkey?: PublicKey
@@ -623,6 +601,7 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
       amountUnits: BN.isBN(p.amountUnits) ? p.amountUnits : new BN(Math.round(Number(p.amountUnits))),
       priceCents: BN.isBN(p.priceCents) ? p.priceCents : new BN(Math.round(Number(p.priceCents))),
       isIndex: Boolean(p.isIndex),
+      feedId: p.feedId ? (Array.isArray(p.feedId) ? p.feedId : Array.from(to32Bytes(p.feedId as string))) : Array(32).fill(0),
     }));
 
     const program = this.getProgram(activeSigner);

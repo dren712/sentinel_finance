@@ -12,10 +12,18 @@ import {
   LAMPORTS_PER_SOL,
 } from '@solana/web3.js';
 import { SENTINEL_IDL, type Sentinel } from '../packages/sdk/dist/src/idl/sentinel-idl.js';
+import { FIXTURE_ADDRESSES } from '../scripts/make-price-fixture.mjs';
 
 describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enforcement', () => {
   const rpcUrl = process.env.ANCHOR_PROVIDER_URL || 'http://127.0.0.1:8899';
   const connection = new Connection(rpcUrl, 'confirmed');
+
+  const validPricePubkey = new PublicKey(FIXTURE_ADDRESSES.valid);
+  const wrongFeedPricePubkey = new PublicKey(FIXTURE_ADDRESSES['wrong-feed']);
+  const stalePricePubkey = new PublicKey(FIXTURE_ADDRESSES.stale);
+  const wideConfPricePubkey = new PublicKey(FIXTURE_ADDRESSES['wide-conf']);
+  const partialVerifPricePubkey = new PublicKey(FIXTURE_ADDRESSES['partial-verif']);
+  const progOwnedPricePubkey = new PublicKey(FIXTURE_ADDRESSES['prog-owned']);
 
   let provider: AnchorProvider;
   let program: Program<Sentinel>;
@@ -186,6 +194,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
         amountUnits: new BN(166),
         priceCents: new BN(12000), // $120.00
         isIndex: false,
+        feedId: Array(32).fill(7),
       },
       {
         mint: spyMint,
@@ -193,6 +202,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
         amountUnits: new BN(50),
         priceCents: new BN(50000), // $500.00
         isIndex: true,
+        feedId: Array(32).fill(8),
       },
     ];
 
@@ -224,34 +234,6 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
     assert.ok(isLocalnetAvailable, 'Localnet program setup complete');
   });
 
-  async function createTestPriceUpdate(
-    priceCents = 12000,
-    confCents = 50,
-    publishTimeOffset = -2
-  ): Promise<Keypair> {
-    const kp = Keypair.generate();
-    const feedId = Array(32).fill(7);
-    const price = new BN(priceCents).mul(new BN(1_000_000)); // expo -8 -> price * 10^6
-    const conf = new BN(confCents).mul(new BN(1_000_000));
-    const now = Math.floor(Date.now() / 1000) + publishTimeOffset;
-    await program.methods
-      .postPriceUpdate(
-        feedId,
-        price,
-        conf,
-        -8,
-        new BN(now)
-      )
-      .accountsPartial({
-        priceUpdate: kp.publicKey,
-        payer: ownerKeypair.publicKey,
-        systemProgram: SystemProgram.programId,
-      })
-      .signers([ownerKeypair, kp])
-      .rpc();
-    return kp;
-  }
-
   it('1. exec price 1 cent vs stored 12000 -> SlippageExceeded (6007)', async () => {
     if (!isLocalnetAvailable) return;
 
@@ -280,8 +262,6 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
       .signers([agentKeypair])
       .rpc();
 
-    const priceUpdateKp = await createTestPriceUpdate(12000, 50);
-
     // Rogue execution attempting $0.01 deflation against Pyth $120.00 benchmark price
     try {
       await program.methods
@@ -295,7 +275,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
           vault: vaultPda,
           agent: agentPda,
           policy: policyPda,
-          priceUpdate: priceUpdateKp.publicKey,
+          priceUpdate: validPricePubkey,
           authority: agentKeypair.publicKey,
         })
         .signers([agentKeypair])
@@ -333,8 +313,6 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
       .signers([agentKeypair])
       .rpc();
 
-    const priceUpdateKp = await createTestPriceUpdate(12000, 50);
-
     // Passing 5000 dollars instead of 500000 cents
     try {
       await program.methods
@@ -348,7 +326,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
           vault: vaultPda,
           agent: agentPda,
           policy: policyPda,
-          priceUpdate: priceUpdateKp.publicKey,
+          priceUpdate: validPricePubkey,
           authority: agentKeypair.publicKey,
         })
         .signers([agentKeypair])
@@ -580,8 +558,6 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
       .signers([agentKeypair])
       .rpc();
 
-    const priceUpdateKp = await createTestPriceUpdate(12000, 50);
-
     try {
       await program.methods
         .executeGuardedTrade(
@@ -594,7 +570,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
           vault: vaultPda,
           agent: agentPda,
           policy: policyPda,
-          priceUpdate: priceUpdateKp.publicKey,
+          priceUpdate: validPricePubkey,
           authority: agentKeypair.publicKey,
         })
         .signers([agentKeypair])
@@ -617,6 +593,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
           amountUnits: new BN(100), // $12,000 (12.0%)
           priceCents: new BN(12000),
           isIndex: false,
+          feedId: Array(32).fill(7),
         },
         {
           mint: spyMint,
@@ -624,6 +601,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
           amountUnits: new BN(132), // $66,000 (66.0%)
           priceCents: new BN(50000),
           isIndex: true,
+          feedId: Array(32).fill(8),
         },
       ])
       .accountsPartial({
@@ -657,8 +635,6 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
       .signers([agentKeypair])
       .rpc();
 
-    const priceUpdateKp = await createTestPriceUpdate(12000, 50);
-
     try {
       await program.methods
         .executeGuardedTrade(
@@ -671,7 +647,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
           vault: vaultPda,
           agent: agentPda,
           policy: policyPda,
-          priceUpdate: priceUpdateKp.publicKey,
+          priceUpdate: validPricePubkey,
           authority: agentKeypair.publicKey,
         })
         .signers([agentKeypair])
@@ -689,6 +665,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
             amountUnits: new BN(166),
             priceCents: new BN(12000),
             isIndex: false,
+            feedId: Array(32).fill(7),
           },
           {
             mint: spyMint,
@@ -696,6 +673,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
             amountUnits: new BN(50),
             priceCents: new BN(50000),
             isIndex: true,
+            feedId: Array(32).fill(8),
           },
         ])
         .accountsPartial({
@@ -734,8 +712,6 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
       .signers([agentKeypair])
       .rpc();
 
-    const priceUpdateKp = await createTestPriceUpdate(12000, 50);
-
     try {
       await program.methods
         .executeGuardedTrade(
@@ -748,7 +724,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
           vault: vaultPda,
           agent: agentPda,
           policy: policyPda,
-          priceUpdate: priceUpdateKp.publicKey,
+          priceUpdate: validPricePubkey,
           authority: agentKeypair.publicKey,
         })
         .signers([agentKeypair])
@@ -838,10 +814,17 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
       .signers([agentKeypair])
       .rpc();
 
-    // Wait 6 seconds for 5s TTL to expire
+    // Wait 6 seconds for 5s TTL to expire and touch clock with a transfer
     await new Promise((resolve) => setTimeout(resolve, 6000));
-
-    const priceUpdateKp = await createTestPriceUpdate(12000, 50);
+    await provider.sendAndConfirm(
+      new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: owner,
+          toPubkey: owner,
+          lamports: 1,
+        })
+      )
+    );
 
     try {
       await program.methods
@@ -855,7 +838,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
           vault: vaultPda,
           agent: agentPda,
           policy: policyPda,
-          priceUpdate: priceUpdateKp.publicKey,
+          priceUpdate: validPricePubkey,
           authority: agentKeypair.publicKey,
         })
         .signers([agentKeypair])
@@ -909,6 +892,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
           amountUnits: new BN(83),
           priceCents: new BN(12000),
           isIndex: false,
+          feedId: Array(32).fill(7),
         },
         {
           mint: spyMint,
@@ -916,6 +900,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
           amountUnits: new BN(100),
           priceCents: new BN(50000),
           isIndex: true,
+          feedId: Array(32).fill(8),
         },
       ])
       .accountsPartial({
@@ -955,8 +940,6 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
     const preNvdaPos = preVault.positions.find((p: any) => p.mint.equals(nvdaMint));
     const preUnits = preNvdaPos?.amountUnits.toNumber() || 0;
 
-    const priceUpdateKp = await createTestPriceUpdate(12000, 50);
-
     // 2. Execute guarded trade
     const txSig = await program.methods
       .executeGuardedTrade(
@@ -969,7 +952,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
         vault: vaultPda,
         agent: agentPda,
         policy: policyPda,
-        priceUpdate: priceUpdateKp.publicKey,
+        priceUpdate: validPricePubkey,
         authority: agentKeypair.publicKey,
       })
       .signers([agentKeypair])
@@ -1026,7 +1009,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
     assert.strictEqual(evidenceAccount.promise.toBase58(), promisePda.toBase58());
   });
 
-  it('13. stale Pyth price (>60s) -> StaleOraclePrice (6019)', async () => {
+  it('13. stale Pyth price (>60s) -> StaleOracle (6022)', async () => {
     if (!isLocalnetAvailable) return;
 
     const promiseId = `prm-stale-${Date.now()}`;
@@ -1053,9 +1036,6 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
       .signers([agentKeypair])
       .rpc();
 
-    // Create price update with publishTime offset = -120s (older than 60s)
-    const priceUpdateKp = await createTestPriceUpdate(12000, 50, -120);
-
     try {
       await program.methods
         .executeGuardedTrade(
@@ -1068,18 +1048,18 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
           vault: vaultPda,
           agent: agentPda,
           policy: policyPda,
-          priceUpdate: priceUpdateKp.publicKey,
+          priceUpdate: stalePricePubkey,
           authority: agentKeypair.publicKey,
         })
         .signers([agentKeypair])
         .rpc();
-      assert.fail('Expected stale oracle price to revert with StaleOraclePrice');
+      assert.fail('Expected stale oracle price to revert with StaleOracle');
     } catch (err: any) {
-      assertAnchorError(err, 'StaleOraclePrice', 6019);
+      assertAnchorError(err, 'StaleOracle', 6022);
     }
   });
 
-  it('14. wide Pyth confidence (>2%) -> WideConfidenceInterval (6020)', async () => {
+  it('14. wide Pyth confidence (>2%) -> ConfidenceTooWide (6023)', async () => {
     if (!isLocalnetAvailable) return;
 
     const promiseId = `prm-conf-${Date.now()}`;
@@ -1106,9 +1086,6 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
       .signers([agentKeypair])
       .rpc();
 
-    // Conf = $5.00 on $120.00 price (4.16% > 200 bps)
-    const priceUpdateKp = await createTestPriceUpdate(12000, 500);
-
     try {
       await program.methods
         .executeGuardedTrade(
@@ -1121,14 +1098,14 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
           vault: vaultPda,
           agent: agentPda,
           policy: policyPda,
-          priceUpdate: priceUpdateKp.publicKey,
+          priceUpdate: wideConfPricePubkey,
           authority: agentKeypair.publicKey,
         })
         .signers([agentKeypair])
         .rpc();
-      assert.fail('Expected wide confidence interval to revert with WideConfidenceInterval');
+      assert.fail('Expected wide confidence interval to revert with ConfidenceTooWide');
     } catch (err: any) {
-      assertAnchorError(err, 'WideConfidenceInterval', 6020);
+      assertAnchorError(err, 'ConfidenceTooWide', 6023);
     }
   });
 
@@ -1159,10 +1136,6 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
       .signers([agentKeypair])
       .rpc();
 
-    // Pyth price is $120.00 (12000 cents). Execution price is $125.00 (12500 cents), 4.16% > 1% (100 bps max slippage)
-    // Even if caller passes quoted_price = 12500 cents, benchmark is read from Pyth ($120.00)!
-    const priceUpdateKp = await createTestPriceUpdate(12000, 50);
-
     try {
       await program.methods
         .executeGuardedTrade(
@@ -1175,7 +1148,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
           vault: vaultPda,
           agent: agentPda,
           policy: policyPda,
-          priceUpdate: priceUpdateKp.publicKey,
+          priceUpdate: validPricePubkey,
           authority: agentKeypair.publicKey,
         })
         .signers([agentKeypair])
@@ -1184,5 +1157,205 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
     } catch (err: any) {
       assertAnchorError(err, 'SlippageExceeded', 6007);
     }
+  });
+
+  it('16. Phase A: price account owned by program -> UnverifiedPrice (6024)', async () => {
+    if (!isLocalnetAvailable) return;
+
+    const promiseId = `prm-oracle-prog-${Date.now()}`;
+    const [promisePda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('promise'), agentPda.toBuffer(), Buffer.from(promiseId)],
+      program.programId
+    );
+
+    await program.methods
+      .createPromise(
+        promiseId,
+        Array(32).fill(16),
+        nvdaMint,
+        0,
+        new BN(1000)
+      )
+      .accountsPartial({
+        promise: promisePda,
+        agent: agentPda,
+        policy: policyPda,
+        authority: agentKeypair.publicKey,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([agentKeypair])
+      .rpc();
+
+    try {
+      await program.methods
+        .executeGuardedTrade(
+          new BN(100000),
+          new BN(12000),
+          new BN(12000)
+        )
+        .accountsPartial({
+          promise: promisePda,
+          vault: vaultPda,
+          agent: agentPda,
+          policy: policyPda,
+          priceUpdate: progOwnedPricePubkey,
+          authority: agentKeypair.publicKey,
+        })
+        .signers([agentKeypair])
+        .rpc();
+      assert.fail('Expected program-owned price account to revert with UnverifiedPrice');
+    } catch (err: any) {
+      assertAnchorError(err, 'UnverifiedPrice', 6024);
+    }
+  });
+
+  it('17. Phase A: price account with wrong feed_id -> FeedMismatch (6021)', async () => {
+    if (!isLocalnetAvailable) return;
+
+    const promiseId = `prm-oracle-feed-${Date.now()}`;
+    const [promisePda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('promise'), agentPda.toBuffer(), Buffer.from(promiseId)],
+      program.programId
+    );
+
+    await program.methods
+      .createPromise(
+        promiseId,
+        Array(32).fill(17),
+        nvdaMint,
+        0,
+        new BN(1000)
+      )
+      .accountsPartial({
+        promise: promisePda,
+        agent: agentPda,
+        policy: policyPda,
+        authority: agentKeypair.publicKey,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([agentKeypair])
+      .rpc();
+
+    try {
+      await program.methods
+        .executeGuardedTrade(
+          new BN(100000),
+          new BN(12000),
+          new BN(12000)
+        )
+        .accountsPartial({
+          promise: promisePda,
+          vault: vaultPda,
+          agent: agentPda,
+          policy: policyPda,
+          priceUpdate: wrongFeedPricePubkey,
+          authority: agentKeypair.publicKey,
+        })
+        .signers([agentKeypair])
+        .rpc();
+      assert.fail('Expected wrong feed_id to revert with FeedMismatch');
+    } catch (err: any) {
+      assertAnchorError(err, 'FeedMismatch', 6021);
+    }
+  });
+
+  it('18. Phase A: price account with verification_level != Full -> UnverifiedPrice (6024)', async () => {
+    if (!isLocalnetAvailable) return;
+
+    const promiseId = `prm-oracle-verif-${Date.now()}`;
+    const [promisePda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('promise'), agentPda.toBuffer(), Buffer.from(promiseId)],
+      program.programId
+    );
+
+    await program.methods
+      .createPromise(
+        promiseId,
+        Array(32).fill(18),
+        nvdaMint,
+        0,
+        new BN(1000)
+      )
+      .accountsPartial({
+        promise: promisePda,
+        agent: agentPda,
+        policy: policyPda,
+        authority: agentKeypair.publicKey,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([agentKeypair])
+      .rpc();
+
+    try {
+      await program.methods
+        .executeGuardedTrade(
+          new BN(100000),
+          new BN(12000),
+          new BN(12000)
+        )
+        .accountsPartial({
+          promise: promisePda,
+          vault: vaultPda,
+          agent: agentPda,
+          policy: policyPda,
+          priceUpdate: partialVerifPricePubkey,
+          authority: agentKeypair.publicKey,
+        })
+        .signers([agentKeypair])
+        .rpc();
+      assert.fail('Expected partial verification level to revert with UnverifiedPrice');
+    } catch (err: any) {
+      assertAnchorError(err, 'UnverifiedPrice', 6024);
+    }
+  });
+
+  it('19. Phase A: valid Pyth fixture -> trade proceeds successfully', async () => {
+    if (!isLocalnetAvailable) return;
+
+    const promiseId = `prm-oracle-valid-${Date.now()}`;
+    const [promisePda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('promise'), agentPda.toBuffer(), Buffer.from(promiseId)],
+      program.programId
+    );
+
+    await program.methods
+      .createPromise(
+        promiseId,
+        Array(32).fill(19),
+        nvdaMint,
+        0, // BUY
+        new BN(1000) // $1,000
+      )
+      .accountsPartial({
+        promise: promisePda,
+        agent: agentPda,
+        policy: policyPda,
+        authority: agentKeypair.publicKey,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([agentKeypair])
+      .rpc();
+
+    const txSig = await program.methods
+      .executeGuardedTrade(
+        new BN(100000), // 100,000 cents ($1,000.00)
+        new BN(12000),  // $120.00 execution price
+        new BN(12000)   // $120.00 benchmark price
+      )
+      .accountsPartial({
+        promise: promisePda,
+        vault: vaultPda,
+        agent: agentPda,
+        policy: policyPda,
+        priceUpdate: validPricePubkey,
+        authority: agentKeypair.publicKey,
+      })
+      .signers([agentKeypair])
+      .rpc();
+
+    assert.ok(txSig, 'Valid fixture trade successfully executed on-chain');
+
+    const settledPromise = await program.account.promiseAccount.fetch(promisePda);
+    assert.strictEqual(settledPromise.status, 3, 'Promise successfully transitioned to Settled (3)');
   });
 });

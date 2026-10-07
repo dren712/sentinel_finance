@@ -64,4 +64,16 @@ pub enum SentinelError {
 
     #[msg("Pyth price feed ID does not match the target asset mint feed")]
     MismatchedFeedId,
+
+    #[msg("Pyth price feed ID does not match the stored feed ID for this asset")]
+    FeedMismatch,
+
+    #[msg("Pyth oracle price is stale (> 60 seconds)")]
+    StaleOracle,
+
+    #[msg("Pyth oracle confidence interval is wider than policy tolerance")]
+    ConfidenceTooWide,
+
+    #[msg("Price account is not verified by Pyth or has invalid verification level/owner")]
+    UnverifiedPrice,
 }
