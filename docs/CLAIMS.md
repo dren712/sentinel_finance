@@ -86,3 +86,32 @@ Every technical claim made by Sentinel Finance is mapped directly to an on-chain
 | **Arbitrary Watcher Signer Permissionless Flag** | Bankrun Test & Devnet TX | Test 12 in `tests/bankrun-quarantine.test.ts` & Devnet TX [`5TKzuF21...`](https://explorer.solana.com/tx/5TKzuF21Xn388WzuUso1sncDVmL2EyydqPae126LKrTNNtbWHVtTHmvhjDX5gTXdQfxCkZ3kxKricD2JNWaG8SPV?cluster=devnet) | `programs/sentinel/src/lib.rs:528` |
 | **Redundant Flag on Quarantined Vault Rejected (`VaultNotActive` 6025)** | Bankrun Test | Test 13 in `tests/bankrun-quarantine.test.ts` (`13. vault already Quarantined, flag called -> VaultNotActive (6025)`) | `programs/sentinel/src/lib.rs:536` |
 
+---
+
+## 7. Permissionless Solver Recovery (Phase C)
+
+*Scope Notice: MVP scope covers vaults holding ONE volatile asset + USDC.*
+
+| Claim | Verification Method | Proof / Identifier | Source Reference |
+| :--- | :--- | :--- | :--- |
+| **Happy Path Recovery: Quarantined ➔ Active** | Bankrun Test & Devnet TX | Test 1 in `tests/bankrun-recovery.test.ts` & Devnet TX [`2zUD46Fq...`](https://explorer.solana.com/tx/2zUD46Fqo6NrzVh5E6Er9HZU9bfJZtHcFz62cchtQs1XR8bDM1WhKbRZTygJY4gyhJphRT2X2MUmWnUc4bZiWBob?cluster=devnet) | `programs/sentinel/src/lib.rs:638-751` |
+| **Recovery while Active Rejected (`VaultNotQuarantined` 6025)** | Bankrun Test | Test 2 in `tests/bankrun-recovery.test.ts` (`2. recover while Active -> VaultNotQuarantined`) | `programs/sentinel/src/lib.rs:647` |
+| **Recovery After Window Closed Rejected (`RecoveryWindowClosed` 6030)** | Bankrun Test (Slot-Warped) | Test 3 in `tests/bankrun-recovery.test.ts` (`3. recover after window -> RecoveryWindowClosed`) | `programs/sentinel/src/lib.rs:651` |
+| **Stale Recovery Nonce Rejected (`StaleRecoveryNonce` 6031)** | Bankrun Test | Test 4 in `tests/bankrun-recovery.test.ts` (`4. wrong expected_nonce -> StaleRecoveryNonce`) | `programs/sentinel/src/lib.rs:658` |
+| **Owner Release Invalidates In-Flight Nonce (`StaleRecoveryNonce` 6031)** | Bankrun Test | Test 5 in `tests/bankrun-recovery.test.ts` (`5. owner_release between flag and recover -> StaleRecoveryNonce`) | `programs/sentinel/src/lib.rs:600, 658` |
+| **Replay Protection on Successful Recovery** | Bankrun Test | Test 6 in `tests/bankrun-recovery.test.ts` (`6. replay identical successful tx -> fails`) | `programs/sentinel/src/lib.rs:647, 658` |
+| **Undersell Violation Rejection (`PostconditionFailed` 6033)** | Bankrun Test | Test 7 in `tests/bankrun-recovery.test.ts` (`7. sell too little -> PostconditionFailed`) | `programs/sentinel/src/lib.rs:709` |
+| **Oversell Guard Rejection (`OversellGuard` 6034)** | Bankrun Test | Test 8 in `tests/bankrun-recovery.test.ts` (`8. sell entire position -> OversellGuard`) | `programs/sentinel/src/lib.rs:720` |
+| **Zero or Excessive Units Rejection (`InvalidAmount` 6035)** | Bankrun Test | Test 9 in `tests/bankrun-recovery.test.ts` (`9. sell_units = 0 and sell_units > holdings -> InvalidAmount`) | `programs/sentinel/src/lib.rs:674` |
+| **Forged Price Account Rejected (`UnverifiedPrice` 6024)** | Bankrun Test | Test 10 in `tests/bankrun-recovery.test.ts` (`10. forged price account -> UnverifiedPrice`) | `programs/sentinel/src/lib.rs:936` |
+| **Feed ID Mismatch Rejected (`FeedMismatch` 6021)** | Bankrun Test | Test 11 in `tests/bankrun-recovery.test.ts` (`11. wrong feed_id -> FeedMismatch`) | `programs/sentinel/src/lib.rs:951` |
+| **Stale Price Feed Rejected (`StaleOracle` 6022)** | Bankrun Test | Test 12 in `tests/bankrun-recovery.test.ts` (`12. stale price -> StaleOracle`) | `programs/sentinel/src/lib.rs:884` |
+| **Value Conservation Bound Breach (`ValueConservationBreached` 6032)** | Bankrun Test | Test 13 in `tests/bankrun-recovery.test.ts` (`13. max_recovery_cost_bps below venue fee -> ValueConservationBreached`) | `programs/sentinel/src/lib.rs:700` |
+| **Two Solvers Race: First Wins, Second Fails** | Bankrun Test | Test 14 in `tests/bankrun-recovery.test.ts` (`14. two solvers race: first succeeds, second fails`) | Atomic status transition & nonce |
+| **Permissionless Solver Execution** | Bankrun Test & Devnet TX | Test 15 in `tests/bankrun-recovery.test.ts` & Devnet TX [`2zUD46Fq...`](https://explorer.solana.com/tx/2zUD46Fqo6NrzVh5E6Er9HZU9bfJZtHcFz62cchtQs1XR8bDM1WhKbRZTygJY4gyhJphRT2X2MUmWnUc4bZiWBob?cluster=devnet) | Solver wallet `6H5nrFrv...` |
+| **Vault Account Immutability** | Bankrun Test | Test 16 in `tests/bankrun-recovery.test.ts` (`16. recover cannot change policy, owner, or any other vault`) | Policy and owner accounts unchanged |
+| **Full Lifecycle: Active ➔ Quarantined ➔ Recovered ➔ Trade Resumes** | Bankrun Test | Test 17 in `tests/bankrun-recovery.test.ts` (`17. full lifecycle: Active -> flag -> quarantine -> recover -> Active -> trade works again`) | Agent authority restored post-recovery |
+| **Recovery Venue Fee (30 bps)** | SIMULATED in Ledger Arithmetic | `RECOVERY_VENUE_FEE_BPS = 30`: deducted from simulated proceeds in vault ledger math | `programs/sentinel/src/lib.rs:81` |
+| **Recovery Solver Bounty (`bounty_cap_cents`)** | SIMULATED / NOT PAID On-Chain | Emitted in `RecoveryExecutedEvent` only as simulated incentive metric; no SPL or SOL payout occurs | `programs/sentinel/src/lib.rs:728` |
+
+
