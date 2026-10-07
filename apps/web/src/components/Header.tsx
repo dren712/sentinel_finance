@@ -2,8 +2,9 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { Play, RotateCcw, Settings, ExternalLink, ChevronDown, CheckCircle2 } from 'lucide-react';
+import { Play, RotateCcw, Settings, ExternalLink, ChevronDown, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { APP_CONFIG, getExplorerAddressUrl } from '@/lib/config';
 import { formatAddress } from '@/lib/formatters';
 
@@ -110,6 +111,16 @@ export const Header: React.FC<HeaderProps> = ({
             <span className={`w-1.5 h-1.5 rounded-full ${mode === 'LIVE' ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
             <span className="tracking-tight">{mode === 'LIVE' ? 'Devnet Live' : 'Simulated'}</span>
           </div>
+
+          {/* Quarantine Terminal Nav Link */}
+          <Link
+            href="/quarantine"
+            className="h-9 px-2.5 sm:px-3 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 hover:text-rose-200 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
+            title="Quarantine & Solver Recovery Terminal"
+          >
+            <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
+            <span className="hidden sm:inline font-sans font-semibold">Quarantine</span>
+          </Link>
 
           {/* Quick Demo Runner with Restrained Dropdown */}
           <div className="relative" ref={demoMenuRef}>
