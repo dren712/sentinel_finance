@@ -5,6 +5,14 @@
 
 ---
 
+## Trust Boundary (Honest System Architecture)
+1. **Ledger-Only Settlement**: Vault balances (`usdc_balance_cents`, `amount_units`) are **owner-synced ledger values** stored inside the `PortfolioVault` PDA and written by the vault owner via `sync_vault` (or `initialize_vault`), **not** live SPL token account balances.
+2. **Oracle Ground Truth**: Only asset benchmark prices are fetched and validated from an external, verified Pyth Network price account (`PriceUpdateV2` owned strictly by `rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ`).
+3. **Demo Violation Source**: The demo policy violation is **induced by an owner ledger sync** (the owner initializes or updates the vault ledger with an asset balance that exceeds the concentration limit or breaches the stablecoin floor).
+4. **Simulated Settlement**: Recovery settlement is **SIMULATED** inside the vault ledger at the verified Pyth price minus a fixed venue fee (`RECOVERY_VENUE_FEE_BPS = 30 bps`). No real SPL token transfers or DEX CPI swaps take place on-chain.
+
+---
+
 ## State Diagram
 
 ```text
