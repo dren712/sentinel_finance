@@ -6,7 +6,8 @@ import { MeteoraDBCMarketQualityVerifier } from '../src/sponsors/meteora';
 import { LiveExecutionAdapter } from '../src/adapters/execution-adapter';
 import { WalletSigner } from '../src/types';
 import { PublicKey, Keypair, SystemProgram, Transaction, Connection } from '@solana/web3.js';
-import { BN } from '@coral-xyz/anchor';
+import { BN, Program, AnchorProvider } from '@coral-xyz/anchor';
+import { SENTINEL_IDL } from '../src/idl';
 import { SentinelAuthorizationTicket, hashTradeIntent } from '@sentinel/domain';
 
 describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
@@ -157,13 +158,14 @@ describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
           promise: promisePda,
           agent: agentPda,
           policy: policyPda,
+          vault: vaultPda,
           authority: mockAuthority,
           systemProgram: SystemProgram.programId,
         })
         .instruction();
 
       assert.strictEqual(createIx.programId.toBase58(), program.programId.toBase58());
-      assert.strictEqual(createIx.keys.length, 5);
+      assert.strictEqual(createIx.keys.length, 6);
       // Anchor discriminator for create_promise: [233, 170, 35, 24, 34, 120, 82, 200]
       assert.deepStrictEqual(Array.from(createIx.data.subarray(0, 8)), [233, 170, 35, 24, 34, 120, 82, 200]);
 
@@ -188,6 +190,104 @@ describe('Sentinel SDK & Autonomous Agent Simulator Tests', () => {
       assert.strictEqual(executeIx.keys.length, 6);
       // Anchor discriminator for execute_guarded_trade: [173, 223, 79, 146, 151, 58, 98, 99]
       assert.deepStrictEqual(Array.from(executeIx.data.subarray(0, 8)), [173, 223, 79, 146, 151, 58, 98, 99]);
+    });
+
+    it('builds typed Anchor instructions for quarantine state machine (flagViolation, ownerRelease, expireQuarantine)', async () => {
+      const mockOwner = Keypair.generate();
+      const [vaultPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from('vault'), mockOwner.publicKey.toBuffer()],
+        new PublicKey(SENTINEL_IDL.address)
+      );
+      const [policyPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from('policy'), mockOwner.publicKey.toBuffer()],
+        new PublicKey(SENTINEL_IDL.address)
+      );
+
+      const readOnlyWallet = {
+        publicKey: mockOwner.publicKey,
+        signTransaction: async (tx: any) => tx,
+        signAllTransactions: async (txs: any[]) => txs,
+      };
+      const provider = new AnchorProvider(
+        new Connection('https://api.devnet.solana.com'),
+        readOnlyWallet as any,
+        { commitment: 'confirmed' }
+      );
+      const program = new Program(SENTINEL_IDL as any, provider);
+
+      // 1. flagViolation
+      const dummyPriceUpdate = Keypair.generate().publicKey;
+      const flagIx = await program.methods
+        .flagViolation()
+        .accountsPartial({
+          vault: vaultPda,
+          policy: policyPda,
+          priceUpdate: dummyPriceUpdate,
+          signer: mockOwner.publicKey,
+        })
+        .instruction();
+      assert.strictEqual(flagIx.keys.length, 4);
+
+      // 2. ownerRelease
+      const releaseIx = await program.methods
+        .ownerRelease()
+        .accountsPartial({
+          vault: vaultPda,
+          owner: mockOwner.publicKey,
+        })
+        .instruction();
+      assert.strictEqual(releaseIx.keys.length, 2);
+
+      // 3. expireQuarantine
+      const expireIx = await program.methods
+        .expireQuarantine()
+        .accountsPartial({
+          vault: vaultPda,
+          signer: mockOwner.publicKey,
+        })
+        .instruction();
+      assert.strictEqual(expireIx.keys.length, 2);
+    });
+
+    it('LiveExecutionAdapter and readVaultStatus read and deserialize on-chain vault state', async () => {
+      const mockOwner = Keypair.generate();
+      const [vaultPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from('vault'), mockOwner.publicKey.toBuffer()],
+        new PublicKey(SENTINEL_IDL.address)
+      );
+
+      const adapter = new LiveExecutionAdapter(
+        'https://api.devnet.solana.com',
+        mockOwner,
+        SENTINEL_IDL.address,
+        'devnet'
+      );
+
+      const dummyProgram = adapter.getProgram();
+      (dummyProgram.account as any).portfolioVault.fetch = async (addr: PublicKey) => {
+        assert.strictEqual(addr.toBase58(), vaultPda.toBase58());
+        return {
+          owner: mockOwner.publicKey,
+          policy: Keypair.generate().publicKey,
+          status: { quarantined: {} },
+          pendingViolationSlot: new BN(100),
+          quarantineSlot: new BN(115),
+          recoveryExpiresSlot: new BN(215),
+          recoveryNonce: new BN(1),
+          usdcBalanceCents: new BN(200000),
+          totalValueCents: new BN(1000000),
+        };
+      };
+      (adapter as any).getProgram = () => dummyProgram;
+
+      const vaultStatus = await adapter.readVaultStatus(mockOwner.publicKey);
+      assert.strictEqual(vaultStatus.status, 'Quarantined');
+      assert.strictEqual(vaultStatus.pendingViolationSlot, 100);
+      assert.strictEqual(vaultStatus.quarantineSlot, 115);
+      assert.strictEqual(vaultStatus.recoveryExpiresSlot, 215);
+      assert.strictEqual(vaultStatus.recoveryNonce, 1);
+      assert.strictEqual(vaultStatus.usdcBalanceCents, 200000);
+      assert.strictEqual(vaultStatus.totalValueCents, 1000000);
     });
 
     it('executes real browser wallet flow with signTransaction and returns cluster Explorer link', async () => {

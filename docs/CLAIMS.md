@@ -60,3 +60,29 @@ Every technical claim made by Sentinel Finance is mapped directly to an on-chain
 | **OpenAI GPT-4o Tool Dispatcher** | SDK Test & Provider Abstraction | 6 sandboxed tools (`getPortfolio`, `getPolicy`, `getMarketPrice`, etc.) | `packages/sdk/src/llm-provider.ts:59-130` |
 | **Deterministic Fallback & Banner** | Next.js Web Application Component | Displays "DEMO MODE: Using scripted agent proposals" when `OPENAI_API_KEY` is unset | `apps/web/src/components/AgentView.tsx` |
 | **Raw Prompt & Response Inspection** | Web UI Expandable Connector | Tabbed viewer rendering raw prompt context and structured LLM responses | `apps/web/src/components/AgentView.tsx` |
+
+---
+
+## 6. Quarantine State Machine (Phase B)
+
+*Scope Notice: MVP scope covers vaults holding ONE volatile asset + USDC.*
+
+| Claim | Verification Method | Proof / Identifier | Source Reference |
+| :--- | :--- | :--- | :--- |
+| **No Violation Clean State (`NoViolation` 6027)** | Bankrun Test (Slot-Warped) | Test 1 in `tests/bankrun-quarantine.test.ts` (`1. no violation, pending == 0 -> NoViolation (6027)`) | `programs/sentinel/src/lib.rs:550` |
+| **First Violation Sets Pending (`ViolationPendingEvent`)** | Bankrun Test & Devnet TX | Test 2 in `tests/bankrun-quarantine.test.ts` & Devnet TX [`5TKzuF21...`](https://explorer.solana.com/tx/5TKzuF21Xn388WzuUso1sncDVmL2EyydqPae126LKrTNNtbWHVtTHmvhjDX5gTXdQfxCkZ3kxKricD2JNWaG8SPV?cluster=devnet) | `programs/sentinel/src/lib.rs:555-561` |
+| **Hysteresis Enforcement (`ViolationNotConfirmed` 6028)** | Bankrun Test (Slot-Warped) | Test 3 in `tests/bankrun-quarantine.test.ts` (`3. second flag before confirm_slots -> ViolationNotConfirmed (6028)`) | `programs/sentinel/src/lib.rs:563-566` |
+| **Quarantine Transition After Hysteresis (`VaultQuarantinedEvent`)** | Bankrun Test & Devnet TX | Test 4 in `tests/bankrun-quarantine.test.ts` & Devnet TX [`5ATh9Gpt...`](https://explorer.solana.com/tx/5ATh9GptcACZArsiq2ELbBvG3KKmAwtEHWyDVYFNvRhzSixLhYSuNbkuMHGsqNpEUHzZog4NbM6KvWsypjoyzTdK?cluster=devnet) | `programs/sentinel/src/lib.rs:567-584` |
+| **Price Recovery Clears Pending (`ViolationClearedEvent`)** | Bankrun Test (Slot-Warped) | Test 5 in `tests/bankrun-quarantine.test.ts` (`5. price recovers before confirm, flag called -> pending cleared`) | `programs/sentinel/src/lib.rs:545-549` |
+| **Trade Execution Gated When Quarantined (`VaultNotActive` 6025)** | Bankrun Test | Test 6 in `tests/bankrun-quarantine.test.ts` (`6. execute_guarded_trade while Quarantined -> VaultNotActive (6025)`) | `programs/sentinel/src/lib.rs:324` |
+| **Promise Creation Gated When Quarantined (`VaultNotActive` 6025)** | Bankrun Test | Test 7 in `tests/bankrun-quarantine.test.ts` (`7. create_promise while Quarantined -> VaultNotActive (6025)`) | `programs/sentinel/src/lib.rs:260` |
+| **Unauthorized Owner Release Fails (`ConstraintHasOne` 2001)** | Bankrun Test | Test 8 in `tests/bankrun-quarantine.test.ts` (`8. owner_release by non-owner -> fails; by owner -> Active`) | `programs/sentinel/src/lib.rs:1074` |
+| **Owner Release Restores Active Status (`VaultReleasedEvent`)** | Bankrun Test & Devnet TX | Test 8 in `tests/bankrun-quarantine.test.ts` & Devnet TX [`2tQQYGDp...`](https://explorer.solana.com/tx/2tQQYGDpnBqttytdnYQ9JoFsVZMAbi2bLvgyKzamYUgE7oYha7PP9Cf59uTiEYxQ73Mxg5rbZtwCELqYzurktEZd?cluster=devnet) | `programs/sentinel/src/lib.rs:589-601` |
+| **Early Expiration Rejection (`RecoveryNotExpired` 6029)** | Bankrun Test (Slot-Warped) | Test 9 in `tests/bankrun-quarantine.test.ts` (`9. expire_quarantine before expiry -> rejected (6029)`) | `programs/sentinel/src/lib.rs:608` |
+| **Recovery Expiration After Window (`QuarantineExpiredEvent`)** | Bankrun Test (Slot-Warped) | Test 9 in `tests/bankrun-quarantine.test.ts` (`9. expire_quarantine after expiry -> RecoveryExpired (6029)`) | `programs/sentinel/src/lib.rs:610-621` |
+| **Forged Price Account Rejected (`UnverifiedPrice` 6024)** | Bankrun Test | Test 10 in `tests/bankrun-quarantine.test.ts` (`10. flag_violation with forged price account -> UnverifiedPrice (6024)`) | `programs/sentinel/src/lib.rs:732` |
+| **Stale Price Feed Rejected (`StaleOracle` 6022)** | Bankrun Test | Test 11 in `tests/bankrun-quarantine.test.ts` (`11. flag_violation with stale price -> StaleOracle (6022)`) | `programs/sentinel/src/lib.rs:719` |
+| **Wide Confidence Feed Rejected (`ConfidenceTooWide` 6023)** | Bankrun Test | Test 11 in `tests/bankrun-quarantine.test.ts` (`11. flag_violation with wide conf -> ConfidenceTooWide (6023)`) | `programs/sentinel/src/lib.rs:734` |
+| **Arbitrary Watcher Signer Permissionless Flag** | Bankrun Test & Devnet TX | Test 12 in `tests/bankrun-quarantine.test.ts` & Devnet TX [`5TKzuF21...`](https://explorer.solana.com/tx/5TKzuF21Xn388WzuUso1sncDVmL2EyydqPae126LKrTNNtbWHVtTHmvhjDX5gTXdQfxCkZ3kxKricD2JNWaG8SPV?cluster=devnet) | `programs/sentinel/src/lib.rs:528` |
+| **Redundant Flag on Quarantined Vault Rejected (`VaultNotActive` 6025)** | Bankrun Test | Test 13 in `tests/bankrun-quarantine.test.ts` (`13. vault already Quarantined, flag called -> VaultNotActive (6025)`) | `programs/sentinel/src/lib.rs:536` |
+

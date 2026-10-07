@@ -227,3 +227,17 @@ export interface MeteoraVerificationResult {
   details: string;
 }
 
+export type VaultStatusType = 'Active' | 'Quarantined' | 'RecoveryExpired';
+
+export interface OnChainVaultStatus {
+  vaultPda: string;
+  owner: string;
+  policy: string;
+  status: VaultStatusType;
+  pendingViolationSlot: number;
+  quarantineSlot: number;
+  recoveryExpiresSlot: number;
+  recoveryNonce: number;
+  usdcBalanceCents: number;
+  totalValueCents: number;
+}

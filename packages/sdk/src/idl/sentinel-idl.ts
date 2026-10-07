@@ -55,7 +55,32 @@ export const SENTINEL_IDL = {
           "name": "agent"
         },
         {
-          "name": "policy"
+          "name": "policy",
+          "relations": [
+            "vault"
+          ]
+        },
+        {
+          "name": "vault",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agent.owner",
+                "account": "AgentAccount"
+              }
+            ]
+          }
         },
         {
           "name": "authority",
@@ -202,6 +227,108 @@ export const SENTINEL_IDL = {
       ]
     },
     {
+      "name": "expire_quarantine",
+      "docs": [
+        "Permissionlessly marks quarantine as expired if recovery window has passed."
+      ],
+      "discriminator": [
+        251,
+        89,
+        11,
+        22,
+        81,
+        228,
+        211,
+        45
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.owner",
+                "account": "PortfolioVault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "signer",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "flag_violation",
+      "docs": [
+        "Flags a policy violation on an active vault based on verified Pyth pricing.",
+        "Permissionless: any caller can submit with a verified Pyth price update account."
+      ],
+      "discriminator": [
+        81,
+        7,
+        183,
+        88,
+        235,
+        179,
+        75,
+        242
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.owner",
+                "account": "PortfolioVault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "policy",
+          "relations": [
+            "vault"
+          ]
+        },
+        {
+          "name": "price_update"
+        },
+        {
+          "name": "signer",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "initialize_agent",
       "docs": [
         "Initializes a new autonomous portfolio agent account bound to the owner"
@@ -333,6 +460,26 @@ export const SENTINEL_IDL = {
         {
           "name": "max_slippage_bps",
           "type": "u16"
+        },
+        {
+          "name": "confirm_slots",
+          "type": "u64"
+        },
+        {
+          "name": "recovery_window_slots",
+          "type": "u64"
+        },
+        {
+          "name": "max_recovery_cost_bps",
+          "type": "u16"
+        },
+        {
+          "name": "max_bounty_bps",
+          "type": "u16"
+        },
+        {
+          "name": "safe_destination",
+          "type": "pubkey"
         }
       ]
     },
@@ -403,6 +550,55 @@ export const SENTINEL_IDL = {
           }
         }
       ]
+    },
+    {
+      "name": "owner_release",
+      "docs": [
+        "Owner releases the vault from any status back to Active.",
+        "Resets pending violation and increments recovery_nonce to invalidate in-flight recoveries."
+      ],
+      "discriminator": [
+        22,
+        121,
+        199,
+        43,
+        211,
+        92,
+        186,
+        17
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "vault"
+          ]
+        }
+      ],
+      "args": []
     },
     {
       "name": "record_evidence",
@@ -746,6 +942,26 @@ export const SENTINEL_IDL = {
           "type": "u16"
         },
         {
+          "name": "confirm_slots",
+          "type": "u64"
+        },
+        {
+          "name": "recovery_window_slots",
+          "type": "u64"
+        },
+        {
+          "name": "max_recovery_cost_bps",
+          "type": "u16"
+        },
+        {
+          "name": "max_bounty_bps",
+          "type": "u16"
+        },
+        {
+          "name": "safe_destination",
+          "type": "pubkey"
+        },
+        {
           "name": "is_active",
           "type": "bool"
         }
@@ -899,6 +1115,19 @@ export const SENTINEL_IDL = {
       ]
     },
     {
+      "name": "QuarantineExpiredEvent",
+      "discriminator": [
+        71,
+        233,
+        80,
+        101,
+        142,
+        15,
+        90,
+        242
+      ]
+    },
+    {
       "name": "TradeSettledEvent",
       "discriminator": [
         20,
@@ -922,6 +1151,58 @@ export const SENTINEL_IDL = {
         248,
         192,
         149
+      ]
+    },
+    {
+      "name": "VaultQuarantinedEvent",
+      "discriminator": [
+        201,
+        77,
+        183,
+        35,
+        215,
+        115,
+        151,
+        207
+      ]
+    },
+    {
+      "name": "VaultReleasedEvent",
+      "discriminator": [
+        2,
+        209,
+        149,
+        219,
+        204,
+        98,
+        19,
+        14
+      ]
+    },
+    {
+      "name": "ViolationClearedEvent",
+      "discriminator": [
+        75,
+        0,
+        230,
+        123,
+        138,
+        234,
+        26,
+        197
+      ]
+    },
+    {
+      "name": "ViolationPendingEvent",
+      "discriminator": [
+        107,
+        56,
+        113,
+        6,
+        32,
+        103,
+        104,
+        10
       ]
     }
   ],
@@ -1050,6 +1331,31 @@ export const SENTINEL_IDL = {
       "code": 6024,
       "name": "UnverifiedPrice",
       "msg": "Price account is not verified by Pyth or has invalid verification level/owner"
+    },
+    {
+      "code": 6025,
+      "name": "VaultNotActive",
+      "msg": "Vault is not in active state"
+    },
+    {
+      "code": 6026,
+      "name": "VaultNotQuarantined",
+      "msg": "Vault is not in quarantined state"
+    },
+    {
+      "code": 6027,
+      "name": "NoViolation",
+      "msg": "No policy violation detected for vault"
+    },
+    {
+      "code": 6028,
+      "name": "ViolationNotConfirmed",
+      "msg": "Violation has not persisted across confirmation slots"
+    },
+    {
+      "code": 6029,
+      "name": "RecoveryNotExpired",
+      "msg": "Recovery window has not expired yet"
     }
   ],
   "types": [
@@ -1281,6 +1587,26 @@ export const SENTINEL_IDL = {
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "confirm_slots",
+            "type": "u64"
+          },
+          {
+            "name": "recovery_window_slots",
+            "type": "u64"
+          },
+          {
+            "name": "max_recovery_cost_bps",
+            "type": "u16"
+          },
+          {
+            "name": "max_bounty_bps",
+            "type": "u16"
+          },
+          {
+            "name": "safe_destination",
+            "type": "pubkey"
           }
         ]
       }
@@ -1366,6 +1692,30 @@ export const SENTINEL_IDL = {
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "VaultStatus"
+              }
+            }
+          },
+          {
+            "name": "pending_violation_slot",
+            "type": "u64"
+          },
+          {
+            "name": "quarantine_slot",
+            "type": "u64"
+          },
+          {
+            "name": "recovery_expires_slot",
+            "type": "u64"
+          },
+          {
+            "name": "recovery_nonce",
+            "type": "u64"
           }
         ]
       }
@@ -1476,6 +1826,26 @@ export const SENTINEL_IDL = {
       }
     },
     {
+      "name": "QuarantineExpiredEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "slot",
+            "type": "u64"
+          },
+          {
+            "name": "recovery_nonce",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
       "name": "TradeSettledEvent",
       "type": {
         "kind": "struct",
@@ -1522,6 +1892,99 @@ export const SENTINEL_IDL = {
           },
           {
             "name": "usdc_balance_cents",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VaultQuarantinedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "quarantine_slot",
+            "type": "u64"
+          },
+          {
+            "name": "recovery_expires_slot",
+            "type": "u64"
+          },
+          {
+            "name": "recovery_nonce",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VaultReleasedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "slot",
+            "type": "u64"
+          },
+          {
+            "name": "recovery_nonce",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VaultStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Quarantined"
+          },
+          {
+            "name": "RecoveryExpired"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ViolationClearedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ViolationPendingEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "slot",
             "type": "u64"
           }
         ]

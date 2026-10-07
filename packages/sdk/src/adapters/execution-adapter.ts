@@ -12,6 +12,8 @@ import {
   SecurityViolationError,
   WalletSigner,
   SolanaCluster,
+  VaultStatusType,
+  OnChainVaultStatus,
 } from '../types';
 import {
   Connection,
@@ -335,6 +337,7 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
             promise: promisePda,
             agent: agentPda,
             policy: policyPda,
+            vault: vaultPda,
             authority: authorityPubkey,
             systemProgram: SystemProgram.programId,
           })
@@ -478,6 +481,11 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
       this.programId
     );
 
+    const [vaultPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('vault'), ownerPubkey.toBuffer()],
+      this.programId
+    );
+
     const [evidencePda] = PublicKey.findProgramAddressSync(
       [Buffer.from('evidence'), promisePda.toBuffer()],
       this.programId
@@ -511,6 +519,7 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
           promise: promisePda,
           agent: agentPda,
           policy: policyPda,
+          vault: vaultPda,
           authority: authorityPubkey,
           systemProgram: SystemProgram.programId,
         })
@@ -621,6 +630,144 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
     return await this.sendTransactionWithSigner(tx, activeSigner);
   }
 
+  /**
+   * Permissionless flag_violation: re-evaluates policy exposure and reserve using Pyth oracle price.
+   * Can be signed by any arbitrary signer wallet.
+   */
+  async flagViolation(options: {
+    vaultOwner: PublicKey | string;
+    priceUpdateAccount: PublicKey | string;
+    signerOverride?: Keypair | WalletSigner;
+  }): Promise<{ signature: string }> {
+    const activeSigner = options.signerOverride || this.signer;
+    if (!activeSigner) {
+      throw new Error('flagViolation requires a signer keypair or connected wallet.');
+    }
+
+    const ownerPubkey = typeof options.vaultOwner === 'string'
+      ? new PublicKey(options.vaultOwner)
+      : options.vaultOwner;
+
+    const priceUpdatePubkey = typeof options.priceUpdateAccount === 'string'
+      ? new PublicKey(options.priceUpdateAccount)
+      : options.priceUpdateAccount;
+
+    const [vaultPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('vault'), ownerPubkey.toBuffer()],
+      this.programId
+    );
+
+    const [policyPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('policy'), ownerPubkey.toBuffer()],
+      this.programId
+    );
+
+    const program = this.getProgram(activeSigner);
+    const tx = new Transaction();
+    const flagIx = await program.methods
+      .flagViolation()
+      .accountsPartial({
+        vault: vaultPda,
+        policy: policyPda,
+        priceUpdate: priceUpdatePubkey,
+        signer: activeSigner.publicKey,
+      })
+      .instruction();
+
+    tx.add(flagIx);
+    const signature = await this.sendTransactionWithSigner(tx, activeSigner);
+    return { signature };
+  }
+
+  /**
+   * owner_release: releases vault from any status back to Active.
+   * STRICT ACCESS CONTROL: Must be signed by the Vault Owner key.
+   */
+  async ownerRelease(options?: {
+    ownerSigner?: Keypair | WalletSigner;
+    vaultOwner?: PublicKey | string;
+  }): Promise<{ signature: string }> {
+    const activeSigner = options?.ownerSigner || this.ownerSigner || this.signer;
+    if (!activeSigner) {
+      throw new Error('ownerRelease requires an authorized owner signer keypair or connected wallet.');
+    }
+
+    const ownerPubkey = options?.vaultOwner
+      ? (typeof options.vaultOwner === 'string' ? new PublicKey(options.vaultOwner) : options.vaultOwner)
+      : activeSigner.publicKey;
+
+    const [vaultPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('vault'), ownerPubkey.toBuffer()],
+      this.programId
+    );
+
+    const program = this.getProgram(activeSigner);
+    const tx = new Transaction();
+    const releaseIx = await program.methods
+      .ownerRelease()
+      .accountsPartial({
+        vault: vaultPda,
+        owner: activeSigner.publicKey,
+      })
+      .instruction();
+
+    tx.add(releaseIx);
+    const signature = await this.sendTransactionWithSigner(tx, activeSigner);
+    return { signature };
+  }
+
+  /**
+   * Permissionless expire_quarantine: marks quarantine as expired if recovery window has passed.
+   * Can be signed by any arbitrary signer wallet.
+   */
+  async expireQuarantine(options: {
+    vaultOwner: PublicKey | string;
+    signerOverride?: Keypair | WalletSigner;
+  }): Promise<{ signature: string }> {
+    const activeSigner = options.signerOverride || this.signer;
+    if (!activeSigner) {
+      throw new Error('expireQuarantine requires a signer keypair or connected wallet.');
+    }
+
+    const ownerPubkey = typeof options.vaultOwner === 'string'
+      ? new PublicKey(options.vaultOwner)
+      : options.vaultOwner;
+
+    const [vaultPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('vault'), ownerPubkey.toBuffer()],
+      this.programId
+    );
+
+    const program = this.getProgram(activeSigner);
+    const tx = new Transaction();
+    const expireIx = await program.methods
+      .expireQuarantine()
+      .accountsPartial({
+        vault: vaultPda,
+        signer: activeSigner.publicKey,
+      })
+      .instruction();
+
+    tx.add(expireIx);
+    const signature = await this.sendTransactionWithSigner(tx, activeSigner);
+    return { signature };
+  }
+
+  /**
+   * readVaultStatus: authoritatively reads on-chain PortfolioVault account state.
+   * No cached or simulated values.
+   */
+  async readVaultStatus(vaultOwner: PublicKey | string): Promise<OnChainVaultStatus> {
+    const ownerPubkey = typeof vaultOwner === 'string' ? new PublicKey(vaultOwner) : vaultOwner;
+    const [vaultPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('vault'), ownerPubkey.toBuffer()],
+      this.programId
+    );
+    const program = this.getProgram();
+    const vaultAccount = await (program.account as any).portfolioVault.fetch(vaultPda);
+    return formatVaultAccount(vaultAccount, vaultPda);
+  }
+
   private async sendTransactionWithSigner(
     tx: Transaction,
     explicitSigner?: Keypair | WalletSigner,
@@ -670,4 +817,61 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
       throw new Error('Signer cannot sign or send transaction');
     }
   }
+}
+
+function formatVaultAccount(vaultAccount: any, vaultPda: PublicKey): OnChainVaultStatus {
+  let statusStr: VaultStatusType = 'Active';
+  if (vaultAccount.status) {
+    if (typeof vaultAccount.status === 'string') {
+      statusStr = vaultAccount.status as VaultStatusType;
+    } else if (vaultAccount.status.active !== undefined) {
+      statusStr = 'Active';
+    } else if (vaultAccount.status.quarantined !== undefined) {
+      statusStr = 'Quarantined';
+    } else if (vaultAccount.status.recoveryExpired !== undefined) {
+      statusStr = 'RecoveryExpired';
+    }
+  }
+
+  return {
+    vaultPda: vaultPda.toBase58(),
+    owner: vaultAccount.owner.toBase58(),
+    policy: vaultAccount.policy.toBase58(),
+    status: statusStr,
+    pendingViolationSlot: Number(vaultAccount.pendingViolationSlot ?? 0),
+    quarantineSlot: Number(vaultAccount.quarantineSlot ?? 0),
+    recoveryExpiresSlot: Number(vaultAccount.recoveryExpiresSlot ?? 0),
+    recoveryNonce: Number(vaultAccount.recoveryNonce ?? 0),
+    usdcBalanceCents: Number(vaultAccount.usdcBalanceCents ?? 0),
+    totalValueCents: Number(vaultAccount.totalValueCents ?? 0),
+  };
+}
+
+/**
+ * readVaultStatus: authoritatively reads on-chain PortfolioVault account state.
+ * No cached or simulated values.
+ */
+export async function readVaultStatus(
+  connection: Connection,
+  vaultOwner: PublicKey | string,
+  programId: PublicKey | string = '3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH'
+): Promise<OnChainVaultStatus> {
+  const ownerPubkey = typeof vaultOwner === 'string' ? new PublicKey(vaultOwner) : vaultOwner;
+  const progId = typeof programId === 'string' ? new PublicKey(programId) : programId;
+
+  const [vaultPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from('vault'), ownerPubkey.toBuffer()],
+    progId
+  );
+
+  const dummyWallet = {
+    publicKey: ownerPubkey,
+    signTransaction: async (tx: any) => tx,
+    signAllTransactions: async (txs: any[]) => txs,
+  };
+  const provider = new AnchorProvider(connection, dummyWallet as any, { commitment: 'confirmed' });
+  const program = new Program<Sentinel>(SENTINEL_IDL as unknown as Idl as Sentinel, provider);
+
+  const vaultAccount = await (program.account as any).portfolioVault.fetch(vaultPda);
+  return formatVaultAccount(vaultAccount, vaultPda);
 }

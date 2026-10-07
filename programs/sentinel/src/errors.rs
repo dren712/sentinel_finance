@@ -76,4 +76,19 @@ pub enum SentinelError {
 
     #[msg("Price account is not verified by Pyth or has invalid verification level/owner")]
     UnverifiedPrice,
+
+    #[msg("Vault is not in active state")]
+    VaultNotActive,
+
+    #[msg("Vault is not in quarantined state")]
+    VaultNotQuarantined,
+
+    #[msg("No policy violation detected for vault")]
+    NoViolation,
+
+    #[msg("Violation has not persisted across confirmation slots")]
+    ViolationNotConfirmed,
+
+    #[msg("Recovery window has not expired yet")]
+    RecoveryNotExpired,
 }

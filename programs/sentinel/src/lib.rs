@@ -42,6 +42,11 @@ pub mod sentinel {
         min_stablecoin_bps: u16,
         max_trade_value_usd: u64,
         max_slippage_bps: u16,
+        confirm_slots: u64,
+        recovery_window_slots: u64,
+        max_recovery_cost_bps: u16,
+        max_bounty_bps: u16,
+        safe_destination: Pubkey,
     ) -> Result<()> {
         // Enforce logical basis point bounds (Finding 11)
         require!(max_single_asset_bps <= 10_000, SentinelError::InvalidPolicyBounds);
@@ -57,6 +62,11 @@ pub mod sentinel {
         policy.policy_version = 1;
         policy.is_active = true;
         policy.bump = ctx.bumps.policy;
+        policy.confirm_slots = confirm_slots;
+        policy.recovery_window_slots = recovery_window_slots;
+        policy.max_recovery_cost_bps = max_recovery_cost_bps;
+        policy.max_bounty_bps = max_bounty_bps;
+        policy.safe_destination = safe_destination;
 
         emit!(PolicyUpdatedEvent {
             owner: policy.owner,
@@ -77,6 +87,11 @@ pub mod sentinel {
         min_stablecoin_bps: u16,
         max_trade_value_usd: u64,
         max_slippage_bps: u16,
+        confirm_slots: u64,
+        recovery_window_slots: u64,
+        max_recovery_cost_bps: u16,
+        max_bounty_bps: u16,
+        safe_destination: Pubkey,
         is_active: bool,
     ) -> Result<()> {
         require!(max_single_asset_bps <= 10_000, SentinelError::InvalidPolicyBounds);
@@ -88,6 +103,11 @@ pub mod sentinel {
         policy.min_stablecoin_bps = min_stablecoin_bps;
         policy.max_trade_value_usd = max_trade_value_usd;
         policy.max_slippage_bps = max_slippage_bps;
+        policy.confirm_slots = confirm_slots;
+        policy.recovery_window_slots = recovery_window_slots;
+        policy.max_recovery_cost_bps = max_recovery_cost_bps;
+        policy.max_bounty_bps = max_bounty_bps;
+        policy.safe_destination = safe_destination;
         policy.is_active = is_active;
         policy.policy_version = policy.policy_version.checked_add(1).ok_or(SentinelError::MathOverflow)?;
 
@@ -117,6 +137,11 @@ pub mod sentinel {
         vault.usdc_balance_cents = usdc_balance_cents;
         vault.positions = positions;
         vault.bump = ctx.bumps.vault;
+        vault.status = VaultStatus::Active;
+        vault.pending_violation_slot = 0;
+        vault.quarantine_slot = 0;
+        vault.recovery_expires_slot = 0;
+        vault.recovery_nonce = 0;
 
         // Compute cached initial total value in cents
         let mut total_equity_cents: u64 = 0;
@@ -204,6 +229,7 @@ pub mod sentinel {
         trade_direction: u8,
         trade_amount_usd: u64,
     ) -> Result<()> {
+        require!(ctx.accounts.vault.status == VaultStatus::Active, SentinelError::VaultNotActive);
         require!(ctx.accounts.policy.is_active, SentinelError::PolicyInactive);
         require!(ctx.accounts.agent.is_active, SentinelError::AgentInactive);
         require!(
@@ -257,6 +283,8 @@ pub mod sentinel {
         let agent = &ctx.accounts.agent;
         let promise = &mut ctx.accounts.promise;
         let vault = &mut ctx.accounts.vault;
+
+        require!(vault.status == VaultStatus::Active, SentinelError::VaultNotActive);
 
         // 1. Enforce strict authority check (Finding 3)
         require!(
@@ -473,6 +501,136 @@ pub mod sentinel {
 
         Ok(())
     }
+
+    /// Flags a policy violation on an active vault based on verified Pyth pricing.
+    /// Permissionless: any caller can submit with a verified Pyth price update account.
+    pub fn flag_violation(ctx: Context<FlagViolation>) -> Result<()> {
+        let vault = &mut ctx.accounts.vault;
+        let policy = &ctx.accounts.policy;
+
+        require!(vault.status == VaultStatus::Active, SentinelError::VaultNotActive);
+
+        // MVP scope: a vault holds ONE volatile asset + USDC
+        let pos = vault.positions.iter().find(|p| !p.is_index)
+            .ok_or(SentinelError::AssetNotFound)?;
+
+        let clock = Clock::get()?;
+        let pyth_price_cents = parse_and_verify_pyth_price(
+            &ctx.accounts.price_update,
+            clock.unix_timestamp,
+            200, // 200 bps = 2.0% max confidence
+            pos.feed_id,
+        )?;
+
+        // Reprice the volatile position read-only (do NOT write price back to vault)
+        let recomputed_target_cents = pos.amount_units
+            .checked_mul(pyth_price_cents)
+            .ok_or(SentinelError::MathOverflow)?;
+
+        let recomputed_total_cents = vault.usdc_balance_cents
+            .checked_add(recomputed_target_cents)
+            .ok_or(SentinelError::MathOverflow)?;
+
+        let is_violated = check_exposure_and_reserve(
+            policy,
+            recomputed_target_cents,
+            recomputed_total_cents,
+            vault.usdc_balance_cents,
+        ).is_err();
+
+        let current_slot = clock.slot;
+
+        if !is_violated {
+            if vault.pending_violation_slot != 0 {
+                vault.pending_violation_slot = 0;
+                emit!(ViolationClearedEvent {
+                    vault: vault.key(),
+                    slot: current_slot,
+                });
+                Ok(())
+            } else {
+                err!(SentinelError::NoViolation)
+            }
+        } else {
+            if vault.pending_violation_slot == 0 {
+                vault.pending_violation_slot = current_slot;
+                emit!(ViolationPendingEvent {
+                    vault: vault.key(),
+                    slot: current_slot,
+                });
+                Ok(())
+            } else {
+                let elapsed = current_slot.saturating_sub(vault.pending_violation_slot);
+                if elapsed < policy.confirm_slots {
+                    err!(SentinelError::ViolationNotConfirmed)
+                } else {
+                    vault.status = VaultStatus::Quarantined;
+                    vault.pending_violation_slot = 0;
+                    vault.quarantine_slot = current_slot;
+                    vault.recovery_expires_slot = current_slot
+                        .checked_add(policy.recovery_window_slots)
+                        .ok_or(SentinelError::MathOverflow)?;
+                    vault.recovery_nonce = vault.recovery_nonce
+                        .checked_add(1)
+                        .ok_or(SentinelError::MathOverflow)?;
+
+                    emit!(VaultQuarantinedEvent {
+                        vault: vault.key(),
+                        quarantine_slot: current_slot,
+                        recovery_expires_slot: vault.recovery_expires_slot,
+                        recovery_nonce: vault.recovery_nonce,
+                    });
+                    Ok(())
+                }
+            }
+        }
+    }
+
+    /// Owner releases the vault from any status back to Active.
+    /// Resets pending violation and increments recovery_nonce to invalidate in-flight recoveries.
+    pub fn owner_release(ctx: Context<OwnerRelease>) -> Result<()> {
+        let vault = &mut ctx.accounts.vault;
+        vault.status = VaultStatus::Active;
+        vault.pending_violation_slot = 0;
+        vault.quarantine_slot = 0;
+        vault.recovery_expires_slot = 0;
+        vault.recovery_nonce = vault.recovery_nonce
+            .checked_add(1)
+            .ok_or(SentinelError::MathOverflow)?;
+
+        emit!(VaultReleasedEvent {
+            vault: vault.key(),
+            slot: Clock::get()?.slot,
+            recovery_nonce: vault.recovery_nonce,
+        });
+
+        Ok(())
+    }
+
+    /// Permissionlessly marks quarantine as expired if recovery window has passed.
+    pub fn expire_quarantine(ctx: Context<ExpireQuarantine>) -> Result<()> {
+        let vault = &mut ctx.accounts.vault;
+        require!(vault.status == VaultStatus::Quarantined, SentinelError::VaultNotQuarantined);
+
+        let current_slot = Clock::get()?.slot;
+        require!(
+            current_slot > vault.recovery_expires_slot,
+            SentinelError::RecoveryNotExpired
+        );
+
+        vault.status = VaultStatus::RecoveryExpired;
+        vault.recovery_nonce = vault.recovery_nonce
+            .checked_add(1)
+            .ok_or(SentinelError::MathOverflow)?;
+
+        emit!(QuarantineExpiredEvent {
+            vault: vault.key(),
+            slot: current_slot,
+            recovery_nonce: vault.recovery_nonce,
+        });
+
+        Ok(())
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -635,6 +793,42 @@ pub fn parse_and_verify_pyth_price(
     Ok(price_cents)
 }
 
+pub fn check_exposure_and_reserve(
+    policy: &PolicyAccount,
+    target_cents: u64,
+    total_cents: u64,
+    stable_cents: u64,
+) -> Result<()> {
+    require!(total_cents > 0, SentinelError::MathOverflow);
+    require!(target_cents <= total_cents, SentinelError::MathOverflow);
+
+    // 1. Max single-asset exposure check (in u128)
+    let target_exposure_bps = (target_cents as u128)
+        .checked_mul(10_000)
+        .ok_or(SentinelError::MathOverflow)?
+        .checked_div(total_cents as u128)
+        .ok_or(SentinelError::MathOverflow)?;
+
+    require!(
+        target_exposure_bps <= policy.max_single_asset_bps as u128,
+        SentinelError::ExposureExceeded
+    );
+
+    // 2. Min stablecoin reserve floor check (in u128)
+    let stablecoin_reserve_bps = (stable_cents as u128)
+        .checked_mul(10_000)
+        .ok_or(SentinelError::MathOverflow)?
+        .checked_div(total_cents as u128)
+        .ok_or(SentinelError::MathOverflow)?;
+
+    require!(
+        stablecoin_reserve_bps >= policy.min_stablecoin_bps as u128,
+        SentinelError::StablecoinReserveBreached
+    );
+
+    Ok(())
+}
+
 pub fn verify_vault_postconditions(
     policy: &PolicyAccount,
     trade_amount_cents: u64,
@@ -657,31 +851,10 @@ pub fn verify_vault_postconditions(
         SentinelError::TradeSizeExceeded
     );
 
-    // 2. Max single-asset exposure check (in u128)
-    let target_exposure_bps = (post_target_cents as u128)
-        .checked_mul(10_000)
-        .ok_or(SentinelError::MathOverflow)?
-        .checked_div(post_total_cents as u128)
-        .ok_or(SentinelError::MathOverflow)?;
+    // 2. Max single-asset exposure & min stablecoin reserve checks
+    check_exposure_and_reserve(policy, post_target_cents, post_total_cents, post_stable_cents)?;
 
-    require!(
-        target_exposure_bps <= policy.max_single_asset_bps as u128,
-        SentinelError::ExposureExceeded
-    );
-
-    // 3. Min stablecoin reserve floor check (in u128)
-    let stablecoin_reserve_bps = (post_stable_cents as u128)
-        .checked_mul(10_000)
-        .ok_or(SentinelError::MathOverflow)?
-        .checked_div(post_total_cents as u128)
-        .ok_or(SentinelError::MathOverflow)?;
-
-    require!(
-        stablecoin_reserve_bps >= policy.min_stablecoin_bps as u128,
-        SentinelError::StablecoinReserveBreached
-    );
-
-    // 4. Slippage check (in u128) via extracted pure function
+    // 3. Slippage check (in u128) via extracted pure function
     check_benchmark_slippage(
         execution_price_cents,
         quoted_price_cents,
@@ -783,6 +956,12 @@ pub struct CreatePromise<'info> {
     )]
     pub agent: Account<'info, AgentAccount>,
     pub policy: Account<'info, PolicyAccount>,
+    #[account(
+        seeds = [b"vault", agent.owner.as_ref()],
+        bump = vault.bump,
+        has_one = policy,
+    )]
+    pub vault: Account<'info, PortfolioVault>,
     #[account(mut)]
     pub authority: Signer<'info>,
     pub system_program: Program<'info, System>,
@@ -870,6 +1049,45 @@ pub struct RecordEvidence<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[derive(Accounts)]
+pub struct FlagViolation<'info> {
+    #[account(
+        mut,
+        seeds = [b"vault", vault.owner.as_ref()],
+        bump = vault.bump,
+        has_one = policy,
+        constraint = vault.owner == policy.owner @ SentinelError::SecurityDomainMismatch
+    )]
+    pub vault: Account<'info, PortfolioVault>,
+    pub policy: Account<'info, PolicyAccount>,
+    /// CHECK: Oracle price update account verified via parse_and_verify_pyth_price
+    pub price_update: AccountInfo<'info>,
+    pub signer: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct OwnerRelease<'info> {
+    #[account(
+        mut,
+        seeds = [b"vault", owner.key().as_ref()],
+        bump = vault.bump,
+        has_one = owner
+    )]
+    pub vault: Account<'info, PortfolioVault>,
+    pub owner: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct ExpireQuarantine<'info> {
+    #[account(
+        mut,
+        seeds = [b"vault", vault.owner.as_ref()],
+        bump = vault.bump,
+    )]
+    pub vault: Account<'info, PortfolioVault>,
+    pub signer: Signer<'info>,
+}
+
 // -----------------------------------------------------------------------------
 // Events
 // -----------------------------------------------------------------------------
@@ -941,6 +1159,40 @@ pub struct AgentStatusUpdatedEvent {
     pub is_active: bool,
 }
 
+#[event]
+pub struct ViolationPendingEvent {
+    pub vault: Pubkey,
+    pub slot: u64,
+}
+
+#[event]
+pub struct ViolationClearedEvent {
+    pub vault: Pubkey,
+    pub slot: u64,
+}
+
+#[event]
+pub struct VaultQuarantinedEvent {
+    pub vault: Pubkey,
+    pub quarantine_slot: u64,
+    pub recovery_expires_slot: u64,
+    pub recovery_nonce: u64,
+}
+
+#[event]
+pub struct VaultReleasedEvent {
+    pub vault: Pubkey,
+    pub slot: u64,
+    pub recovery_nonce: u64,
+}
+
+#[event]
+pub struct QuarantineExpiredEvent {
+    pub vault: Pubkey,
+    pub slot: u64,
+    pub recovery_nonce: u64,
+}
+
 // -----------------------------------------------------------------------------
 // Rust Invariant Unit Tests
 // -----------------------------------------------------------------------------
@@ -959,6 +1211,11 @@ mod tests {
             policy_version: 1,
             is_active: true,
             bump: 0,
+            confirm_slots: 10,
+            recovery_window_slots: 100,
+            max_recovery_cost_bps: 100,
+            max_bounty_bps: 50,
+            safe_destination: Pubkey::default(),
         }
     }
 

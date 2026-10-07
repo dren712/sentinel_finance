@@ -146,7 +146,12 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
           2500, // 25.00%
           2000, // 20.00%
           new BN(10000), // $10,000 max trade
-          100 // 1.00% max slippage
+          100, // 1.00% max slippage
+          new BN(10), // confirm_slots
+          new BN(100), // recovery_window_slots
+          100, // max_recovery_cost_bps
+          50, // max_bounty_bps
+          PublicKey.default // safe_destination
         )
         .accountsPartial({
           policy: policyPda,
@@ -256,6 +261,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
         promise: promisePda,
         agent: agentPda,
         policy: policyPda,
+        vault: vaultPda,
         authority: agentKeypair.publicKey,
         systemProgram: SystemProgram.programId,
       })
@@ -307,6 +313,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
         promise: promisePda,
         agent: agentPda,
         policy: policyPda,
+        vault: vaultPda,
         authority: agentKeypair.publicKey,
         systemProgram: SystemProgram.programId,
       })
@@ -358,6 +365,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
         promise: promisePda,
         agent: agentPda,
         policy: policyPda,
+        vault: vaultPda,
         authority: agentKeypair.publicKey,
         systemProgram: SystemProgram.programId,
       })
@@ -426,6 +434,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
         promise: promisePda,
         agent: agentPda,
         policy: policyPda,
+        vault: vaultPda,
         authority: agentKeypair.publicKey,
         systemProgram: SystemProgram.programId,
       })
@@ -483,6 +492,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
         promise: promisePda,
         agent: agentPda,
         policy: policyPda,
+        vault: vaultPda,
         authority: agentKeypair.publicKey,
         systemProgram: SystemProgram.programId,
       })
@@ -552,6 +562,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
         promise: promisePda,
         agent: agentPda,
         policy: policyPda,
+        vault: vaultPda,
         authority: agentKeypair.publicKey,
         systemProgram: SystemProgram.programId,
       })
@@ -629,6 +640,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
         promise: promisePda,
         agent: agentPda,
         policy: policyPda,
+        vault: vaultPda,
         authority: agentKeypair.publicKey,
         systemProgram: SystemProgram.programId,
       })
@@ -706,6 +718,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
         promise: promisePda,
         agent: agentPda,
         policy: policyPda,
+        vault: vaultPda,
         authority: agentKeypair.publicKey,
         systemProgram: SystemProgram.programId,
       })
@@ -767,6 +780,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
           promise: promisePda,
           agent: agentPda,
           policy: policyPda,
+          vault: vaultPda,
           authority: agentKeypair.publicKey,
           systemProgram: SystemProgram.programId,
         })
@@ -808,6 +822,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
         promise: promisePda,
         agent: agentPda,
         policy: policyPda,
+        vault: vaultPda,
         authority: agentKeypair.publicKey,
         systemProgram: SystemProgram.programId,
       })
@@ -928,6 +943,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
         promise: promisePda,
         agent: agentPda,
         policy: policyPda,
+        vault: vaultPda,
         authority: agentKeypair.publicKey,
         systemProgram: SystemProgram.programId,
       })
@@ -1030,6 +1046,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
         promise: promisePda,
         agent: agentPda,
         policy: policyPda,
+        vault: vaultPda,
         authority: agentKeypair.publicKey,
         systemProgram: SystemProgram.programId,
       })
@@ -1080,6 +1097,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
         promise: promisePda,
         agent: agentPda,
         policy: policyPda,
+        vault: vaultPda,
         authority: agentKeypair.publicKey,
         systemProgram: SystemProgram.programId,
       })
@@ -1130,6 +1148,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
         promise: promisePda,
         agent: agentPda,
         policy: policyPda,
+        vault: vaultPda,
         authority: agentKeypair.publicKey,
         systemProgram: SystemProgram.programId,
       })
@@ -1180,6 +1199,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
         promise: promisePda,
         agent: agentPda,
         policy: policyPda,
+        vault: vaultPda,
         authority: agentKeypair.publicKey,
         systemProgram: SystemProgram.programId,
       })
@@ -1230,6 +1250,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
         promise: promisePda,
         agent: agentPda,
         policy: policyPda,
+        vault: vaultPda,
         authority: agentKeypair.publicKey,
         systemProgram: SystemProgram.programId,
       })
@@ -1280,6 +1301,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
         promise: promisePda,
         agent: agentPda,
         policy: policyPda,
+        vault: vaultPda,
         authority: agentKeypair.publicKey,
         systemProgram: SystemProgram.programId,
       })
@@ -1330,6 +1352,7 @@ describe('P25 — Anchor Localnet Integration Tests: Real Program Invariant Enfo
         promise: promisePda,
         agent: agentPda,
         policy: policyPda,
+        vault: vaultPda,
         authority: agentKeypair.publicKey,
         systemProgram: SystemProgram.programId,
       })

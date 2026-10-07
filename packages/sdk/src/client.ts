@@ -42,6 +42,8 @@ import {
   AgentLoopState,
   AutonomousAdaptationResult,
   WalletSigner,
+  VaultStatusType,
+  OnChainVaultStatus,
 } from './types';
 
 import {
@@ -50,6 +52,7 @@ import {
   PreStocksExecutionAdapter,
   SimulatedExecutionAdapter,
   LiveExecutionAdapter,
+  readVaultStatus,
 } from './adapters/execution-adapter';
 import { AutonomousRoboAgent } from './agent-simulator';
 import { MeteoraDBCMarketQualityVerifier } from './sponsors/meteora';
@@ -853,5 +856,13 @@ export class SentinelClient {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Authoritatively reads on-chain PortfolioVault account state.
+   * No cached or simulated values.
+   */
+  async readVaultStatus(vaultOwner: PublicKey | string): Promise<OnChainVaultStatus> {
+    return readVaultStatus(this.getConnection(), vaultOwner);
   }
 }

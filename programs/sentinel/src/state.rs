@@ -24,10 +24,28 @@ pub struct PolicyAccount {
     pub policy_version: u32,
     pub is_active: bool,
     pub bump: u8,
+    pub confirm_slots: u64,          // hysteresis
+    pub recovery_window_slots: u64,  // window for solver recovery
+    pub max_recovery_cost_bps: u16,  // unused until recovery prompt
+    pub max_bounty_bps: u16,         // unused until recovery prompt
+    pub safe_destination: Pubkey,    // unused until recovery prompt
 }
 
 impl PolicyAccount {
-    pub const LEN: usize = 8 + 32 + 2 + 2 + 8 + 2 + 4 + 1 + 1;
+    pub const LEN: usize = 8 + 32 + 2 + 2 + 8 + 2 + 4 + 1 + 1 + 8 + 8 + 2 + 2 + 32;
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug)]
+pub enum VaultStatus {
+    Active,
+    Quarantined,
+    RecoveryExpired,
+}
+
+impl Default for VaultStatus {
+    fn default() -> Self {
+        VaultStatus::Active
+    }
 }
 
 #[account]
@@ -76,13 +94,20 @@ pub struct PortfolioVault {
     pub total_value_cents: u64,
     pub positions: Vec<AssetPosition>,
     pub bump: u8,
+    pub status: VaultStatus,
+    pub pending_violation_slot: u64,
+    pub quarantine_slot: u64,
+    pub recovery_expires_slot: u64,
+    pub recovery_nonce: u64,
 }
 
 impl PortfolioVault {
     pub const MAX_POSITIONS: usize = 8;
-    // 8 disc + 32 owner + 32 policy + 8 usdc + 8 total + (4 len + 8 * (32 + 8 + 8 + 8 + 1 + 32)) + 1 bump
-    pub const LEN: usize = 8 + 32 + 32 + 8 + 8 + (4 + Self::MAX_POSITIONS * 89) + 1;
+    // 8 disc + 32 owner + 32 policy + 8 usdc + 8 total + (4 len + 8 * (32 + 8 + 8 + 8 + 1 + 32)) + 1 bump + 1 status + 8 pending + 8 quarantine + 8 recovery_expires + 8 recovery_nonce
+    pub const LEN: usize = 8 + 32 + 32 + 8 + 8 + (4 + Self::MAX_POSITIONS * 89) + 1 + 1 + 8 + 8 + 8 + 8;
 }
+
+pub type VaultAccount = PortfolioVault;
 
 #[account]
 pub struct EvidenceAccount {
