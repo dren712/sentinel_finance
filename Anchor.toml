@@ -23,7 +23,7 @@ cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
-test = "node --test tests/sentinel-localnet.test.ts && pnpm test && node --test tests/bankrun-quarantine.test.ts"
+test = "node --test tests/sentinel-localnet.test.ts && pnpm test && node --test tests/bankrun-quarantine.test.ts && node --test tests/bankrun-recovery.test.ts"
 
 [test.validator]
 bind_address = "0.0.0.0"
