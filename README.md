@@ -2,48 +2,48 @@
   <img src="./docs/assets/Sentinel_logo.png" alt="Sentinel Robo" width="300" />
 </p>
 
-<h1 align="center">Sentinel Finance — Sentinel Robo</h1>
+<h1 align="center">Sentinel Finance — Recovery Layer for Autonomous Capital</h1>
 
 <p align="center">
-  <strong>Outcome-bounded autonomous investing on Solana — deterministic portfolio guarantees for an increasingly autonomous, increasingly fast settlement layer.</strong><br>
-  <em>AI agents can decide what to trade. Sentinel decides whether the resulting portfolio state is allowed.</em>
+  <strong>Programmable containment and permissionless recovery for autonomous agents on Solana.</strong><br>
+  <em>When autonomous trading agents breach portfolio risk invariants, Sentinel quarantines execution authority and enables permissionless solvers to rebalance the vault via real SPL token custody containment.</em>
 </p>
 
 <p align="center">
   <a href="https://sentinel-finance-production-4560.up.railway.app/"><img src="https://img.shields.io/badge/Live_App-Railway_Production-00C49F?logo=railway&logoColor=white" alt="Live App"></a>
-  <a href="https://explorer.solana.com/address/3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK?cluster=devnet"><img src="https://img.shields.io/badge/Solana-Devnet_Live-9945FF?logo=solana&logoColor=white" alt="Solana Devnet"></a>
-  <a href="https://pyth.network"><img src="https://img.shields.io/badge/Pyth_Hermes-Dual--Feed_Live-E6DAFE?logo=pyth&logoColor=black" alt="Pyth Network"></a>
-  <a href="./docs/SPONSORS.md#2-prestocks-prestocksapiclient--pre-ipo-exposure-ceiling"><img src="https://img.shields.io/badge/PreStocks-Certified_Pre--IPO-8A2BE2" alt="PreStocks"></a>
-  <a href="./docs/SPONSORS.md#3-meteora-meteoradbcmarketqualityverifier--pool-pda-derivation"><img src="https://img.shields.io/badge/Meteora-DBC_Pool_PDAs-FE5F55" alt="Meteora"></a>
-  <a href="./docs/VERIFICATION.md"><img src="https://img.shields.io/badge/PROVN-Two--Tier_Receipts-00C49F" alt="PROVN"></a>
-  <a href="./docs/SECURITY.md"><img src="https://img.shields.io/badge/Security-11_Adversarial_Vectors-2563EB" alt="Security Matrix"></a>
+  <a href="https://sentinel-finance-production-4560.up.railway.app/quarantine"><img src="https://img.shields.io/badge/Quarantine_Terminal-Live-FF5C00" alt="Quarantine Terminal"></a>
+  <a href="https://explorer.solana.com/address/3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH?cluster=devnet"><img src="https://img.shields.io/badge/CWF_Program-3TVEhBHw...-9945FF?logo=solana&logoColor=white" alt="CWF Devnet Program"></a>
+  <a href="https://pyth.network"><img src="https://img.shields.io/badge/Pyth_Oracle-PriceUpdateV2_Verified-E6DAFE?logo=pyth&logoColor=black" alt="Pyth Network"></a>
+  <a href="./docs/cwf/SUBMISSION_CWF.md"><img src="https://img.shields.io/badge/CWF-Submission_Doc-00C49F" alt="CWF Submission"></a>
+  <a href="./docs/cwf/STATE_MACHINE.md"><img src="https://img.shields.io/badge/State_Machine-Quarantine_&_Recovery-2563EB" alt="State Machine"></a>
 </p>
 
 <p align="center">
-  <code>Agent intent → Promise → Post-state projection → Financial invariants → Block / Settle → Adapt → Cryptographic evidence</code>
+  <code>AUTHORIZED → UNSAFE → PROVEN → QUARANTINED → RECOVERED → EXPIRED</code>
 </p>
 
 <p align="center">
-  <a href="https://sentinel-finance-production-4560.up.railway.app/">Live Hosted App</a> ·
-  <a href="./docs/TECHNICAL.md">Technical Docs</a> ·
-  <a href="./docs/DEMO.md">Demo Walkthrough</a> ·
-  <a href="https://explorer.solana.com/address/3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK?cluster=devnet">Solana Explorer</a> ·
-  <a href="./docs/VERIFICATION.md">Verification Gate</a> ·
-  <a href="./docs/SECURITY.md">Security Matrix</a> ·
-  <a href="./docs/SPONSORS.md">Sponsor Integrations</a>
+  <a href="https://sentinel-finance-production-4560.up.railway.app/quarantine">Quarantine & Recovery Terminal</a> ·
+  <a href="https://sentinel-finance-production-4560.up.railway.app/">Portfolio Dashboard</a> ·
+  <a href="./docs/cwf/SUBMISSION_CWF.md">CWF Submission</a> ·
+  <a href="./docs/cwf/STATE_MACHINE.md">State Machine</a> ·
+  <a href="./docs/cwf/DISCLOSURE.md">Disclosure & Provenance</a> ·
+  <a href="https://explorer.solana.com/address/3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH?cluster=devnet">Solana Explorer (CWF)</a> ·
+  <a href="./docs/TECHNICAL.md">Technical Docs</a>
 </p>
 
 ---
 
 ## About Sentinel
 
-**Sentinel is an outcome-bounded execution firewall for autonomous AI agents on Solana.**
+**Sentinel is the programmable control and recovery layer for autonomous capital on Solana.**
 
-While AI agents excel at market research and trade formulation, they operate in probabilistic space. Prompts, fine-tuning, and off-chain wrappers cannot provide deterministic guarantees against catastrophic risk. Sentinel places a deterministic, on-chain state-transition boundary between agent intelligence and financial settlement:
+While AI agents formulate trades and react to market signals, they operate in probabilistic space. Fine-tuning and off-chain safeguards cannot provide mathematical guarantees against catastrophic risk. Sentinel places a deterministic, on-chain state-transition boundary between agent intelligence and financial settlement:
 
-- **Autonomous Intelligence:** The agent (`Robo-01`) is free to analyze signals and formulate complex trade intents across tokenized equities (`NVDAx`, `AAPLx`, `SPYx`) and certified Pre-IPO assets (`PreStocks`).
-- **Deterministic Guards:** Proposed trades are evaluated against Sentinel's on-chain portfolio invariants and off-chain pre-trade market/data guards, including Pyth freshness, PreStocks exposure, and Meteora liquidity.
-- **Atomic Enforcement & Adaptation:** Violations of on-chain invariants revert atomically on Solana; pre-trade data and market-quality failures halt authorization before settlement. The agent receives structured headroom diagnostics, recalculates compliant trade parameters, and settles on-chain with verifiable PROVN cryptographic receipts.
+- **Autonomous Intelligence:** The agent proposes portfolio allocations across volatile assets and stablecoins.
+- **Deterministic Guards:** Proposed trades are bounded by on-chain portfolio invariants (`max_single_asset_bps`, `min_stablecoin_bps`, `max_trade_value_usd`) verified against an authenticated Pyth oracle feed (`PriceUpdateV2`).
+- **Hysteresis Quarantine:** If market shifts or invalid states cause invariant breaches, permissionless watchers flag the vault into `Quarantined`, immediately locking out the agent's trading authority (`VaultNotActive`).
+- **Permissionless Custody Recovery:** Any external solver can permissionlessly call `recover()` during the recovery window. The contract executes a real SPL Token / Token-2022 CPI `transfer_checked_signed` to the owner's `safe_destination`, enforcing value conservation and oversell guards before restoring the vault to `Active`.
 
 ---
 
@@ -188,11 +188,15 @@ curl http://localhost:3000/api/health
 
 ---
 
-## Testing & Verification (`144 Automated Tests Passing + Solana Devnet Gate`)
+## Testing & Verification (`147 Automated Tests Passing + Solana Devnet Gate`)
 
 ```bash
-# Run all 144 unit, domain, SDK, and 11-vector adversarial security tests
+# Run all 108 unit, domain, SDK, watcher/solver, and adversarial security tests
 pnpm test
+
+# Run slot-warped Bankrun test suites (26 recovery tests + 13 quarantine tests)
+node --test tests/bankrun-recovery.test.ts
+node --test tests/bankrun-quarantine.test.ts
 
 # Run live Solana Devnet P22/P23 verification gate
 node packages/sdk/scripts/verify-p22-p23-devnet.mjs
@@ -202,9 +206,12 @@ node packages/sdk/scripts/verify-p22-p23-devnet.mjs
 
 ## Documentation Links
 
+- [Quarantine & Recovery Terminal (Live)](https://sentinel-finance-production-4560.up.railway.app/quarantine)
+- [CWF Submission Document](./docs/cwf/SUBMISSION_CWF.md)
+- [Quarantine State Machine Specification](./docs/cwf/STATE_MACHINE.md)
+- [CWF Disclosure & Provenance Log](./docs/cwf/DISCLOSURE.md)
 - [Live Production Deployment (Railway)](https://sentinel-finance-production-4560.up.railway.app/)
 - [Technical Architecture & Anchor Lifecycle](./docs/TECHNICAL.md)
-- [Sponsor Integrations (`Pyth`, `PreStocks`, `Meteora`)](./docs/SPONSORS.md)
-- [Flagship Demo & Narration Guide](./docs/DEMO.md)
 - [11-Vector Adversarial Security Matrix](./docs/SECURITY.md)
 - [Full Devnet Verification Gate & Proofs](./docs/VERIFICATION.md)
+

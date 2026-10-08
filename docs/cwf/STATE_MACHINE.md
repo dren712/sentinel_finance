@@ -6,10 +6,11 @@
 ---
 
 ## Trust Boundary (Honest System Architecture)
-1. **Ledger-Only Settlement**: Vault balances (`usdc_balance_cents`, `amount_units`) are **owner-synced ledger values** stored inside the `PortfolioVault` PDA and written by the vault owner via `sync_vault` (or `initialize_vault`), **not** live SPL token account balances.
-2. **Oracle Ground Truth**: Only asset benchmark prices are fetched and validated from an external, verified Pyth Network price account (`PriceUpdateV2` owned strictly by `rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ`).
-3. **Demo Violation Source**: The demo policy violation is **induced by an owner ledger sync** (the owner initializes or updates the vault ledger with an asset balance that exceeds the concentration limit or breaches the stablecoin floor).
-4. **Simulated Settlement**: Recovery settlement is **SIMULATED** inside the vault ledger at the verified Pyth price minus a fixed venue fee (`RECOVERY_VENUE_FEE_BPS = 30 bps`). No real SPL token transfers or DEX CPI swaps take place on-chain.
+1. **Real SPL Token Custody**: Vault tokens are held in program PDA-owned SPL Token or Token-2022 accounts funded via `owner_deposit` and withdrawable via `owner_withdraw`.
+2. **Mandatory Real SPL Containment Transfer**: The `recover()` instruction requires 4 canonical custody accounts (`vault_token_account`, `safe_destination_token_account`, `token_mint`, `token_program`). Omitting them fails closed with `MissingCustodyAccounts` (6045). Non-SPL programs fail closed with `InvalidTokenProgram` (6043). The program signs a `transfer_checked_signed` CPI transferring `sell_units` directly to the owner-configured `policy.safe_destination`.
+3. **Internal Ledger Rebalancing**: Along with the physical SPL token containment transfer, `recover()` rebalances the vault's internal tracking ledger (`amount_units -= sell_units`, `usdc_balance_cents += proceeds_cents`, `total_value_cents` recomputed at verified Pyth price minus venue fee) to restore postcondition compliance.
+4. **Oracle Ground Truth**: Asset benchmark prices are fetched and validated from an external, verified Pyth Network price account (`PriceUpdateV2` owned strictly by `rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ`). Watcher and solver fail closed if Pyth data is unavailable, unverified, or stale.
+5. **Simulated Solver Bounty**: The solver incentive (`bounty_cap_cents`) is computed and emitted in `RecoveryExecutedEvent` as an informational metric; no on-chain bounty vault disbursement occurs in this milestone.
 
 ---
 
@@ -82,12 +83,12 @@ There is **no permanent freeze**: the owner can always call `owner_release` to r
 
 ---
 
-## Not Yet Implemented (Out of Scope for Current Prompt)
+## Not Yet Implemented (Out of Scope for Current Milestone)
 
 The following capabilities are **explicitly NOT implemented** in this milestone and remain reserved for future development:
 
-1. **Real SPL Token Vault Accounts**: Vault asset balances are currently owner-synced ledger entries written via `sync_vault`, not live SPL token accounts.
-2. **Real DEX Swap CPI**: Cross-Program Invocation to decentralized exchanges (Meteora, Jupiter, Raydium) to perform atomic swaps; recovery settlement is currently simulated at the Pyth price minus a 30 bps venue fee.
-3. **Real Bounty Payout**: Solver incentive disbursement (`max_bounty_bps`); `bounty_cap_cents` is emitted in `RecoveryExecutedEvent` as an informational metric labeled SIMULATED / NOT PAID.
-4. **Permissionless Reopen from `RecoveryExpired`**: Once a vault enters `RecoveryExpired`, return to `Active` currently requires an explicit `owner_release` signed by the vault owner key.
+1. **Direct On-Chain DEX Swaps via CPI**: Containment transfers excess volatile tokens directly to `policy.safe_destination` via SPL `transfer_checked_signed` CPI. On-chain DEX market swaps (e.g., Jupiter / Meteora / Raydium routing during recovery) are planned for future iterations.
+2. **On-Chain Token Bounty Disbursement**: While `bounty_cap_cents` is mathematically calculated and emitted in `RecoveryExecutedEvent`, direct token transfer of bounties from an escrow pool is not executed on-chain in this milestone.
+3. **Permissionless Reopen from `RecoveryExpired`**: Once a vault enters `RecoveryExpired`, return to `Active` currently requires an explicit `owner_release` signed by the vault owner key.
+
 

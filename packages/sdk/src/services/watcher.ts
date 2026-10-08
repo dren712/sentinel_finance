@@ -20,7 +20,10 @@ export interface WatcherScanResult {
   status: string;
   exposureBps: number;
   maxAllowedBps: number;
+  stableReserveBps: number;
+  minStablecoinBps: number;
   isViolating: boolean;
+  violationReason?: 'EXPOSURE_EXCEEDED' | 'RESERVE_BREACHED' | 'BOTH';
   actionTaken?: 'FLAGGED_PENDING' | 'FLAGGED_QUARANTINE' | 'NONE';
   signature?: string;
   error?: string;
@@ -41,7 +44,7 @@ export class SentinelWatcherService {
     this.programId = config.programId || new PublicKey(SENTINEL_IDL.address);
     this.signer = config.signer;
     this.priceUpdatePubkey = config.priceUpdatePubkey;
-    this.pollIntervalMs = config.pollIntervalMs || 2500;
+    this.pollIntervalMs = config.pollIntervalMs || 1000;
 
     const dummyWallet = {
       publicKey: this.signer.publicKey,
@@ -86,9 +89,9 @@ export class SentinelWatcherService {
 
       const pos = nonIndex[0];
       const amountUnits = BigInt(pos.amountUnits);
-      let effectivePriceCents = BigInt(pos.priceCents);
 
-      // Read fresh Pyth oracle price
+      // Read fresh Pyth oracle price - fail-closed if unavailable
+      let effectivePriceCents: bigint | null = null;
       try {
         const priceAccInfo = await this.connection.getAccountInfo(this.priceUpdatePubkey, 'confirmed');
         if (priceAccInfo && priceAccInfo.data) {
@@ -98,7 +101,11 @@ export class SentinelWatcherService {
           }
         }
       } catch {
-        // Fallback to stored price if RPC error
+        // Oracle error: do not evaluate invariants based on stale cached price
+      }
+
+      if (!effectivePriceCents || effectivePriceCents <= BigInt(0)) {
+        continue;
       }
 
       const usdcCents = BigInt(vault.usdcBalanceCents);
@@ -107,8 +114,22 @@ export class SentinelWatcherService {
       if (totalCents <= BigInt(0)) continue;
 
       const exposureBps = Number((targetCents * BigInt(10000)) / totalCents);
+      const stableReserveBps = Number((usdcCents * BigInt(10000)) / totalCents);
       const maxAllowedBps = policy.maxSingleAssetBps;
-      const isViolating = exposureBps > maxAllowedBps;
+      const minStablecoinBps = policy.minStablecoinBps;
+
+      const exposureViolated = exposureBps > maxAllowedBps;
+      const reserveViolated = stableReserveBps < minStablecoinBps;
+      const isViolating = exposureViolated || reserveViolated;
+
+      let violationReason: 'EXPOSURE_EXCEEDED' | 'RESERVE_BREACHED' | 'BOTH' | undefined;
+      if (exposureViolated && reserveViolated) {
+        violationReason = 'BOTH';
+      } else if (exposureViolated) {
+        violationReason = 'EXPOSURE_EXCEEDED';
+      } else if (reserveViolated) {
+        violationReason = 'RESERVE_BREACHED';
+      }
 
       const scanResult: WatcherScanResult = {
         vaultAddress: vaultPubkey.toBase58(),
@@ -116,7 +137,10 @@ export class SentinelWatcherService {
         status: statusKey,
         exposureBps,
         maxAllowedBps,
+        stableReserveBps,
+        minStablecoinBps,
         isViolating,
+        violationReason,
         actionTaken: 'NONE',
       };
 

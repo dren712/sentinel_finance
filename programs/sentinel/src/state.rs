@@ -108,6 +108,23 @@ impl PortfolioVault {
     pub const MAX_POSITIONS: usize = 8;
     // 8 disc + 32 owner + 32 policy + 8 usdc + 8 total + (4 len + 8 * (32 + 8 + 8 + 8 + 1 + 32)) + 1 bump + 1 status + 8 pending + 8 quarantine + 8 recovery_expires + 8 recovery_nonce + 8 last_recovery_slot + 32 last_recovery_solver + 4 policy_version_at_quarantine
     pub const LEN: usize = 8 + 32 + 32 + 8 + 8 + (4 + Self::MAX_POSITIONS * 89) + 1 + 1 + 8 + 8 + 8 + 8 + 8 + 32 + 4;
+
+    pub fn recompute_total_value(&mut self) -> Result<()> {
+        let mut total_equity_cents: u64 = 0;
+        for pos in &self.positions {
+            let pos_val = pos.amount_units
+                .checked_mul(pos.price_cents)
+                .ok_or(crate::errors::SentinelError::MathOverflow)?;
+            total_equity_cents = total_equity_cents
+                .checked_add(pos_val)
+                .ok_or(crate::errors::SentinelError::MathOverflow)?;
+        }
+
+        self.total_value_cents = self.usdc_balance_cents
+            .checked_add(total_equity_cents)
+            .ok_or(crate::errors::SentinelError::MathOverflow)?;
+        Ok(())
+    }
 }
 
 pub type VaultAccount = PortfolioVault;

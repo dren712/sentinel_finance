@@ -17,7 +17,7 @@ const PYTH_PRICE_UPDATE_DEVNET = new PublicKey(
   process.env.PYTH_PRICE_UPDATE || 'GsZE13nr9acPWUHvpwnajtMzpctFyxfgquNsCnR2P52i'
 );
 const PROGRAM_ID = new PublicKey('3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH');
-const SOLVER_MODE = process.env.SOLVER_MODE === 'custody' ? 'custody' : 'simulated';
+const SOLVER_MODE = process.env.SOLVER_MODE === 'simulated' ? 'simulated' : 'custody';
 
 function loadSigner() {
   if (process.env.SOLVER_KEYPAIR) {
@@ -60,7 +60,7 @@ async function main() {
     signer,
     priceUpdatePubkey: PYTH_PRICE_UPDATE_DEVNET,
     mode: SOLVER_MODE,
-    pollIntervalMs: parseInt(process.env.SOLVER_POLL_INTERVAL_MS || '3500', 10),
+    pollIntervalMs: parseInt(process.env.SOLVER_POLL_INTERVAL_MS || '1000', 10),
   });
 
   console.log('\n[Solver Daemon] Starting autonomous recovery solver loop...');

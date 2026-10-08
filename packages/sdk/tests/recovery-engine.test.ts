@@ -99,4 +99,28 @@ describe('Sentinel Pure Solver Recovery Engine Tests', () => {
     assert.strictEqual(plan.isViable, false);
     assert.ok(plan.rejectionReason);
   });
+
+  it('5. resolves large unit balances (10^11 units) instantly via O(log N) binary search', () => {
+    const start = performance.now();
+    const plan = requiredRecoveryUnits(
+      {
+        usdcBalanceCents: 100_000_000,
+        positions: [
+          { amountUnits: 100_000_000_000n, isIndex: false },
+        ],
+      },
+      {
+        maxSingleAssetBps: 4000,
+        minStablecoinBps: 2000,
+      },
+      1000,
+      { mode: 'custody' }
+    );
+    const duration = performance.now() - start;
+
+    assert.strictEqual(plan.isViable, true);
+    assert.ok(duration < 20, `Expected sub-20ms execution, took ${duration.toFixed(2)}ms`);
+    assert.ok(plan.postExposureBps <= 4000);
+    assert.ok(plan.postStableBps >= 2000);
+  });
 });

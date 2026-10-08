@@ -100,8 +100,7 @@ export function requiredRecoveryUnits(
 
   const preExposureBps = Number((preTargetCents * BPS_BASE) / preTotalCents);
 
-  // Search for the minimal sell_units s in 1..currentUnits that satisfies all constraints
-  for (let s = ONE; s <= currentUnits; s = s + ONE) {
+  function evaluateCandidate(s: bigint) {
     const postUnits = currentUnits - s;
     const postTargetCents = postUnits * priceCents;
 
@@ -120,95 +119,92 @@ export function requiredRecoveryUnits(
     }
 
     const postTotalCents = postUsdcCents + postTargetCents;
-    if (postTotalCents <= ZERO) continue;
+    const postExposureBps = postTotalCents > ZERO
+      ? Number((postTargetCents * BPS_BASE) / postTotalCents)
+      : 10000;
+    const postStableBps = postTotalCents > ZERO
+      ? Number((postUsdcCents * BPS_BASE) / postTotalCents)
+      : 0;
 
-    const postExposureBps = Number((postTargetCents * BPS_BASE) / postTotalCents);
-    const postStableBps = Number((postUsdcCents * BPS_BASE) / postTotalCents);
-
-    // Invariant 1: Exposure under cap
-    if (postExposureBps > policy.maxSingleAssetBps) {
-      continue;
-    }
-
-    // Invariant 2: Stablecoin above floor
-    if (postStableBps < policy.minStablecoinBps) {
-      continue;
-    }
-
-    // Invariant 3: Strict risk improvement
-    if (postExposureBps >= preExposureBps) {
-      continue;
-    }
-
-    // Invariant 4: Value conservation (only relevant in simulated trade mode)
+    let valueConserved = true;
     if (mode === 'simulated') {
       const minAllowedPostTotal = (preTotalCents * (BPS_BASE - BigInt(maxRecoveryCostBps))) / BPS_BASE;
-      if (postTotalCents < minAllowedPostTotal) {
-        continue;
-      }
+      valueConserved = postTotalCents >= minAllowedPostTotal;
     }
 
-    // Invariant 5: Oversell guard
-    const lowerBoundBps = Math.max(0, policy.maxSingleAssetBps - oversellBandBps);
-    if (postExposureBps < lowerBoundBps && postUnits > ZERO) {
-      continue;
-    }
+    const satisfiesCore =
+      postTotalCents > ZERO &&
+      postExposureBps <= policy.maxSingleAssetBps &&
+      postStableBps >= policy.minStablecoinBps &&
+      postExposureBps < preExposureBps &&
+      valueConserved;
 
     return {
-      sellUnits: s,
-      preExposureBps,
+      s,
+      postUnits,
+      postTargetCents,
+      postUsdcCents,
+      proceedsCents,
+      postTotalCents,
       postExposureBps,
       postStableBps,
-      preTotalCents,
-      postTotalCents,
-      postUsdcCents,
-      postRemainingUnits: postUnits,
-      mode,
-      venueFeeBps,
-      proceedsCents,
-      isViable: true,
+      satisfiesCore,
     };
   }
 
-  // If no exact match satisfies the oversell band, compute best effort without oversell guard
-  for (let s = ONE; s <= currentUnits; s = s + ONE) {
-    const postUnits = currentUnits - s;
-    const postTargetCents = postUnits * priceCents;
-    let postUsdcCents: bigint;
-    let proceedsCents: bigint;
+  // Binary search for minimal s in 1..currentUnits that satisfies core policy constraints
+  let low = ONE;
+  let high = currentUnits;
+  let bestCandidate: ReturnType<typeof evaluateCandidate> | null = null;
 
-    if (mode === 'custody') {
-      postUsdcCents = usdcCents;
-      proceedsCents = ZERO;
+  while (low <= high) {
+    const mid = low + (high - low) / BigInt(2);
+    const candidate = evaluateCandidate(mid);
+
+    if (candidate.satisfiesCore) {
+      bestCandidate = candidate;
+      high = mid - ONE; // Look for a smaller sell amount that still satisfies
     } else {
-      const feeFactor = BPS_BASE - BigInt(venueFeeBps);
-      proceedsCents = (s * priceCents * feeFactor) / BPS_BASE;
-      postUsdcCents = usdcCents + proceedsCents;
+      low = mid + ONE;
     }
+  }
 
-    const postTotalCents = postUsdcCents + postTargetCents;
-    if (postTotalCents <= ZERO) continue;
+  if (bestCandidate) {
+    const lowerBoundBps = Math.max(0, policy.maxSingleAssetBps - oversellBandBps);
+    const triggersOversell = bestCandidate.postExposureBps < lowerBoundBps && bestCandidate.postUnits > ZERO;
 
-    const postExposureBps = Number((postTargetCents * BPS_BASE) / postTotalCents);
-    const postStableBps = Number((postUsdcCents * BPS_BASE) / postTotalCents);
-
-    if (postExposureBps <= policy.maxSingleAssetBps && postStableBps >= policy.minStablecoinBps) {
+    if (triggersOversell) {
       return {
-        sellUnits: s,
+        sellUnits: bestCandidate.s,
         preExposureBps,
-        postExposureBps,
-        postStableBps,
+        postExposureBps: bestCandidate.postExposureBps,
+        postStableBps: bestCandidate.postStableBps,
         preTotalCents,
-        postTotalCents,
-        postUsdcCents,
-        postRemainingUnits: postUnits,
+        postTotalCents: bestCandidate.postTotalCents,
+        postUsdcCents: bestCandidate.postUsdcCents,
+        postRemainingUnits: bestCandidate.postUnits,
         mode,
         venueFeeBps,
-        proceedsCents,
+        proceedsCents: bestCandidate.proceedsCents,
         isViable: false,
-        rejectionReason: `Recovery satisfies policy caps but triggers oversell guard (post exposure ${postExposureBps} bps < ${policy.maxSingleAssetBps - oversellBandBps} bps lower bound).`,
+        rejectionReason: `Recovery satisfies policy caps but triggers oversell guard (post exposure ${bestCandidate.postExposureBps} bps < ${lowerBoundBps} bps lower bound).`,
       };
     }
+
+    return {
+      sellUnits: bestCandidate.s,
+      preExposureBps,
+      postExposureBps: bestCandidate.postExposureBps,
+      postStableBps: bestCandidate.postStableBps,
+      preTotalCents,
+      postTotalCents: bestCandidate.postTotalCents,
+      postUsdcCents: bestCandidate.postUsdcCents,
+      postRemainingUnits: bestCandidate.postUnits,
+      mode,
+      venueFeeBps,
+      proceedsCents: bestCandidate.proceedsCents,
+      isViable: true,
+    };
   }
 
   return {

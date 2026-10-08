@@ -28,6 +28,7 @@ import { Program, AnchorProvider, BN, Idl } from '@coral-xyz/anchor';
 import { SENTINEL_IDL, Sentinel } from '../idl';
 import { loadKeypair } from '../keys';
 import { SENTINEL_CODE_BY_NAME } from '../errors';
+import { resolveRecoveryCustodyAccounts, TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID } from '../custody';
 
 export { DemoExecutionAdapter, SimulatedExecutionAdapter } from './demo-adapter';
 export {
@@ -747,6 +748,10 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
     expectedNonce: number | bigint;
     priceUpdatePubkey: PublicKey | string;
     solverSigner?: Keypair | WalletSigner;
+    safeDestination?: PublicKey | string;
+    mint?: PublicKey | string;
+    tokenProgramId?: PublicKey | string;
+    custodyAccounts?: Array<{ pubkey: PublicKey; isWritable: boolean; isSigner: boolean }>;
   }): Promise<{ signature: string }> {
     const activeSigner = options.solverSigner || this.signer;
     if (!activeSigner) {
@@ -771,17 +776,75 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
       : options.priceUpdatePubkey;
 
     const program = this.getProgram(activeSigner);
+
+    // Resolve custody accounts required by on-chain recover()
+    let custodyRemainingAccounts: Array<{ pubkey: PublicKey; isWritable: boolean; isSigner: boolean }> = [];
+    if (options.custodyAccounts && options.custodyAccounts.length > 0) {
+      custodyRemainingAccounts = options.custodyAccounts;
+    } else {
+      const [vaultAcc, policyAcc] = await Promise.all([
+        (program.account as any).portfolioVault.fetchNullable(vaultPda),
+        (program.account as any).policyAccount.fetchNullable(policyPda),
+      ]);
+
+      if (!vaultAcc) {
+        throw new Error(`Vault account not found at ${vaultPda.toBase58()}`);
+      }
+      if (!policyAcc) {
+        throw new Error(`Policy account not found at ${policyPda.toBase58()}`);
+      }
+
+      const nonIndex = vaultAcc.positions.filter((p: any) => !p.isIndex);
+      if (nonIndex.length === 0) {
+        throw new Error(`No volatile asset position found in vault ${vaultPda.toBase58()} for recovery.`);
+      }
+
+      const mint = options.mint
+        ? (typeof options.mint === 'string' ? new PublicKey(options.mint) : options.mint)
+        : nonIndex[0].mint;
+
+      const safeDestination = options.safeDestination
+        ? (typeof options.safeDestination === 'string' ? new PublicKey(options.safeDestination) : options.safeDestination)
+        : policyAcc.safeDestination;
+
+      let tokenProgramId = options.tokenProgramId
+        ? (typeof options.tokenProgramId === 'string' ? new PublicKey(options.tokenProgramId) : options.tokenProgramId)
+        : TOKEN_PROGRAM_ID;
+
+      if (!options.tokenProgramId) {
+        try {
+          const mintAccInfo = await this.connection.getAccountInfo(mint, 'confirmed');
+          if (mintAccInfo && mintAccInfo.owner.equals(TOKEN_2022_PROGRAM_ID)) {
+            tokenProgramId = TOKEN_2022_PROGRAM_ID;
+          }
+        } catch {
+          // fallback to default SPL Token
+        }
+      }
+
+      custodyRemainingAccounts = resolveRecoveryCustodyAccounts(
+        vaultPda,
+        safeDestination,
+        mint,
+        tokenProgramId
+      );
+    }
+
     const tx = new Transaction();
-    const recoverIx = await program.methods
+    let recoverBuilder = program.methods
       .recover(new BN(options.sellUnits.toString()), new BN(options.expectedNonce.toString()))
       .accountsPartial({
         vault: vaultPda,
         policy: policyPda,
         priceUpdate,
         solver: activeSigner.publicKey,
-      })
-      .instruction();
+      });
 
+    if (custodyRemainingAccounts.length > 0) {
+      recoverBuilder = recoverBuilder.remainingAccounts(custodyRemainingAccounts);
+    }
+
+    const recoverIx = await recoverBuilder.instruction();
     tx.add(recoverIx);
     const signature = await this.sendTransactionWithSigner(tx, activeSigner);
     return { signature };

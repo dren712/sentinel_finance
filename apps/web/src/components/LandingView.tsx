@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import {
   ArrowRight,
   Play,
@@ -11,6 +12,8 @@ import {
   ChevronDown,
   ChevronUp,
   RefreshCw,
+  ShieldAlert,
+  ShieldCheck,
 } from 'lucide-react';
 import { sha256Hex } from '@sentinel/domain';
 import { APP_CONFIG, getExplorerAddressUrl } from '@/lib/config';
@@ -152,6 +155,14 @@ export const LandingView: React.FC<LandingViewProps> = ({
               <span>Open Portfolio</span>
               <ArrowRight className="w-4 h-4" />
             </button>
+
+            <Link
+              href="/quarantine"
+              className="sentinel-btn-physical flex items-center gap-2 px-4 py-2.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 font-medium text-sm transition-colors cursor-pointer"
+            >
+              <ShieldAlert className="w-4 h-4 text-rose-400" />
+              <span>Recovery Terminal</span>
+            </Link>
 
             <button
               type="button"

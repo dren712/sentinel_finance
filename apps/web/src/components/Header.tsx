@@ -97,7 +97,7 @@ export const Header: React.FC<HeaderProps> = ({
               </span>
             </div>
             <p className="text-[11px] text-sentinel-textSubtle hidden lg:block tracking-tight">
-              Outcome-Bounded Portfolios on Solana
+              Recovery Layer for Autonomous Capital
             </p>
           </div>
         </button>
@@ -126,7 +126,7 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <ShieldAlert className="w-3.5 h-3.5 text-rose-400 shrink-0" />
               <span className="tracking-tight">
-                QUARANTINED {quarantineSlotsRemaining && quarantineSlotsRemaining > 0 ? `· ${quarantineSlotsRemaining} SLOTS` : ''}
+                DEVNET · QUARANTINED {quarantineSlotsRemaining && quarantineSlotsRemaining > 0 ? `· ${quarantineSlotsRemaining} SLOTS` : ''}
               </span>
             </Link>
           ) : vaultStatus === 'pending' ? (
@@ -137,7 +137,7 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
               <ShieldAlert className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span className="tracking-wider text-[11px] font-semibold">PENDING</span>
+              <span className="tracking-wider text-[11px] font-semibold">DEVNET · PENDING</span>
             </Link>
           ) : vaultStatus === 'recoveryExpired' ? (
             <Link
@@ -147,7 +147,7 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
               <ShieldAlert className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <span className="tracking-wider text-[11px] font-semibold">EXPIRED</span>
+              <span className="tracking-wider text-[11px] font-semibold">DEVNET · EXPIRED</span>
             </Link>
           ) : (
             <Link
@@ -157,7 +157,7 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-              <span className="tracking-wider text-[11px] font-semibold">WATCHING</span>
+              <span className="tracking-wider text-[11px] font-semibold">DEVNET · WATCHING</span>
             </Link>
           )}
 

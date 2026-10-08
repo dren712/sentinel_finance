@@ -4,7 +4,7 @@ import { SENTINEL_IDL } from '../idl/sentinel-idl';
 import type { Sentinel } from '../idl/sentinel';
 import { requiredRecoveryUnits, RecoveryPlan } from '../recovery';
 import { WalletSigner } from '../types';
-import { resolveRecoveryCustodyAccounts, parsePythPriceUpdateAccount, TOKEN_PROGRAM_ID } from '../custody';
+import { resolveRecoveryCustodyAccounts, parsePythPriceUpdateAccount, TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID } from '../custody';
 
 export interface SolverConfig {
   connection: Connection;
@@ -42,8 +42,8 @@ export class SentinelSolverService {
     this.programId = config.programId || new PublicKey(SENTINEL_IDL.address);
     this.signer = config.signer;
     this.priceUpdatePubkey = config.priceUpdatePubkey;
-    this.mode = config.mode || 'simulated';
-    this.pollIntervalMs = config.pollIntervalMs || 2500;
+    this.mode = config.mode || 'custody';
+    this.pollIntervalMs = config.pollIntervalMs || 1000;
 
     const dummyWallet = {
       publicKey: this.signer.publicKey,
@@ -90,7 +90,8 @@ export class SentinelSolverService {
         continue; // Recovery window closed
       }
 
-      let priceCents = pos.priceCents.toNumber() > 0 ? pos.priceCents.toNumber() : 10000;
+      // Authoritative Pyth price lookup (fail-closed if unavailable)
+      let priceCents = 0;
       try {
         const priceAccInfo = await this.connection.getAccountInfo(this.priceUpdatePubkey, 'confirmed');
         if (priceAccInfo && priceAccInfo.data) {
@@ -100,7 +101,33 @@ export class SentinelSolverService {
           }
         }
       } catch {
-        // Fallback to stored price
+        // Oracle error: do not fall back to stale cached price
+      }
+
+      if (priceCents <= 0) {
+        results.push({
+          vaultAddress: vaultPubkey.toBase58(),
+          owner: vault.owner.toBase58(),
+          statusBefore: statusKey,
+          plan: {
+            sellUnits: BigInt(0),
+            preExposureBps: 0,
+            postExposureBps: 0,
+            postStableBps: 0,
+            preTotalCents: BigInt(0),
+            postTotalCents: BigInt(0),
+            postUsdcCents: BigInt(0),
+            postRemainingUnits: BigInt(0),
+            mode: this.mode,
+            venueFeeBps: 0,
+            proceedsCents: BigInt(0),
+            isViable: false,
+            rejectionReason: 'Oracle pricing unavailable: failed closed.',
+          },
+          recovered: false,
+          error: 'Oracle pricing unavailable: failed closed.',
+        });
+        continue;
       }
 
       const plan = requiredRecoveryUnits(
@@ -145,10 +172,21 @@ export class SentinelSolverService {
             });
 
           if (this.mode === 'custody') {
+            let tokenProgramId = TOKEN_PROGRAM_ID;
+            try {
+              const mintAcc = await this.connection.getAccountInfo(pos.mint, 'confirmed');
+              if (mintAcc && mintAcc.owner.equals(TOKEN_2022_PROGRAM_ID)) {
+                tokenProgramId = TOKEN_2022_PROGRAM_ID;
+              }
+            } catch {
+              // default to standard Token Program
+            }
+
             const custodyAccounts = resolveRecoveryCustodyAccounts(
               vaultPubkey,
               policy.safeDestination,
-              pos.mint
+              pos.mint,
+              tokenProgramId
             );
             recoverBuilder = recoverBuilder.remainingAccounts(custodyAccounts);
           }

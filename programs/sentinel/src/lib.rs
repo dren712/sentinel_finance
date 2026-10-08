@@ -150,20 +150,7 @@ pub mod sentinel {
         vault.last_recovery_solver = Pubkey::default();
         vault.policy_version_at_quarantine = 0;
 
-        // Compute cached initial total value in cents
-        let mut total_equity_cents: u64 = 0;
-        for pos in &vault.positions {
-            let pos_val = pos.amount_units
-                .checked_mul(pos.price_cents)
-                .ok_or(SentinelError::MathOverflow)?;
-            total_equity_cents = total_equity_cents
-                .checked_add(pos_val)
-                .ok_or(SentinelError::MathOverflow)?;
-        }
-
-        vault.total_value_cents = usdc_balance_cents
-            .checked_add(total_equity_cents)
-            .ok_or(SentinelError::MathOverflow)?;
+        vault.recompute_total_value()?;
 
         emit!(VaultInitializedEvent {
             vault: vault.key(),
@@ -190,19 +177,7 @@ pub mod sentinel {
         vault.usdc_balance_cents = usdc_balance_cents;
         vault.positions = positions;
 
-        let mut total_equity_cents: u64 = 0;
-        for pos in &vault.positions {
-            let pos_val = pos.amount_units
-                .checked_mul(pos.price_cents)
-                .ok_or(SentinelError::MathOverflow)?;
-            total_equity_cents = total_equity_cents
-                .checked_add(pos_val)
-                .ok_or(SentinelError::MathOverflow)?;
-        }
-
-        vault.total_value_cents = usdc_balance_cents
-            .checked_add(total_equity_cents)
-            .ok_or(SentinelError::MathOverflow)?;
+        vault.recompute_total_value()?;
 
         emit!(VaultInitializedEvent {
             vault: vault.key(),
@@ -880,6 +855,7 @@ pub mod sentinel {
         // Update vault state for tracked position (reject untracked deposits)
         let pos = vault.positions.iter_mut().find(|p| p.mint == mint_key).ok_or(SentinelError::UntrackedDepositMint)?;
         pos.amount_units = pos.amount_units.checked_add(amount).ok_or(SentinelError::MathOverflow)?;
+        vault.recompute_total_value()?;
 
         let clock = Clock::get()?;
         emit!(DepositExecutedEvent {
@@ -931,6 +907,7 @@ pub mod sentinel {
 
         let pos = vault.positions.iter_mut().find(|p| p.mint == mint_key).ok_or(SentinelError::AssetNotFound)?;
         pos.amount_units = pos.amount_units.checked_sub(amount).ok_or(SentinelError::InvalidAmount)?;
+        vault.recompute_total_value()?;
 
         let clock = Clock::get()?;
         emit!(WithdrawExecutedEvent {

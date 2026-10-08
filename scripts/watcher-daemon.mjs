@@ -57,7 +57,7 @@ async function main() {
     programId: PROGRAM_ID,
     signer,
     priceUpdatePubkey: PYTH_PRICE_UPDATE_DEVNET,
-    pollIntervalMs: parseInt(process.env.WATCHER_POLL_INTERVAL_MS || '4000', 10),
+    pollIntervalMs: parseInt(process.env.WATCHER_POLL_INTERVAL_MS || '1000', 10),
   });
 
   console.log('\n[Watcher Daemon] Starting autonomous surveillance loop...');
@@ -67,8 +67,9 @@ async function main() {
     console.log(`[${timestamp}] Scanned ${results.length} active vaults.`);
     for (const res of results) {
       if (res.isViolating) {
-        console.log(`  -> VIOLATION on Vault ${res.vaultAddress.slice(0, 8)}...`);
+        console.log(`  -> VIOLATION on Vault ${res.vaultAddress.slice(0, 8)}... (${res.violationReason || 'INVARIANT_BREACH'})`);
         console.log(`     Exposure: ${res.exposureBps} bps | Max Cap: ${res.maxAllowedBps} bps`);
+        console.log(`     Reserve:  ${res.stableReserveBps} bps | Floor:   ${res.minStablecoinBps} bps`);
         console.log(`     Action:   ${res.actionTaken}`);
         if (res.signature) console.log(`     TX:       ${res.signature}`);
         if (res.error) console.log(`     Error:    ${res.error}`);
