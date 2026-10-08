@@ -10,6 +10,7 @@ import {
 } from '@solana/web3.js';
 import anchorPkg from '@coral-xyz/anchor';
 const { BN, Wallet, AnchorProvider, Program } = anchorPkg;
+import { requiredRecoveryUnits } from '@sentinel/sdk';
 
 const PROGRAM_ID = new PublicKey('3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH');
 // Live Pyth PriceUpdateV2 account on Solana Devnet (ETH/USD)
@@ -224,7 +225,31 @@ async function main() {
 
   // 7. Recover (Permissionless Solver -> Active)
   console.log('\n--- 6. Permissionless Solver Recovery (reduce-only rebalancing) ---');
-  const sellUnits = new BN(78); // Sells 78 units out of 100, leaving 22 units (~22.04% exposure, satisfying 20-25% band)
+  const policyAcc = await ownerProgram.account.policyAccount.fetch(policyPda);
+  const plan = requiredRecoveryUnits(
+    {
+      usdcBalanceCents: vaultAcc.usdcBalanceCents.toNumber(),
+      positions: vaultAcc.positions.map((p) => ({
+        amountUnits: p.amountUnits.toNumber(),
+        priceCents: p.priceCents.toNumber(),
+        isIndex: p.isIndex,
+        mint: p.mint,
+      })),
+    },
+    {
+      maxSingleAssetBps: policyAcc.maxSingleAssetBps,
+      minStablecoinBps: policyAcc.minStablecoinBps,
+      maxRecoveryCostBps: policyAcc.maxRecoveryCostBps,
+    },
+    2500_00
+  );
+  console.log('Pure solver computed recovery plan:', {
+    sellUnits: plan.sellUnits.toString(),
+    preExposureBps: plan.preExposureBps,
+    postExposureBps: plan.postExposureBps,
+    isViable: plan.isViable,
+  });
+  const sellUnits = new BN(plan.sellUnits.toString());
   const expectedNonce = vaultAcc.recoveryNonce;
 
   const recoverSig = await solverProgram.methods
