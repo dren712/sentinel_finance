@@ -15,7 +15,7 @@
 
 import { Connection, PublicKey } from '@solana/web3.js';
 
-const PROGRAM_ID_STR = process.env.SENTINEL_PROGRAM_ID || '3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK';
+const PROGRAM_ID_STR = process.env.SENTINEL_PROGRAM_ID || '3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH';
 const OWNER_PUBKEY_STR = process.env.SENTINEL_OWNER_PUBKEY || 'GR9CtiUswZtay68U2fGqcDeB1dg8sHtpVi9kk2nCEwzw';
 const DEVNET_RPC = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
 const PRODUCTION_URL = process.env.SENTINEL_WEB_URL || 'https://sentinel-finance-production-4560.up.railway.app';

@@ -27,6 +27,7 @@ import {
 import { Program, AnchorProvider, BN, Idl } from '@coral-xyz/anchor';
 import { SENTINEL_IDL, Sentinel } from '../idl';
 import { loadKeypair } from '../keys';
+import { SENTINEL_CODE_BY_NAME } from '../errors';
 
 export { DemoExecutionAdapter, SimulatedExecutionAdapter } from './demo-adapter';
 export {
@@ -65,27 +66,9 @@ function extractErrorCode(err: unknown): number {
   if (match) {
     if (match[3]) return parseInt(match[3], 10);
     if (match[2]) return parseInt(match[2], 16);
-    const nameMap: Record<string, number> = {
-      ExposureExceeded: 6000,
-      StablecoinReserveBreached: 6001,
-      TradeSizeExceeded: 6002,
-      SlippageExceeded: 6003,
-      PolicyInactive: 6004,
-      UnauthorizedAgent: 6005,
-      UnauthorizedExecution: 6006,
-      InvalidPromiseStatus: 6007,
-      MathOverflow: 6008,
-      InvalidPolicyBounds: 6009,
-      AssetNotFound: 6010,
-      InsufficientStablecoinReserve: 6011,
-      PromiseExpired: 6012,
-      SecurityDomainMismatch: 6013,
-      AgentInactive: 6014,
-      TradeAmountMismatch: 6015,
-      InvalidTradeDirection: 6016,
-      InvalidPrice: 6017,
-    };
-    if (nameMap[match[1]]) return nameMap[match[1]];
+    if (match[1] && SENTINEL_CODE_BY_NAME[match[1]] !== undefined) {
+      return SENTINEL_CODE_BY_NAME[match[1]];
+    }
   }
   return 6000;
 }

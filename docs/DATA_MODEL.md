@@ -20,7 +20,7 @@ To eliminate floating-point non-determinism across platforms and environments:
 
 ## 2. On-Chain Anchor Account Schemas
 
-Program ID: `3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK`
+Program ID: `3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH`
 
 ### 2.1 `PolicyAccount`
 Stores user-configured financial invariants. Seeded by owner wallet.

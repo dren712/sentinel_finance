@@ -11,7 +11,7 @@ import fs from 'fs';
 import path from 'path';
 
 const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
-const PROGRAM_ID = new PublicKey('3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK');
+const PROGRAM_ID = new PublicKey(process.env.SENTINEL_PROGRAM_ID || '3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH');
 
 function loadOwnerKeypair() {
   const envVal = process.env.SENTINEL_OWNER_KEYPAIR || process.env.SOLANA_OWNER_KEYPAIR;

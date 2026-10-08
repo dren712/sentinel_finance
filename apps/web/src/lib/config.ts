@@ -85,7 +85,7 @@ export function deriveSentinelDomainPdas(
     programIdStr ||
     process.env.SENTINEL_PROGRAM_ID ||
     process.env.NEXT_PUBLIC_SENTINEL_PROGRAM_ID ||
-    '3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK';
+    '3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH';
 
   try {
     const programId = new PublicKey(activeProgramId);
@@ -115,7 +115,7 @@ export function deriveSentinelDomainPdas(
       idlAccount: idlAccount.toBase58(),
     };
   } catch {
-    const programId = new PublicKey('3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK');
+    const programId = new PublicKey('3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH');
     const defaultOwner = new PublicKey('GR9CtiUswZtay68U2fGqcDeB1dg8sHtpVi9kk2nCEwzw');
     const [policyPda] = PublicKey.findProgramAddressSync([Buffer.from('policy'), defaultOwner.toBuffer()], programId);
     const [agentPda] = PublicKey.findProgramAddressSync([Buffer.from('agent'), defaultOwner.toBuffer(), Buffer.from(agentId)], programId);
@@ -161,7 +161,7 @@ const rpcUrl = browserRpcUrl;
 const sentinelProgramId =
   process.env.SENTINEL_PROGRAM_ID ||
   process.env.NEXT_PUBLIC_SENTINEL_PROGRAM_ID ||
-  '3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK';
+  '3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH';
 
 const defaultAuthority =
   process.env.NEXT_PUBLIC_DEFAULT_OWNER_WALLET ||

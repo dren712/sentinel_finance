@@ -1,158 +1,176 @@
-# Sentinel Finance — CWF Migration Audit & Architecture Gap Analysis
+# Sentinel Finance — CWF Architecture Audit & Gap Analysis
 
-**Source-of-Truth Commit Inspected**: [`de1ccaff67ce185b14f26b82b8d7d19bfe181dd6`](https://github.com/dren712/sentinel_finance/commit/de1ccaff67ce185b14f26b82b8d7d19bfe181dd6)  
+**Audited Commit**: [`8c0b1264decbc451d1cfe1ab0f225166d07029d1`](https://github.com/dren712/sentinel_finance/commit/8c0b1264decbc451d1cfe1ab0f225166d07029d1)  
 **Date**: October 8, 2026  
 **Auditor**: Antigravity Autonomous Pair Programmer  
+**Network Deployment**: Solana Devnet (`3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH`)
 
 ---
 
-## 1. CURRENT (What Exists in `de1ccaf`)
+## 1. EXECUTIVE SUMMARY
 
-The codebase at `de1ccaf` is a monorepo consisting of:
-- **`programs/sentinel/src/`**: Anchor 0.30.1 Solana Program (`3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH` on Devnet).
-  - State accounts: `AgentAccount`, `PolicyAccount`, `PortfolioVault`, `PromiseAccount`, `EvidenceAccount`.
-  - Core trade instructions: `initialize_agent`, `initialize_policy`, `update_policy`, `initialize_vault`, `sync_vault`, `set_agent_active`, `create_promise`, `execute_guarded_trade`, `reject_promise`, `record_evidence`.
-  - Phase B quarantine instructions: `flag_violation` (permissionless watcher with 2-stage hysteresis), `owner_release` (owner-only recovery back to Active), `expire_quarantine` (permissionless expiration to `RecoveryExpired`).
-  - Pyth oracle parser: `parse_and_verify_pyth_price` validating `rec5EKMG...` account ownership, Full verification level, 32-byte `feed_id`, max 60s freshness, max 200 bps confidence.
-- **`packages/domain/`**:
-  - Pure TypeScript policy engine (`policy-engine.ts`), asset registry (`asset-registry.ts`), valuation engine (`valuation-engine.ts`), PROVN cryptographic hasher (`provn.ts`), Meteora and PreStocks verification heuristics.
-- **`packages/sdk/`**:
-  - `LiveExecutionAdapter` (`execution-adapter.ts`): Anchor client with split keypair handling (`OWNER` vs `AGENT`), promise creation, trade execution, violation flagging, and owner release.
-  - `SentinelClient` (`client.ts`), `AgentSimulator` (`agent-simulator.ts`), `LlmProvider` (`llm-provider.ts` with OpenAI GPT-4o tool calling + `DemoProvider`), `PortfolioIndexer` (`portfolio-indexer.ts`), PostgreSQL persistence client (`database.ts`).
-- **`apps/web/`**:
-  - Next.js 15 App router frontend (`page.tsx`), Tailwind CSS, Solana wallet adapter (`@solana/wallet-adapter-react`).
-  - 8 Next.js API routes (`/api/agent/run`, `/api/agent/status`, `/api/health`, `/api/portfolio/[wallet]`, `/api/policy/[wallet]`, `/api/market/[asset]`, `/api/activity/[wallet]`, `/api/evidence/[decision]`).
-  - PostgreSQL schema and read repository in `apps/web/src/lib/database.ts`.
-  - Deployment assets: standalone production `Dockerfile` with multi-stage build, `docker-compose.yml`, `railway.json`.
-- **`tests/`**:
-  - `sentinel-localnet.test.ts`: 20 Anchor integration tests covering slippage, trade size, concentration, stable floor, promise expiry, owner-only sync, Pyth feeds, and valid trades.
-  - `bankrun-quarantine.test.ts`: 13 Bankrun tests with slot warping covering `flag_violation`, hysteresis, agent trade gating (`VaultNotActive`), owner release, expiration, and oracle verification.
-- **`scripts/`**:
-  - `devnet-quarantine-flow.mjs`: Live Devnet script for policy/vault init, violation flagging, and owner release.
-  - `make-price-fixture.mjs`: Localnet Pyth `PriceUpdateV2` fixture generator.
+The codebase at commit `8c0b1264decbc451d1cfe1ab0f225166d07029d1` represents the completed Phase 0–5 prototype of **Sentinel: The Recovery Layer for Autonomous Capital**.
+
+Unlike earlier pre-CWF revisions (such as `de1ccaf`), the current repository is no longer a blank skeleton:
+1. It contains a fully working, onchain `recover()` instruction in `programs/sentinel/src/lib.rs`.
+2. It includes a complete 3-state onchain state machine (`Active` / `Quarantined` / `RecoveryExpired`) with 2-stage hysteresis confirmation (`PendingViolation`).
+3. It validates Pyth price updates with full cryptographic ownership and feed ID verification.
+4. It includes 17 Bankrun recovery tests, 13 Bankrun quarantine tests, 20 localnet tests, and 97 SDK/domain unit tests (175/175 tests passing).
+5. It features a standalone Next.js 15 web interface at `/quarantine` and confirmed Solana Devnet transactions.
+
+**The Primary Technical Boundary**: While the onchain state machine, invariant gating, hysteresis, replay protection, value conservation, and oversell guard are fully functioning, **settlement is currently conducted at the ledger level inside `PortfolioVault` rather than via direct SPL Token custody**. This document details the exact boundary between implemented onchain code, offchain orchestration, simulations, and the target CWF real-custody architecture.
 
 ---
 
-## 2. IMPLEMENTED (What Genuinely Works On-Chain)
+## 2. IMPLEMENTED ONCHAIN
 
-1. **On-Chain Policy Invariants & Atomic Reversion**:
-   - `execute_guarded_trade` deterministically reverts if single-asset exposure > `max_single_asset_bps` (`ExposureExceeded` 6005), stablecoin reserve < `min_stablecoin_bps` (`StablecoinReserveBreached` 6006), trade size > `max_trade_value_usd` (`TradeSizeExceeded` 6000), or promise expired (`PromiseExpired` 6004).
+The following capabilities are compiled in the Anchor program (`3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH`) and enforced authoritatively by the Solana runtime:
+
+1. **Pre-Trade Policy Guard (`execute_guarded_trade`)**:
+   - Blocks unauthorized agent signers (`UnauthorizedAgent` 6005).
+   - Validates agent status (`AgentInactive` 6014) and policy activity (`PolicyInactive` 6004).
+   - Enforces cryptographic PROVN promises (`PromiseExpired` 6012, `InvalidPromiseStatus` 6007).
+   - Enforces max trade size in dollars (`TradeSizeExceeded` 6002).
+   - Enforces maximum single-asset portfolio concentration (`ExposureExceeded` 6000).
+   - Enforces minimum stablecoin reserve floor (`StablecoinReserveBreached` 6001).
+   - Validates slippage against verified Pyth oracle prices (`SlippageExceeded` 6003).
+
 2. **Pyth Oracle Account Security (`parse_and_verify_pyth_price`)**:
-   - Forged or program-owned oracle accounts are rejected (`UnverifiedPrice` 6024).
-   - Feed ID mismatch against position config is rejected (`FeedMismatch` 6021).
-   - Stale prices (>60s) are rejected (`StaleOracle` 6022).
-   - Confidence intervals wider than 200 bps are rejected (`ConfidenceTooWide` 6023).
-   - Partial verification is rejected (`UnverifiedPrice` 6024).
-3. **Quarantine State Machine Skeleton (Phase B)**:
-   - `flag_violation` re-evaluates vault invariants against live Pyth oracle prices.
-   - Hysteresis confirmation (`confirm_slots`) prevents single-slot noise from triggering quarantine.
-   - Vault transitions from `Active` ➔ `PendingViolation` ➔ `Quarantined`.
-   - While `Quarantined`, agent instructions `execute_guarded_trade` and `create_promise` fail closed with `VaultNotActive` (6025).
-   - `owner_release` atomically restores `Active` status and increments `recovery_nonce`.
-   - `expire_quarantine` permissionlessly marks `RecoveryExpired` after `recovery_expires_slot`.
-4. **Split-Key Security Partition**:
-   - Owner keys can mutate policy and sync vault; agent keys cannot.
-   - Non-owner `sync_vault` fails on-chain.
-5. **PROVN Evidence Commitment**:
-   - SHA-256 pre-state and post-state hashes anchored in on-chain `EvidenceAccount` PDAs.
+   - Verifies oracle account ownership by Pyth Receiver (`rec5EKMG...`) (`UnverifiedPrice` 6024).
+   - Enforces `VerificationLevel::Full` verification.
+   - Enforces exact 32-byte `feed_id` match against position config (`FeedMismatch` 6021).
+   - Enforces maximum 60-second publish freshness (`StaleOracle` 6022).
+   - Enforces maximum 200 bps confidence interval width (`ConfidenceTooWide` 6023).
+
+3. **Quarantine State Machine (`flag_violation`, `expire_quarantine`, `owner_release`)**:
+   - Permissionless violation detection re-evaluating vault portfolio against live Pyth feeds.
+   - 2-stage hysteresis: First violation transitions vault to `PendingViolation` (`pending_violation_slot != 0`). If invariant remains breached across `confirm_slots`, transitions to `Quarantined`. If price recovers before confirmation, pending flag is automatically cleared.
+   - While `Quarantined`, agent trade instructions fail closed with `VaultNotActive` (6025).
+   - Permissionless `expire_quarantine` transitions vault to `RecoveryExpired` (6029) once `current_slot > recovery_expires_slot`.
+   - Privileged `owner_release` allows vault owner to unfreeze vault back to `Active` and increment `recovery_nonce`.
+
+4. **Temporary Recovery Authority (`recover`)**:
+   - Permissionless solver execution gated by `vault.status == Quarantined` (`VaultNotQuarantined` 6026).
+   - Expiration guard: `current_slot <= recovery_expires_slot` (`RecoveryWindowClosed` 6030).
+   - Replay protection: `expected_nonce == vault.recovery_nonce` (`StaleRecoveryNonce` 6031).
+   - Volatile asset reduce-only bound: `0 < sell_units <= amount_units` (`InvalidAmount` 6035).
+   - Value conservation check: `post_total >= pre_total * (10000 - max_recovery_cost_bps) / 10000` (`ValueConservationBreached` 6032).
+   - Mandatory policy postconditions: `check_exposure_and_reserve` (`PostconditionFailed` 6033).
+   - Strict risk improvement: `post_exposure_bps < pre_exposure_bps` (`PostconditionFailed` 6033).
+   - Oversell guard: `post_exposure_bps >= max_single_asset_bps - OVERSELL_BAND_BPS` (`OversellGuard` 6034).
+   - Atomic resumption: Sets `status = Active`, clears quarantine slots, increments `recovery_nonce`, and records `last_recovery_slot` and `last_recovery_solver`.
 
 ---
 
-## 3. SIMULATED (What is Demo-Only / Mocked)
+## 3. IMPLEMENTED OFFCHAIN
 
-1. **Vault Asset Balances**:
-   - `PortfolioVault.usdc_balance_cents` and `positions[].amount_units` are ledger values updated via `sync_vault` or `initialize_vault`. There are no live SPL token transfers or vault token escrow accounts.
-2. **Trade Settlement**:
-   - In `execute_guarded_trade`, ledger units are adjusted, but no live DEX swaps (Meteora/Raydium/Jupiter) take place on-chain.
-3. **PreStocks & Meteora Pre-Trade Verifiers**:
-   - Evaluated off-chain in TypeScript heuristics before generating transactions; not verified inside Anchor CPI.
-4. **Autonomous Agent Strategy Execution**:
-   - If `OPENAI_API_KEY` is not present, the system falls back to scripted `DemoProvider` proposals.
-5. **Venue Fee Deduction**:
-   - `RECOVERY_VENUE_FEE_BPS` (30 bps) is simulated inside ledger arithmetic rather than deducted by a real DEX pool.
-6. **Solver Bounty**:
-   - Solver bounty (`max_bounty_bps`) is computed and emitted in events as `bounty_cap_cents`; no on-chain token payout occurs.
+1. **TypeScript Domain Engine (`@sentinel/domain`)**:
+   - Pure valuation engine (`valuation-engine.ts`) computing multi-asset basis point exposures.
+   - Policy validation engine (`policy-engine.ts`) computing invariant pass/fail reports.
+   - PROVN cryptographic hasher (`provn.ts`) generating deterministic SHA-256 state commitments.
+   - Meteora DBC dynamic fee verifier and PreStocks pre-IPO equity universe heuristics.
 
----
+2. **TypeScript SDK (`@sentinel/sdk`)**:
+   - `LiveExecutionAdapter`: Anchor client managing separate owner and agent keypairs, building instructions, and decoding custom program errors canonicalized from `SENTINEL_IDL`.
+   - `SentinelClient`: High-level workflow orchestration client.
+   - `AgentSimulator`: 10-stage autonomous cycle executor with tool calling (OpenAI GPT-4o or fallback `DemoProvider`).
+   - PostgreSQL persistence repository (`database.ts`) for asynchronous evidence indexing.
 
-## 4. MISSING (What CWF Requires)
-
-1. **The Core Recovery Instruction (`recover`)**:
-   - In `de1ccaf`, there is **no `recover` instruction** in `programs/sentinel/src/lib.rs`.
-   - A quarantined vault can only be unfrozen by `owner_release` (manual owner intervention).
-   - The primary CWF thesis — **Proof-Triggered Temporary Authority (PTA)** where an external permissionless solver executes reduce-only rebalancing under mandatory postconditions — is completely absent at `de1ccaf`.
-2. **Value Conservation Invariant Check**:
-   - No mathematical guarantee on-chain that solver recovery does not drain vault value beyond `max_recovery_cost_bps`.
-3. **Oversell Guard**:
-   - No check preventing a solver from over-liquidating the volatile asset beyond what is necessary to satisfy the policy cap.
-4. **Strict Risk Improvement Check**:
-   - No check asserting that post-recovery exposure is strictly lower than pre-recovery exposure.
-5. **Solver Audit Metadata**:
-   - `PortfolioVault` lacks `last_recovery_slot` and `last_recovery_solver` tracking fields.
-6. **Recovery Test Suite**:
-   - Zero tests for solver recovery, solver races, value conservation breaches, overselling, stale nonces, or replay attacks.
-7. **Quarantine & Recovery Frontend Surface**:
-   - The web app at `de1ccaf` only displays the Stocklana pre-trade prevention dashboard (`Overview`, `Portfolio`, `Agent`, `Protection`, `Verification`, `Activity`). There is no quarantine status badge, no recovery window countdown, and no solver recovery trigger interface.
-8. **Devnet Recovery Evidence**:
-   - No recorded Devnet transactions demonstrating solver recovery (`recover`).
+3. **Web Application (`apps/web`)**:
+   - Next.js 15 App router dashboard (`/`) displaying institutional portfolio metrics, agent mandate, policy configuration, and verification timeline.
+   - Standalone `/quarantine` interface with live badge indicators, exposure gauge, slot countdown timer, exact Anchor error decoding, and Solana Explorer timeline.
+   - 8 Next.js API endpoints (`/api/agent/run`, `/api/health`, `/api/portfolio/[wallet]`, etc.).
 
 ---
 
-## 5. MISLEADING (Claims Not Supported by Implementation at `de1ccaf`)
+## 4. SIMULATED (What is Demo-Only / Mocked)
 
-1. **"Rollback" Terminology**:
-   - Baseline docs sometimes state Sentinel "rolls back" trades. Sentinel does not rewind Solana history; it atomically reverts non-compliant transactions before state commits.
-2. **SPL Token Custody**:
-   - The UI displays token symbols (`NVDAx`, `AAPLx`, `USDC`), but assets are tracked on an internal Anchor ledger rather than circulating SPL tokens.
-3. **Meteora DBC Pool Liquidity Verification**:
-   - Promoted as on-chain verification, but `MeteoraDbcMarketQualityVerifier` is an off-chain TypeScript check.
-4. **Permissionless Recovery Complete**:
-   - Prior disclosure logs listed Phase B skeleton as if the recovery loop was operational, but without `recover()`, no solver could actually rebalance the vault.
-
----
-
-## 6. REUSABLE (Stocklana Infrastructure to Keep for CWF)
-
-1. **Anchor Project Structure & Toolchain**:
-   - Clean Anchor 0.30.1 setup, PDA derivations, seed conventions (`[b"vault", owner]`, `[b"policy", owner]`).
-2. **Pyth Oracle Integration**:
-   - `parse_and_verify_pyth_price` is hardened, tested, and reliable. Can be reused verbatim for recovery repricing.
-3. **Deterministic Integer Math**:
-   - Cents (`u64`) and basis points (`u16`) calculations prevent floating-point vulnerabilities on-chain.
-4. **TypeScript SDK & Monorepo Tooling**:
-   - `@sentinel/domain`, `@sentinel/sdk`, pnpm workspace build scripts, Bankrun test setup.
-5. **Autonomous Agent Loop**:
-   - Typed `TradeIntent` schemas, structured headroom recalculations, LLM connector.
-6. **Design System & Visual Layer**:
-   - Dark theme styling, high contrast tokens, clean card components.
+1. **Vault Balances**:
+   - `PortfolioVault.usdc_balance_cents` and `positions[].amount_units` are ledger values updated via `sync_vault` or `initialize_vault`. No live SPL token accounts currently back these ledger numbers.
+2. **Settlement**:
+   - In `execute_guarded_trade` and `recover`, balances are updated mathematically inside account memory; no live SPL transfers or DEX swaps (Raydium, Meteora, Jupiter) take place via CPI.
+3. **Recovery Venue Fee**:
+   - `RECOVERY_VENUE_FEE_BPS = 30` is applied arithmetically to proceeds rather than deducted by an external liquidity pool.
+4. **Solver Bounty**:
+   - `bounty_cap_cents` is computed and emitted in `RecoveryExecutedEvent` as a simulation metric (`SIMULATED / NOT PAID`). No token reward is transferred to the solver wallet.
+5. **Offchain Market Verifiers**:
+   - PreStocks pre-trade checks and Meteora liquidity checks are evaluated in offchain TypeScript pre-flight filters rather than onchain CPI checks.
 
 ---
 
-## 7. DELETE (Obsolete Code / Docs to Prune or Archive)
+## 5. MISSING (What CWF Requires to Cross Custody Boundary)
 
-1. Stale migration workflows and legacy test scripts that do not run against the current Anchor program.
-2. Unused temporary mock price instruction remnants (`post_price_update` was already deleted in Phase A, but check SDK stubs).
-3. Outdated hackathon claims in documentation that do not map to running tests.
+1. **Program-Controlled SPL Token Custody**:
+   - Vault PDA does not currently own or control SPL token accounts for volatile assets and USDC.
+2. **Real Bounded Recovery Containment**:
+   - `recover()` does not invoke SPL Token `TransferChecked` via CPI to move excess tokens to `policy.safe_destination`.
+3. **Safe Destination Enforcement**:
+   - `PolicyAccount.safe_destination` is stored onchain but not validated as the destination of recovery transfers.
+4. **Standalone Watcher Daemon**:
+   - Violation flagging is executed via script (`scripts/devnet-recovery-flow.mjs`) or UI rather than an autonomous background daemon.
+5. **Standalone Solver Daemon**:
+   - Solver execution is executed via script or UI rather than an autonomous untrusted solver service.
 
 ---
 
-## 8. CHANGE (Required Architectural Changes for CWF)
+## 6. LIMITATIONS
 
-1. **Anchor Program (`programs/sentinel/src`)**:
-   - Add `recover(sell_units: u64, expected_nonce: u64)` instruction to `lib.rs`.
-   - Add `last_recovery_slot: u64` and `last_recovery_solver: Pubkey` to `PortfolioVault` (update `LEN` to 878).
-   - Add error codes: `RecoveryWindowClosed` (6030), `StaleRecoveryNonce` (6031), `ValueConservationBreached` (6032), `PostconditionFailed` (6033), `OversellGuard` (6034), `InvalidAmount` (6035).
-   - Implement pure functions: `compute_recovery_proceeds`, `check_value_conservation`, `check_oversell_guard`, `check_strict_improvement`.
-2. **Bankrun Test Suite (`tests/bankrun-recovery.test.ts`)**:
-   - 17 slot-warped test cases asserting exact error codes for all happy path, boundary, adversarial, and race scenarios.
-3. **TypeScript SDK (`packages/sdk`)**:
-   - Implement `recover()` on `LiveExecutionAdapter`.
-   - Update IDL and typings with recovery fields and events.
-4. **Devnet Verification**:
-   - Run end-to-end devnet recovery flow: `initialize_vault` ➔ `sync_vault` (violation) ➔ `flag_violation` (pending) ➔ wait ➔ `flag_violation` (quarantined) ➔ `recover` (Active).
-   - Record and verify all transaction signatures in `docs/cwf/devnet-evidence.json`.
-5. **Minimal UI (`apps/web/src/app/quarantine/page.tsx`)**:
-   - Dedicated `/quarantine` page displaying live on-chain status badge, exposure vs cap, recovery window countdown, exact error decoding, and transaction timeline with Solana Explorer links.
-   - Prominently labeled: *"Ledger-based vault. Simulated settlement."*
-6. **Documentation Overhaul**:
-   - Synchronize `docs/CLAIMS.md`, `docs/cwf/STATE_MACHINE.md`, `docs/cwf/DISCLOSURE.md`, `docs/cwf/SUBMISSION_CWF.md`, and `docs/cwf/DEMO_CWF.md`.
+1. **Owner Ledger Mutability**:
+   - Because `sync_vault` can modify internal ledger balances, an owner could theoretically overwrite balances during quarantine.
+2. **Policy Mutability During Active Recovery**:
+   - `update_policy` does not currently freeze policy version while a vault is quarantined.
+3. **Coarse Oversell Tolerance**:
+   - `OVERSELL_BAND_BPS = 500` enforces a 5% window rather than mathematical proof of minimal necessary recovery.
+4. **Single Volatile Position Assumption**:
+   - `recover()` selects the first non-index position, assuming an MVP topology of exactly one volatile asset plus USDC.
+
+---
+
+## 7. TARGET CWF ARCHITECTURE (Real Custody Roadmap)
+
+```text
+               OWNER
+                 │
+                 ▼ (initialize & deposit)
+          SENTINEL VAULT (PDA)
+          ┌────────────────────────────────────────┐
+          │  Vault Asset Token Account (SPL)       │
+          │  Vault USDC Token Account (SPL)        │
+          │  PortfolioVault Config & Invariants    │
+          └──────────────────┬─────────────────────┘
+                             │
+            Pyth Oracle Price Shock
+                             │
+                             ▼
+                    INVARIANT BREACH
+                             │
+                             ▼
+                flag_violation (Watcher)
+                             │
+                             ▼
+                        QUARANTINED
+            (Agent Trade Authority Gated)
+                             │
+            Temporary Recovery Authority (PTA)
+                             │
+                             ▼
+                recover (Untrusted Solver)
+                             │
+              CPI TransferChecked:
+         Excess Volatile SPL ──► safe_destination (ATA)
+                             │
+                             ▼
+                 Mandatory Postconditions
+              (Token Conservation & Caps)
+                             │
+                             ▼
+                    ACTIVE RESUMPTION
+            (Recovery Authority Expired)
+```
+
+### Required Implementation Steps:
+1. **Real SPL Vault Custody**: Add vault PDA-controlled SPL token accounts for the volatile asset and USDC.
+2. **Emergency Containment Recovery**: In `recover()`, execute program-signed CPI `TransferChecked` transferring exactly the excess volatile tokens to the owner-configured `safe_destination`.
+3. **Exact Token Conservation**: Replace simulated venue fee arithmetic with exact onchain token balance conservation.
+4. **Policy Freeze**: Snapshot `policy_version` during quarantine to prevent rule mutations mid-recovery.
+5. **Standalone Watcher & Solver Services**: Lightweight Node.js daemons subscribing to RPC events to automatically monitor invariants and submit bounded recovery transactions.

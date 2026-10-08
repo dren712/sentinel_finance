@@ -12,7 +12,7 @@ import {
   Connection,
 } from '@solana/web3.js';
 import { BN, Program, AnchorProvider } from '@coral-xyz/anchor';
-import { SENTINEL_IDL } from '@sentinel/sdk';
+import { SENTINEL_IDL, SENTINEL_ERROR_BY_CODE, getSentinelError } from '@sentinel/sdk';
 import {
   ShieldAlert,
   ShieldCheck,
@@ -77,30 +77,6 @@ interface TimelineItem {
   blockTime?: number | null;
 }
 
-// Error name dictionary for Sentinel error codes
-const SENTINEL_ERROR_NAMES: Record<number, { name: string; description: string }> = {
-  6000: { name: 'TradeSizeExceeded', description: 'Proposed trade value exceeds maximum allowed per trade' },
-  6001: { name: 'PolicyInactive', description: 'The financial policy is currently inactive' },
-  6002: { name: 'AgentInactive', description: 'Agent is not active or authorized to trade' },
-  6005: { name: 'ExposureExceeded', description: 'Trade would violate maximum single asset exposure cap' },
-  6006: { name: 'StablecoinReserveBreached', description: 'Trade would violate minimum stablecoin reserve floor' },
-  6007: { name: 'SlippageExceeded', description: 'Execution price slippage exceeds maximum allowed' },
-  6021: { name: 'FeedMismatch', description: 'Pyth price update feed ID does not match position feed ID' },
-  6022: { name: 'StaleOracle', description: 'Pyth oracle price publish time is stale (>60s old)' },
-  6023: { name: 'ConfidenceTooWide', description: 'Pyth price confidence interval is too wide (>2%)' },
-  6024: { name: 'UnverifiedPrice', description: 'Price update account not owned by Pyth receiver or not Full verification' },
-  6025: { name: 'VaultNotActive', description: 'Vault is currently quarantined or inactive; normal agent trading is gated' },
-  6026: { name: 'InvariantNotBreached', description: 'Cannot flag violation because vault invariants are currently satisfied' },
-  6027: { name: 'ConfirmationWindowNotPassed', description: 'Hysteresis confirmation window has not yet passed since initial flag' },
-  6028: { name: 'RecoveryNotExpired', description: 'Quarantine recovery window has not yet expired' },
-  6030: { name: 'RecoveryWindowClosed', description: 'Recovery window is closed; slot has passed recovery_expires_slot' },
-  6031: { name: 'StaleRecoveryNonce', description: 'Recovery nonce does not match current vault nonce (stale or frontrun)' },
-  6032: { name: 'ValueConservationBreached', description: 'Post-recovery value breaches policy max_recovery_cost_bps conservation bound' },
-  6033: { name: 'PostconditionFailed', description: 'Postconditions failed: exposure must strictly improve and satisfy policy caps' },
-  6034: { name: 'OversellGuard', description: 'Oversell guard triggered: solver oversold volatile asset beyond band' },
-  6035: { name: 'InvalidAmount', description: 'Invalid sell units: must be 0 < sell_units <= amount_units' },
-};
-
 function parseProgramError(err: any): { code?: number; name: string; message: string } {
   const errString = err?.message || String(err);
 
@@ -108,11 +84,12 @@ function parseProgramError(err: any): { code?: number; name: string; message: st
   const hexMatch = errString.match(/custom program error:\s*(0x[0-9a-fA-F]+)/);
   if (hexMatch) {
     const code = parseInt(hexMatch[1], 16);
-    if (SENTINEL_ERROR_NAMES[code]) {
+    const errInfo = SENTINEL_ERROR_BY_CODE[code];
+    if (errInfo) {
       return {
         code,
-        name: SENTINEL_ERROR_NAMES[code].name,
-        message: SENTINEL_ERROR_NAMES[code].description,
+        name: errInfo.name,
+        message: errInfo.msg,
       };
     }
   }
@@ -121,22 +98,25 @@ function parseProgramError(err: any): { code?: number; name: string; message: st
   const decMatch = errString.match(/Error (?:Code|Number):\s*([0-9]+)/);
   if (decMatch) {
     const code = parseInt(decMatch[1], 10);
-    if (SENTINEL_ERROR_NAMES[code]) {
+    const errInfo = SENTINEL_ERROR_BY_CODE[code];
+    if (errInfo) {
       return {
         code,
-        name: SENTINEL_ERROR_NAMES[code].name,
-        message: SENTINEL_ERROR_NAMES[code].description,
+        name: errInfo.name,
+        message: errInfo.msg,
       };
     }
   }
 
-  // Check known string names
-  for (const [code, info] of Object.entries(SENTINEL_ERROR_NAMES)) {
-    if (errString.includes(info.name)) {
+  // Check Anchor error name string
+  const nameMatch = errString.match(/Error Code:\s*(\w+)/);
+  if (nameMatch) {
+    const errInfo = getSentinelError(nameMatch[1]);
+    if (errInfo) {
       return {
-        code: Number(code),
-        name: info.name,
-        message: info.description,
+        code: errInfo.code,
+        name: errInfo.name,
+        message: errInfo.msg,
       };
     }
   }
@@ -144,15 +124,26 @@ function parseProgramError(err: any): { code?: number; name: string; message: st
   // Check simulation logs
   if (err?.logs && Array.isArray(err.logs)) {
     for (const log of err.logs) {
-      for (const [code, info] of Object.entries(SENTINEL_ERROR_NAMES)) {
+      for (const info of Object.values(SENTINEL_ERROR_BY_CODE)) {
         if (log.includes(info.name) || log.includes(`Error Code: ${info.name}`)) {
           return {
-            code: Number(code),
+            code: info.code,
             name: info.name,
-            message: info.description,
+            message: info.msg,
           };
         }
       }
+    }
+  }
+
+  // Check known string names in errString
+  for (const info of Object.values(SENTINEL_ERROR_BY_CODE)) {
+    if (errString.includes(info.name)) {
+      return {
+        code: info.code,
+        name: info.name,
+        message: info.msg,
+      };
     }
   }
 

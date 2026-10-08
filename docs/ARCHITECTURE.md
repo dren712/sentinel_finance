@@ -15,12 +15,12 @@ If an autonomous model hallucinates, suffers prompt injection, or drifts under m
 
 ```
 [LIVE ON SOLANA DEVNET]
-Program ID: 3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK
+Program ID: 3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH
 IDL Account: H28SmQxnyeTQFUQFFyKjwbLBi77w78vtHmbQzQWrGHx6
 Policy PDA:  3wTp1YDSG3xmf9TtuwZ64b11uLuLNUgQRwdesMbFJUUh
 Agent PDA:   62vpHzSG92GUbAXtNh4czG6U6HyTpndrY4NvZM9euUnQ
 Vault PDA:   7TffMKzUgVme4eod8Wh9ANAQ3YrRMzj4c2JrfKm6AY4Y
-Solana Explorer: https://explorer.solana.com/address/3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK?cluster=devnet
+Solana Explorer: https://explorer.solana.com/address/3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH?cluster=devnet
 ```
 
 ### Definition of Truth Matrix
@@ -60,7 +60,7 @@ Solana Explorer: https://explorer.solana.com/address/3gh1Cc2Qc65hJhxZKneXphWJa27
 ```text
 ┌───────────────────────────────────────────────────────────────────────────────────┐
 │                                   CLIENT LAYER                                    │
-│  apps/web (Next.js 14, Tailwind, @solana/wallet-adapter-react, Lightweight Charts)│
+│  apps/web (Next.js 15, Tailwind, @solana/wallet-adapter-react, Lightweight Charts)│
 │                                                                                   │
 │   ┌───────────────┐   ┌───────────────┐   ┌────────────────┐   ┌──────────────┐   │
 │   │ 1. PORTFOLIO  │   │   2. AGENT    │   │ 3. PROTECTION  │   │ 4. ACTIVITY  │   │
@@ -159,8 +159,8 @@ Solana Explorer: https://explorer.solana.com/address/3gh1Cc2Qc65hJhxZKneXphWJa27
 
 | Package / Directory | Purpose | Verified Tests |
 | :--- | :--- | :--- |
-| `programs/sentinel` | Authoritative Anchor program with `u128` invariant checks and PDA state vaults. | 9 Rust integration tests |
-| `packages/domain` | Pure TypeScript business logic: basis point math, 6-verifier SWARM, PROVN evidence receipts. | 39 unit tests |
-| `packages/sdk` | Client SDK: `SentinelClient`, 10-stage autonomous reactive loop, Meteora & PreStocks adapters. | 55 unit & integration tests |
-| `tests/integration` | End-to-end multi-step autonomous scenario test. | 1 integration test |
-| `apps/web` | Institutional Next.js 14 Web Application (Portfolio, Agent, Protection, Activity). | Production build passing |
+| `programs/sentinel` | Authoritative Anchor program with `u128` invariant checks and PDA state vaults. | 28 Cargo unit + 50 Anchor integration/bankrun tests |
+| `packages/domain` | Pure TypeScript business logic: basis point math, 6-verifier SWARM, PROVN evidence receipts. | 43 unit tests |
+| `packages/sdk` | Client SDK: `SentinelClient`, 10-stage autonomous reactive loop, Meteora & PreStocks adapters. | 54 unit & integration tests |
+| `tests` | Anchor localnet (20), Bankrun quarantine (13), and Bankrun recovery (17) suites. | 50 tests |
+| `apps/web` | Institutional Next.js 15 Web Application (Portfolio, Agent, Protection, Quarantine, Activity). | Production build passing (9/9 routes) |

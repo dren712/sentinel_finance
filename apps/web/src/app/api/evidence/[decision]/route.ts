@@ -119,7 +119,7 @@ export async function GET(
       slot: txSlot,
       programId:
         receipt.solanaVerification?.programId ??
-        '3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK',
+        '3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH',
       policyPda:
         (receipt.solanaVerification as any)?.policyPda ??
         '3wTp1YDSG3xmf9TtuwZ64b11uLuLNUgQRwdesMbFJUUh',

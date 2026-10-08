@@ -7,7 +7,7 @@
 import { Connection, PublicKey } from '@solana/web3.js';
 
 const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
-const PROGRAM_ID = new PublicKey('3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK');
+const PROGRAM_ID = new PublicKey(process.env.SENTINEL_PROGRAM_ID || '3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH');
 const POLICY_PDA = new PublicKey('3wTp1YDSG3xmf9TtuwZ64b11uLuLNUgQRwdesMbFJUUh');
 const AGENT_PDA = new PublicKey('G9MwRFgstx8Ee4dC6CYLb4CuwhR5YXXpYUhbyHrsxSpv');
 const VAULT_PDA = new PublicKey('7TffMKzUgVme4eod8Wh9ANAQ3YrRMzj4c2JrfKm6AY4Y');
