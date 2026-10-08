@@ -10,7 +10,9 @@
     "lint": "pnpm -r run lint",
     "dev": "pnpm --filter @sentinel/web run dev",
     "start": "pnpm --filter @sentinel/web run start",
-    "init:devnet": "node packages/sdk/scripts/init-devnet.mjs"
+    "init:devnet": "node packages/sdk/scripts/init-devnet.mjs",
+    "watcher": "node scripts/watcher-daemon.mjs",
+    "solver": "node scripts/solver-daemon.mjs"
   },
   "devDependencies": {
     "solana-bankrun": "^0.4.0"

@@ -11,3 +11,5 @@ export * from './database';
 export * from './keys';
 export * from './errors';
 export * from './recovery';
+export * from './services/watcher';
+export * from './services/solver';
