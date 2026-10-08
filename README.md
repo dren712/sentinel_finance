@@ -11,7 +11,8 @@
 
 <p align="center">
   <a href="https://sentinel-finance-production-4560.up.railway.app/"><img src="https://img.shields.io/badge/Live_App-Railway_Production-00C49F?logo=railway&logoColor=white" alt="Live App"></a>
-  <a href="https://sentinel-finance-production-4560.up.railway.app/quarantine"><img src="https://img.shields.io/badge/Quarantine_Terminal-Live-FF5C00" alt="Quarantine Terminal"></a>
+  <a href="https://sentinel-finance-production-4560.up.railway.app/lab"><img src="https://img.shields.io/badge/Devnet_Lab-Faucets_&_Simulator-FF5C00" alt="Devnet Lab"></a>
+  <a href="https://sentinel-finance-production-4560.up.railway.app/quarantine"><img src="https://img.shields.io/badge/Quarantine_Terminal-Live-E63946" alt="Quarantine Terminal"></a>
   <a href="https://explorer.solana.com/address/3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH?cluster=devnet"><img src="https://img.shields.io/badge/CWF_Program-3TVEhBHw...-9945FF?logo=solana&logoColor=white" alt="CWF Devnet Program"></a>
   <a href="https://pyth.network"><img src="https://img.shields.io/badge/Pyth_Oracle-PriceUpdateV2_Verified-E6DAFE?logo=pyth&logoColor=black" alt="Pyth Network"></a>
   <a href="./docs/cwf/SUBMISSION_CWF.md"><img src="https://img.shields.io/badge/CWF-Submission_Doc-00C49F" alt="CWF Submission"></a>
@@ -23,11 +24,12 @@
 </p>
 
 <p align="center">
-  <a href="https://sentinel-finance-production-4560.up.railway.app/quarantine">Quarantine & Recovery Terminal</a> ·
+  <a href="https://sentinel-finance-production-4560.up.railway.app/lab">Devnet Lab (Faucets &amp; Sandbox)</a> ·
+  <a href="https://sentinel-finance-production-4560.up.railway.app/quarantine">Quarantine &amp; Recovery Terminal</a> ·
   <a href="https://sentinel-finance-production-4560.up.railway.app/">Portfolio Dashboard</a> ·
   <a href="./docs/cwf/SUBMISSION_CWF.md">CWF Submission</a> ·
   <a href="./docs/cwf/STATE_MACHINE.md">State Machine</a> ·
-  <a href="./docs/cwf/DISCLOSURE.md">Disclosure & Provenance</a> ·
+  <a href="./docs/cwf/DISCLOSURE.md">Disclosure &amp; Provenance</a> ·
   <a href="https://explorer.solana.com/address/3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH?cluster=devnet">Solana Explorer (CWF)</a> ·
   <a href="./docs/TECHNICAL.md">Technical Docs</a>
 </p>

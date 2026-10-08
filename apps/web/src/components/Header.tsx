@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { Play, RotateCcw, Settings, ExternalLink, ChevronDown, CheckCircle2, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { Play, RotateCcw, Settings, ExternalLink, ChevronDown, CheckCircle2, ShieldAlert, ShieldCheck, FlaskConical } from 'lucide-react';
 import { APP_CONFIG, getExplorerAddressUrl } from '@/lib/config';
 import { formatAddress } from '@/lib/formatters';
 
@@ -161,6 +161,16 @@ export const Header: React.FC<HeaderProps> = ({
             </Link>
           )}
 
+          {/* Devnet Lab Sandbox Link */}
+          <Link
+            href="/lab"
+            className="h-9 px-2.5 sm:px-3 rounded-lg bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 text-orange-300 hover:text-orange-200 text-xs font-mono font-medium flex items-center gap-1.5 transition cursor-pointer"
+            title="Sentinel Devnet Lab: Faucets, Test Assets, and Controlled Incident Simulator"
+          >
+            <FlaskConical className="w-3.5 h-3.5 text-orange-400 shrink-0" />
+            <span className="hidden sm:inline tracking-tight font-semibold">DEVNET LAB</span>
+            <span className="sm:hidden font-semibold">LAB</span>
+          </Link>
 
           {/* Quick Demo Runner with Restrained Dropdown */}
           <div className="relative" ref={demoMenuRef}>

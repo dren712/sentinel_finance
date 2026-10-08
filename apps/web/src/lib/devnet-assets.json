@@ -1,0 +1,17 @@
+{
+  "faucetAuthority": "GR9CtiUswZtay68U2fGqcDeB1dg8sHtpVi9kk2nCEwzw",
+  "mints": {
+    "sUSD": {
+      "address": "HEaMJa7qSEQD36wTJhc4VeyfVuDQS3b5ZcGzajzgCJBL",
+      "decimals": 6,
+      "symbol": "sUSD",
+      "name": "Sentinel Devnet USD"
+    },
+    "sASSET": {
+      "address": "BJWNG3k1nmgG3Ua42P1CqRZWkSu9hYoRGeAttLmLZ1GT",
+      "decimals": 6,
+      "symbol": "sASSET",
+      "name": "Sentinel Devnet Risk Asset"
+    }
+  }
+}

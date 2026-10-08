@@ -14,6 +14,7 @@ import {
   RefreshCw,
   ShieldAlert,
   ShieldCheck,
+  FlaskConical,
 } from 'lucide-react';
 import { sha256Hex } from '@sentinel/domain';
 import { APP_CONFIG, getExplorerAddressUrl } from '@/lib/config';
@@ -162,6 +163,14 @@ export const LandingView: React.FC<LandingViewProps> = ({
             >
               <ShieldAlert className="w-4 h-4 text-rose-400" />
               <span>Recovery Terminal</span>
+            </Link>
+
+            <Link
+              href="/lab"
+              className="sentinel-btn-physical flex items-center gap-2 px-4 py-2.5 rounded-lg bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 text-orange-300 font-medium text-sm transition-colors cursor-pointer"
+            >
+              <FlaskConical className="w-4 h-4 text-orange-400" />
+              <span>Devnet Lab</span>
             </Link>
 
             <button

@@ -43,6 +43,7 @@ Autonomous trading agents frequently drift into catastrophic concentration or ca
 | **Live Devnet Transactions** | **REAL** | Verified on-chain transactions on Solana Devnet recorded with signatures, slots, and Explorer confirmation in `docs/cwf/devnet-evidence.json`. |
 | **Mandatory Real Custody Enforcement** | **REAL** | `recover()` strictly requires the 4 canonical SPL custody accounts and executes program-signed CPI `transfer_checked_signed`; omitting custody accounts fails closed with `MissingCustodyAccounts` (6045). |
 | **Stocklana vs CWF Boundaries** | **REAL / DISCLOSED** | Sentinel CWF Quarantine and Containment executes REAL SPL Token / Token-2022 CPI transfers on-chain to `safe_destination`. The Stocklana autonomous trading portfolio interface projects target weights on an internal ledger prior to on-chain containment. |
+| **Sentinel Devnet Lab & Faucets** | **REAL** | Dedicated `/lab` sandbox environment with native SOL faucet request, test SPL token faucets (`sUSD` & `sASSET`), one-click test vault seeding, controlled incident simulator (55% ➔ 68% breach ➔ quarantine ➔ real SPL transfer), and toggleable Demo vs Proof cryptographic inspection. |
 | **Solver Bounty Payout** | **SIMULATED** | Bounty calculation (`bounty_cap_cents`) is computed and emitted in `RecoveryExecutedEvent` as an informational metric; no token disbursement takes place on-chain. |
 
 ---
