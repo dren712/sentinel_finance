@@ -12,7 +12,7 @@ import {
   Connection,
 } from '@solana/web3.js';
 import { BN, Program, AnchorProvider } from '@coral-xyz/anchor';
-import { SENTINEL_IDL, SENTINEL_ERROR_BY_CODE, getSentinelError } from '@sentinel/sdk';
+import { SENTINEL_IDL, SENTINEL_ERROR_BY_CODE, getSentinelError, requiredRecoveryUnits } from '@sentinel/sdk';
 import {
   ShieldAlert,
   ShieldCheck,
@@ -358,15 +358,28 @@ export default function QuarantinePage() {
       const provider = new AnchorProvider(devnetConn, wallet as any, { commitment: 'confirmed' });
       const program = new Program(SENTINEL_IDL as any, provider);
 
-      // Determine sell units:
-      // If volatile asset has holdings (e.g. 100 units), we sell 78 units to bring exposure to ~22%, within [20%, 25%]
+      // Determine optimal sell units using pure solver recovery engine:
       const pos = vault.positions[0];
       if (!pos || pos.amountUnits <= 0) {
         throw new Error('No volatile asset position found in vault ledger to recover.');
       }
 
-      // Default: sell 78% or proportional units to bring exposure under policy cap
-      let sellUnits = Math.floor(pos.amountUnits * 0.78);
+      const priceCents = pos.priceCents > 0 ? pos.priceCents : 10000;
+      const plan = requiredRecoveryUnits(
+        {
+          usdcBalanceCents: vault.usdcBalanceCents,
+          positions: vault.positions,
+        },
+        {
+          maxSingleAssetBps: policy?.maxSingleAssetBps ?? 2500,
+          minStablecoinBps: policy?.minStablecoinBps ?? 2000,
+          maxRecoveryCostBps: policy?.maxRecoveryCostBps ?? 100,
+        },
+        priceCents,
+        { mode: 'simulated' }
+      );
+
+      let sellUnits = Number(plan.sellUnits);
       if (sellUnits <= 0) sellUnits = 1;
       if (sellUnits > pos.amountUnits) sellUnits = pos.amountUnits;
 

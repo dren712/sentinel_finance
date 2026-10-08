@@ -10,3 +10,4 @@ export * from './llm-provider';
 export * from './database';
 export * from './keys';
 export * from './errors';
+export * from './recovery';
