@@ -136,4 +136,10 @@ pub enum SentinelError {
 
     #[msg("Actual token balance does not match expected amount")]
     TokenBalanceMismatch,
+
+    #[msg("Recovery requires real custody token accounts: [vault_ta, safe_dest_ta, mint, token_program]")]
+    MissingCustodyAccounts,
+
+    #[msg("Deposit mint is not tracked in vault positions")]
+    UntrackedDepositMint,
 }

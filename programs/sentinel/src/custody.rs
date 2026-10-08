@@ -45,6 +45,24 @@ pub fn unpack_mint_decimals(acc: &AccountInfo) -> Result<u8> {
     Ok(data[44])
 }
 
+/// Validates that the token program is either SPL Token or Token-2022,
+/// and that source, destination, and mint are owned by this token program.
+pub fn validate_token_program_and_accounts(
+    token_program: &AccountInfo,
+    source: &AccountInfo,
+    destination: &AccountInfo,
+    mint: &AccountInfo,
+) -> Result<()> {
+    require!(
+        token_program.key == &TOKEN_PROGRAM_ID || token_program.key == &TOKEN_2022_PROGRAM_ID,
+        SentinelError::InvalidTokenAccountOwner
+    );
+    require!(source.owner == token_program.key, SentinelError::InvalidTokenAccountOwner);
+    require!(destination.owner == token_program.key, SentinelError::InvalidTokenAccountOwner);
+    require!(mint.owner == token_program.key, SentinelError::InvalidMintData);
+    Ok(())
+}
+
 /// Executes a program-signed CPI TransferChecked from vault PDA
 pub fn transfer_checked_signed<'info>(
     token_program: &AccountInfo<'info>,
@@ -56,6 +74,8 @@ pub fn transfer_checked_signed<'info>(
     decimals: u8,
     signer_seeds: &[&[&[u8]]],
 ) -> Result<()> {
+    validate_token_program_and_accounts(token_program, source, destination, mint)?;
+
     let mut data = Vec::with_capacity(10);
     data.push(12u8); // TransferChecked discriminator
     data.extend_from_slice(&amount.to_le_bytes());
@@ -95,6 +115,8 @@ pub fn transfer_checked_owner<'info>(
     amount: u64,
     decimals: u8,
 ) -> Result<()> {
+    validate_token_program_and_accounts(token_program, source, destination, mint)?;
+
     let mut data = Vec::with_capacity(10);
     data.push(12u8); // TransferChecked discriminator
     data.extend_from_slice(&amount.to_le_bytes());

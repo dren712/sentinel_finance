@@ -1,6 +1,6 @@
 # Sentinel Finance — CWF Architecture Audit & Gap Analysis
 
-**Audited Commit**: [`5f31a6b`](https://github.com/dren712/sentinel_finance/commit/5f31a6b)  
+**Audited Commit**: [`8c0b1264decbc451d1cfe1ab0f225166d07029d1`](https://github.com/dren712/sentinel_finance/commit/8c0b1264decbc451d1cfe1ab0f225166d07029d1)  
 **Date**: October 8, 2026  
 **Auditor**: Antigravity Autonomous Pair Programmer  
 **Network Deployment**: Solana Devnet (`3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH`)
@@ -13,11 +13,11 @@ The codebase represents the completed production implementation of **Sentinel: T
 
 All roadmap phases have crossed the real custody boundary:
 1. **On-Chain SPL Token Custody**: Native zero-dependency SPL Token & Token-2022 CPI custody module (`programs/sentinel/src/custody.rs`) where the vault PDA holds actual tokens, managed by `owner_deposit` and `owner_withdraw`.
-2. **Emergency Containment Recovery**: `recover()` executes program-signed CPI `transfer_checked` transferring exact excess volatile tokens directly to `policy.safe_destination`.
+2. **Mandatory Emergency Containment Recovery**: `recover()` requires 4 canonical custody remaining accounts and executes program-signed CPI `transfer_checked_signed` transferring exact excess volatile tokens directly to `policy.safe_destination`. The simulated fallback branch has been fully eliminated (`MissingCustodyAccounts` 6045).
 3. **Exact Token Conservation**: Program enforces exact on-chain balance conservation (`pre_balance == post_balance + sell_units`), strict risk reduction, and postcondition compliance.
 4. **Policy Freeze**: Snapshotting of `policy_version` during quarantine ensures policy cannot be modified mid-recovery (`PolicyFrozen` 6036).
 5. **Pure Solver Engine**: Mathematical recovery calculation in `@sentinel/sdk` (`requiredRecoveryUnits`) computes minimal sell units required to satisfy postconditions without heuristics.
-6. **Autonomous Watcher & Solver Daemons**: Standalone Node.js background daemons (`scripts/watcher-daemon.mjs`, `scripts/solver-daemon.mjs`) continuously monitor RPC for invariant breaches and submit automated recovery transactions.
+6. **Autonomous Watcher & Solver Daemons**: Standalone Node.js background daemons (`scripts/watcher-daemon.mjs`, `scripts/solver-daemon.mjs`) continuously monitor RPC for invariant breaches and submit automated recovery transactions using `resolveRecoveryCustodyAccounts`.
 7. **Comprehensive Test Suite**: 26 Bankrun recovery tests, 13 Bankrun quarantine tests, 20 localnet tests, and 104 SDK unit tests (163 total automated integration/unit tests) all passing with 0 errors.
 
 ---
@@ -49,10 +49,13 @@ The following capabilities are compiled in the Anchor program (`3TVEhBHwQNoEU1Vw
    - Permissionless `expire_quarantine` transitions vault to `RecoveryExpired` (6029) once `current_slot > recovery_expires_slot`.
    - Privileged `owner_release` allows vault owner to unfreeze vault back to `Active` and increment `recovery_nonce`.
 
-4. **Temporary Recovery Authority (`recover`)**:
+4. **Mandatory Recovery Custody (`recover`)**:
    - Permissionless solver execution gated by `vault.status == Quarantined` (`VaultNotQuarantined` 6026).
    - Expiration guard: `current_slot <= recovery_expires_slot` (`RecoveryWindowClosed` 6030).
    - Replay protection: `expected_nonce == vault.recovery_nonce` (`StaleRecoveryNonce` 6031).
+   - Strict custody accounts requirement: Requires 4 canonical accounts `[vault_ta, safe_dest_ta, mint, token_program]` (`MissingCustodyAccounts` 6045).
+   - Token program allowlist: Program ID must equal SPL Token (`TokenkegQfe...`) or Token-2022 (`TokenzQdBNb...`) (`InvalidTokenProgram` 6040).
+   - Program-signed CPI `transfer_checked_signed` moves exact `sell_units` to `policy.safe_destination`.
    - Volatile asset reduce-only bound: `0 < sell_units <= amount_units` (`InvalidAmount` 6035).
    - Value conservation check: `post_total >= pre_total * (10000 - max_recovery_cost_bps) / 10000` (`ValueConservationBreached` 6032).
    - Mandatory policy postconditions: `check_exposure_and_reserve` (`PostconditionFailed` 6033).
@@ -71,52 +74,29 @@ The following capabilities are compiled in the Anchor program (`3TVEhBHwQNoEU1Vw
    - Meteora DBC dynamic fee verifier and PreStocks pre-IPO equity universe heuristics.
 
 2. **TypeScript SDK (`@sentinel/sdk`)**:
+   - `resolveRecoveryCustodyAccounts`: Canonical derivation of vault ATA, safe destination ATA, mint, and token program accounts.
    - `LiveExecutionAdapter`: Anchor client managing separate owner and agent keypairs, building instructions, and decoding custom program errors canonicalized from `SENTINEL_IDL`.
-   - `SentinelClient`: High-level workflow orchestration client.
-   - `AgentSimulator`: 10-stage autonomous cycle executor with tool calling (OpenAI GPT-4o or fallback `DemoProvider`).
-   - PostgreSQL persistence repository (`database.ts`) for asynchronous evidence indexing.
+   - `SentinelWatcherService` & `SentinelSolverService`: Daemons continuously polling Pyth oracles and submitting automated custody recoveries.
+   - `AgentSimulator`: 10-stage autonomous cycle executor with tool calling.
 
 3. **Web Application (`apps/web`)**:
-   - Next.js 15 App router dashboard (`/`) displaying institutional portfolio metrics, agent mandate, policy configuration, and verification timeline.
-   - Standalone `/quarantine` interface with live badge indicators, exposure gauge, slot countdown timer, exact Anchor error decoding, and Solana Explorer timeline.
+   - Next.js 15 App router dashboard (`/`) displaying institutional portfolio metrics, agent mandate, policy configuration, dynamic context-aware header (`WATCHING` vs `QUARANTINED`), and the 6-stage Hero State Rail (`AUTHORIZED -> UNSAFE -> PROVEN -> QUARANTINED -> RECOVERED -> EXPIRED`).
+   - Standalone `/quarantine` interface with real custody containment, 8-state interactive recovery button, slot countdown timer, exact Anchor error decoding, and Solana Explorer timeline.
    - 8 Next.js API endpoints (`/api/agent/run`, `/api/health`, `/api/portfolio/[wallet]`, etc.).
 
 ---
 
 ## 4. SIMULATED (What is Demo-Only / Mocked)
 
-1. **Vault Balances**:
-   - `PortfolioVault.usdc_balance_cents` and `positions[].amount_units` are ledger values updated via `sync_vault` or `initialize_vault`. No live SPL token accounts currently back these ledger numbers.
-2. **Settlement**:
-   - In `execute_guarded_trade` and `recover`, balances are updated mathematically inside account memory; no live SPL transfers or DEX swaps (Raydium, Meteora, Jupiter) take place via CPI.
-3. **Recovery Venue Fee**:
-   - `RECOVERY_VENUE_FEE_BPS = 30` is applied arithmetically to proceeds rather than deducted by an external liquidity pool.
-4. **Solver Bounty**:
-   - `bounty_cap_cents` is computed and emitted in `RecoveryExecutedEvent` as a simulation metric (`SIMULATED / NOT PAID`). No token reward is transferred to the solver wallet.
-5. **Offchain Market Verifiers**:
+1. **Solver Bounty**:
+   - `bounty_cap_cents` is computed and emitted in `RecoveryExecutedEvent` as an informational metric (`SIMULATED / NOT PAID`). No token reward is transferred to the solver wallet.
+2. **Offchain Market Verifiers**:
    - PreStocks pre-trade checks and Meteora liquidity checks are evaluated in offchain TypeScript pre-flight filters rather than onchain CPI checks.
 
----
-
-## 5. COMPLETED ROADMAP IMPLEMENTATIONS
-
-1. **Program-Controlled SPL Token Custody (`programs/sentinel/src/custody.rs`)**:
-   - Native zero-dependency SPL Token & Token-2022 CPI custody via `transfer_checked` (instruction discriminator 12).
-   - Added `owner_deposit` and `owner_withdraw` to allow owners to fund and withdraw real tokens into/out of vault PDA custody.
-2. **Emergency Containment Recovery**:
-   - `recover()` validates token account parameters in remaining accounts (`[vault_ta, safe_dest_ta, mint, token_program]`) and invokes CPI `transfer_checked` with vault PDA signer seeds, moving exactly `sell_units` to the owner's authenticated `safe_destination`.
-3. **Exact Token Conservation**:
-   - Program verifies exact balance reduction onchain (`pre_balance == post_balance + sell_units`) and rejects any unauthorized leakage.
-4. **Policy Freeze on Quarantine**:
-   - `PortfolioVault` snapshots `policy_version` when entering quarantine; `update_policy` fails closed with `PolicyFrozen` (6036) while quarantine is active.
-5. **Pure Solver Engine**:
-   - Implemented mathematical solver `requiredRecoveryUnits` in `@sentinel/sdk` calculating exact minimal units to satisfy exposure cap, stablecoin floor, and oversell guard without heuristics.
-6. **Autonomous Watcher & Solver Daemons**:
-   - Created `SentinelWatcherService` and `SentinelSolverService` in `@sentinel/sdk`, with CLI daemons in `scripts/watcher-daemon.mjs` and `scripts/solver-daemon.mjs`.
 
 ---
 
-## 6. SCOPE FREEZE & RESIDUAL BOUNDARIES
+## 5. SCOPE FREEZE & RESIDUAL BOUNDARIES
 
 1. **DEX Swaps vs Containment**:
    - In production decentralized environments, full DEX rebalancing introduces unbounded slippage and sandwich risk during high-volatility shocks. Sentinel's onchain containment model moves excess risk directly to the owner's `safe_destination` (cold wallet or multisig) under exact token conservation. Live external DEX routing remains offchain.
@@ -127,7 +107,8 @@ The following capabilities are compiled in the Anchor program (`3TVEhBHwQNoEU1Vw
 
 ---
 
-## 7. FINAL CWF ARCHITECTURE
+## 6. FINAL CWF ARCHITECTURE
+
 
 ```text
                OWNER

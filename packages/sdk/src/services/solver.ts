@@ -4,8 +4,7 @@ import { SENTINEL_IDL } from '../idl/sentinel-idl';
 import type { Sentinel } from '../idl/sentinel';
 import { requiredRecoveryUnits, RecoveryPlan } from '../recovery';
 import { WalletSigner } from '../types';
-
-export const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+import { resolveRecoveryCustodyAccounts, parsePythPriceUpdateAccount, TOKEN_PROGRAM_ID } from '../custody';
 
 export interface SolverConfig {
   connection: Connection;
@@ -91,7 +90,19 @@ export class SentinelSolverService {
         continue; // Recovery window closed
       }
 
-      const priceCents = pos.priceCents.toNumber() > 0 ? pos.priceCents.toNumber() : 10000;
+      let priceCents = pos.priceCents.toNumber() > 0 ? pos.priceCents.toNumber() : 10000;
+      try {
+        const priceAccInfo = await this.connection.getAccountInfo(this.priceUpdatePubkey, 'confirmed');
+        if (priceAccInfo && priceAccInfo.data) {
+          const parsed = parsePythPriceUpdateAccount(priceAccInfo.data);
+          if (parsed.priceCents > 0) {
+            priceCents = parsed.priceCents;
+          }
+        }
+      } catch {
+        // Fallback to stored price
+      }
+
       const plan = requiredRecoveryUnits(
         {
           usdcBalanceCents: vault.usdcBalanceCents.toNumber(),
@@ -134,10 +145,12 @@ export class SentinelSolverService {
             });
 
           if (this.mode === 'custody') {
-            // Derive ATA or find associated token accounts
-            // For custody mode, remaining accounts: [vaultTa, safeDestTa, mint, tokenProgram]
-            // We pass pos.mint and derive or expect token accounts
-            // Fallback to remainingAccounts if provided
+            const custodyAccounts = resolveRecoveryCustodyAccounts(
+              vaultPubkey,
+              policy.safeDestination,
+              pos.mint
+            );
+            recoverBuilder = recoverBuilder.remainingAccounts(custodyAccounts);
           }
 
           const recoverIx = await recoverBuilder.instruction();

@@ -71,16 +71,17 @@ export const SentinelReceiptCard: React.FC<SentinelReceiptCardProps> = ({
     !record.transactionSignature.startsWith('sim_') &&
     record.transactionSignature.length >= 44
       ? record.transactionSignature
-      : APP_CONFIG.devnetTransactions.executeValidTradeTx;
+      : undefined;
 
-  const shortSig = `${rawSig.slice(0, 4)}...${rawSig.slice(-4)}`;
-  const isDevnet = Boolean(rawSig && !rawSig.startsWith('sim_') && rawSig.length >= 44);
-  const pdaAddress = formattedReceipt?.solanaVerification?.pda ?? (record.promise?.who?.walletAddress ?? 'GR9CtiUswZtay68U2fGqcDeB1dg8sHtpVi9kk2nCEwzw');
-  const slot = formattedReceipt?.solanaVerification?.slot ?? (isDevnet ? 500855413 : undefined);
+  const shortSig = rawSig ? `${rawSig.slice(0, 4)}...${rawSig.slice(-4)}` : null;
+  const isDevnet = Boolean(rawSig);
+  const pdaAddress = formattedReceipt?.solanaVerification?.pda ?? record.promise?.who?.walletAddress;
+  const slot = formattedReceipt?.solanaVerification?.slot;
 
   const swarmSummary: SwarmVerificationSummary | undefined = record.swarmSummary;
-  const swarmPassedCount = swarmSummary?.passedCount ?? (isSettled ? 6 : 4);
-  const swarmTotalCount = swarmSummary?.totalCount ?? 6;
+  const swarmPassedCount = swarmSummary?.passedCount;
+  const swarmTotalCount = swarmSummary?.totalCount;
+
 
   return (
     <div className="relative font-mono rounded-xl border border-sentinel-borderStrong bg-sentinel-surface shadow-lg overflow-hidden">
@@ -161,23 +162,35 @@ export const SentinelReceiptCard: React.FC<SentinelReceiptCardProps> = ({
           {/* 5. Transaction + Explorer ↗ */}
           <div className="bg-sentinel-surfaceMuted p-3 rounded-lg border border-sentinel-border space-y-1 flex flex-col justify-between">
             <span className="text-[10px] uppercase font-bold text-sentinel-textSubtle block font-sans">
-              Solana Signature
+              {rawSig ? 'Solana Signature' : 'Execution Mode'}
             </span>
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-bold text-white text-xs tabular-nums" title={rawSig}>
-                {shortSig}
-              </span>
-              <a
-                href={getExplorerTxUrl(rawSig)}
-                target="_blank"
-                rel="noreferrer"
-                className="text-blue-400 hover:text-blue-300 font-bold text-[11px] inline-flex items-center gap-1 hover:underline sentinel-interactive sentinel-focus rounded p-0.5"
-              >
-                <span>Explorer ↗</span>
-              </a>
+            {rawSig ? (
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-bold text-white text-xs tabular-nums" title={rawSig}>
+                  {shortSig}
+                </span>
+                <a
+                  href={getExplorerTxUrl(rawSig)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-blue-400 hover:text-blue-300 font-bold text-[11px] inline-flex items-center gap-1 hover:underline sentinel-interactive sentinel-focus rounded p-0.5"
+                >
+                  <span>Explorer ↗</span>
+                </a>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-bold text-amber-300 text-xs tabular-nums">
+                  Simulated
+                </span>
+                <span className="text-[10px] text-sentinel-textSubtle font-sans">Pre-flight Guard</span>
+              </div>
+            )}
+            <div className="text-[10px] text-sentinel-textMuted font-sans">
+              {rawSig ? `Solana ${APP_CONFIG.clusterLabel}` : 'Verified Prior to RPC Commit'}
             </div>
-            <div className="text-[10px] text-sentinel-textMuted font-sans">Solana {APP_CONFIG.clusterLabel}</div>
           </div>
+
 
           {/* 6. Integrity */}
           <div className="bg-sentinel-surfaceMuted p-3 rounded-lg border border-emerald-500/30 space-y-1">
@@ -223,26 +236,29 @@ export const SentinelReceiptCard: React.FC<SentinelReceiptCardProps> = ({
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-                  <span className="text-[10px] text-slate-400 block font-sans">Sentinel PDA</span>
-                  <div className="text-white font-mono text-[11px] truncate mt-0.5" title={pdaAddress}>
-                    {pdaAddress}
+                  <span className="text-[10px] text-slate-400 block font-sans">Sentinel PDA / Authority</span>
+                  <div className="text-white font-mono text-[11px] truncate mt-0.5" title={pdaAddress || 'Derived at Execution'}>
+                    {pdaAddress ? pdaAddress : 'Derived at Execution'}
                   </div>
                 </div>
                 <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
                   <span className="text-[10px] text-slate-400 block font-sans">Cluster &amp; Execution</span>
                   <div className="text-white font-mono text-[11px] mt-0.5">
-                    {slot ? `Solana Devnet • Slot #${slot}` : 'Simulation Target • [DEMO DATA]'}
+                    {slot ? `Solana Devnet • Slot #${slot}` : isDevnet ? 'Solana Devnet' : 'Deterministic Pre-flight Simulation'}
                   </div>
                 </div>
                 <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-                  <span className="text-[10px] text-slate-400 block font-sans">SWARM Consensus</span>
+                  <span className="text-[10px] text-slate-400 block font-sans">Verification Engine</span>
                   <div className={`font-mono text-[11px] mt-0.5 font-bold ${
                     isSettled ? 'text-emerald-400' : 'text-amber-400'
                   }`}>
-                    {swarmPassedCount}/{swarmTotalCount} Verifiers Consensus
+                    {swarmPassedCount !== undefined && swarmTotalCount !== undefined
+                      ? `${swarmPassedCount}/${swarmTotalCount} Verifiers Consensus`
+                      : 'On-Chain Invariant Policy Gate'}
                   </div>
                 </div>
               </div>
+
             </div>
 
             {/* 2. Full SHA-256 Commitments Table */}

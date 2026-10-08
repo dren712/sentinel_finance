@@ -125,8 +125,19 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
   let vaultPda: PublicKey;
 
   const nvdaMint = Keypair.generate().publicKey;
+  const nvdaVaultTa = Keypair.generate().publicKey;
+  const nvdaSafeDestTa = Keypair.generate().publicKey;
   const feedId = Array(32).fill(7);
   const wrongFeedId = Array(32).fill(9);
+
+  function getRecoveryCustodyAccounts() {
+    return [
+      { pubkey: nvdaVaultTa, isWritable: true, isSigner: false },
+      { pubkey: nvdaSafeDestTa, isWritable: true, isSigner: false },
+      { pubkey: nvdaMint, isWritable: false, isSigner: false },
+      { pubkey: TOKEN_PROGRAM_ID, isWritable: false, isSigner: false },
+    ];
+  }
 
   // Price account keys
   const compliantPricePubkey = Keypair.generate().publicKey;
@@ -184,6 +195,37 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
   }
 
   async function syncViolatingHoldings(units = 20, usdc = 800000) {
+    const vaultBefore = await fetchVault();
+    if (getStatusString(vaultBefore.status) !== 'Active') {
+      const releaseIx = await program.methods
+        .ownerRelease()
+        .accountsPartial({
+          vault: vaultPda,
+          owner: owner.publicKey,
+        })
+        .instruction();
+      await processTx(new Transaction().add(releaseIx), owner);
+    }
+
+    const vTa = await ctx.banksClient.getAccount(nvdaVaultTa);
+    if (vTa) {
+      await ctx.setAccount(nvdaVaultTa, {
+        lamports: vTa.lamports,
+        data: buildTokenAccountBuffer(nvdaMint, vaultPda, BigInt(units)),
+        owner: TOKEN_PROGRAM_ID,
+        executable: false,
+      });
+    }
+    const sTa = await ctx.banksClient.getAccount(nvdaSafeDestTa);
+    if (sTa) {
+      await ctx.setAccount(nvdaSafeDestTa, {
+        lamports: sTa.lamports,
+        data: buildTokenAccountBuffer(nvdaMint, owner.publicKey, 0n),
+        owner: TOKEN_PROGRAM_ID,
+        executable: false,
+      });
+    }
+
     const syncIx = await program.methods
       .syncVault(new BN(usdc), [
         {
@@ -265,7 +307,48 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
   before(async () => {
     const nowTime = Math.floor(Date.now() / 1000);
 
+    // Derive PDAs
+    [policyPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('policy'), owner.publicKey.toBuffer()],
+      PROGRAM_ID
+    );
+    [agentPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('agent'), owner.publicKey.toBuffer(), Buffer.from('robo-01')],
+      PROGRAM_ID
+    );
+    [vaultPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('vault'), owner.publicKey.toBuffer()],
+      PROGRAM_ID
+    );
+
     const initialAccounts = [
+      {
+        address: nvdaMint,
+        info: {
+          lamports: 1_000_000_000,
+          data: buildMintBuffer(6),
+          owner: TOKEN_PROGRAM_ID,
+          executable: false,
+        },
+      },
+      {
+        address: nvdaVaultTa,
+        info: {
+          lamports: 1_000_000_000,
+          data: buildTokenAccountBuffer(nvdaMint, vaultPda, 20n),
+          owner: TOKEN_PROGRAM_ID,
+          executable: false,
+        },
+      },
+      {
+        address: nvdaSafeDestTa,
+        info: {
+          lamports: 1_000_000_000,
+          data: buildTokenAccountBuffer(nvdaMint, owner.publicKey, 0n),
+          owner: TOKEN_PROGRAM_ID,
+          executable: false,
+        },
+      },
       {
         address: owner.publicKey,
         info: {
@@ -419,20 +502,6 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
     const provider = new AnchorProvider(dummyConn as any, dummyWallet as any, { commitment: 'confirmed' });
     program = new Program(idl, provider);
 
-    // Derive PDAs
-    [policyPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from('policy'), owner.publicKey.toBuffer()],
-      PROGRAM_ID
-    );
-    [agentPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from('agent'), owner.publicKey.toBuffer(), Buffer.from('robo-01')],
-      PROGRAM_ID
-    );
-    [vaultPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from('vault'), owner.publicKey.toBuffer()],
-      PROGRAM_ID
-    );
-
     // 1. Initialize Policy: maxSingleAsset=25%, minStablecoin=20%, confirm_slots=10, recovery_window=100
     const initPolicyIx = await program.methods
       .initializePolicy(
@@ -497,20 +566,20 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
     assert.strictEqual(nonce, 1);
 
     // Pyth price is $300.00 (30,000 cents). Holdings: 20 NVDAx. Pre total = 800,000 + 20*30,000 = 1,400,000 cents.
-    // Sell 10 units: gross = 300,000. Fee = 30 bps (900 cents). Net proceeds = 299,100 cents.
-    // Post units = 10. Post NVDA = 300,000 cents. Post USDC = 800,000 + 299,100 = 1,099,100 cents.
-    // Post total = 1,399,100 cents.
-    // Post exposure = 300,000 / 1,399,100 = 2,144 bps <= 2,500 bps (maxSingleAsset).
-    // Stablecoin ratio = 1,099,100 / 1,399,100 = 7,855 bps >= 2,000 bps (minStablecoin).
-    // Conservation bound = 1,400,000 * 9,900 / 10,000 = 1,386,000 cents <= 1,399,100 cents.
+    // Contain 12 units to safe destination:
+    // Post units = 8. Post NVDA = 240,000 cents. Post USDC = 800,000 cents.
+    // Post total = 1,040,000 cents.
+    // Post exposure = 240,000 / 1,040,000 = 2,307 bps <= 2,500 bps (maxSingleAsset).
+    // Stablecoin ratio = 800,000 / 1,040,000 = 7,692 bps >= 2,000 bps (minStablecoin).
     const recoverIx = await program.methods
-      .recover(new BN(10), new BN(nonce))
+      .recover(new BN(12), new BN(nonce))
       .accountsPartial({
         vault: vaultPda,
         policy: policyPda,
         priceUpdate: violatingPricePubkey,
         solver: solver.publicKey,
       })
+      .remainingAccounts(getRecoveryCustodyAccounts())
       .instruction();
 
     const logs = await processTx(new Transaction().add(recoverIx), solver);
@@ -524,32 +593,36 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
     assert.strictEqual(Number(vault.recoveryNonce), nonce + 1);
     assert.strictEqual(Number(vault.lastRecoverySlot), 32);
     assert.strictEqual(vault.lastRecoverySolver.toBase58(), solver.publicKey.toBase58());
-    assert.strictEqual(Number(vault.usdcBalanceCents), 1099100);
-    assert.strictEqual(Number(vault.positions[0].amountUnits), 10);
+    assert.strictEqual(Number(vault.usdcBalanceCents), 800000);
+    assert.strictEqual(Number(vault.positions[0].amountUnits), 8);
     assert.strictEqual(Number(vault.positions[0].priceCents), 30000);
-    assert.strictEqual(Number(vault.totalValueCents), 1399100);
+    assert.strictEqual(Number(vault.totalValueCents), 1040000);
+
+    // 2. Assert real custody token balances
+    const vaultTaAfter = await ctx.banksClient.getAccount(nvdaVaultTa);
+    const safeDestTaAfter = await ctx.banksClient.getAccount(nvdaSafeDestTa);
+    assert.strictEqual(Buffer.from(vaultTaAfter!.data).readBigUInt64LE(64), 8n);
+    assert.strictEqual(Buffer.from(safeDestTaAfter!.data).readBigUInt64LE(64), 12n);
 
     // Exposure and reserve assertions
-    const postExposureBps = (10 * 30000 * 10000) / 1399100;
+    const postExposureBps = (8 * 30000 * 10000) / 1040000;
     assert.ok(postExposureBps <= 2500, 'Exposure must be <= max single asset cap');
-    const stableRatioBps = (1099100 * 10000) / 1399100;
+    const stableRatioBps = (800000 * 10000) / 1040000;
     assert.ok(stableRatioBps >= 2000, 'Stablecoin ratio must be >= min stablecoin floor');
-    assert.ok(1399100 >= 1386000, 'Post total must satisfy conservation bound');
 
-    // 2. Assert event data
+    // 3. Assert event data
     const event = parseRecoveryEvent(logs);
     assert.ok(event, 'RecoveryExecutedEvent must be emitted');
     assert.strictEqual(event.vault.toBase58(), vaultPda.toBase58());
     assert.strictEqual(event.solver.toBase58(), solver.publicKey.toBase58());
-    assert.strictEqual(Number(event.sellUnits), 10);
-    assert.strictEqual(Number(event.proceedsCents), 299100);
+    assert.strictEqual(Number(event.sellUnits), 12);
+    assert.strictEqual(Number(event.proceedsCents), 0);
     assert.strictEqual(Number(event.preExposureBps), 4285);
-    assert.strictEqual(Number(event.postExposureBps), 2144);
+    assert.strictEqual(Number(event.postExposureBps), 2307);
     assert.strictEqual(Number(event.preTotalCents), 1400000);
-    assert.strictEqual(Number(event.postTotalCents), 1399100);
+    assert.strictEqual(Number(event.postTotalCents), 1040000);
     assert.strictEqual(Number(event.newNonce), nonce + 1);
     assert.strictEqual(Number(event.slot), 32);
-    assert.strictEqual(Number(event.bountyCapCents), 1495); // 299,100 * 50 / 10,000
   });
 
   it('2. recover while Active -> VaultNotQuarantined', async () => {
@@ -564,6 +637,7 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
         priceUpdate: violatingPricePubkey,
         solver: solver.publicKey,
       })
+      .remainingAccounts(getRecoveryCustodyAccounts())
       .instruction();
 
     try {
@@ -586,13 +660,14 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
     ctx.warpToSlot(BigInt(expiresSlot + 1));
 
     const recoverIx = await program.methods
-      .recover(new BN(10), new BN(qVault.recoveryNonce))
+      .recover(new BN(12), new BN(qVault.recoveryNonce))
       .accountsPartial({
         vault: vaultPda,
         policy: policyPda,
         priceUpdate: violatingPricePubkey,
         solver: solver.publicKey,
       })
+      .remainingAccounts(getRecoveryCustodyAccounts())
       .instruction();
 
     try {
@@ -610,13 +685,14 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
     const nonce = Number(qVault.recoveryNonce);
 
     const recoverIx = await program.methods
-      .recover(new BN(10), new BN(nonce + 999)) // Bad expected_nonce
+      .recover(new BN(12), new BN(nonce + 999)) // Bad expected_nonce
       .accountsPartial({
         vault: vaultPda,
         policy: policyPda,
         priceUpdate: violatingPricePubkey,
         solver: solver.publicKey,
       })
+      .remainingAccounts(getRecoveryCustodyAccounts())
       .instruction();
 
     try {
@@ -649,13 +725,14 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
 
     // In-flight recovery submitted with stale nonce from before owner_release
     const recoverIx = await program.methods
-      .recover(new BN(10), new BN(staleNonce))
+      .recover(new BN(12), new BN(staleNonce))
       .accountsPartial({
         vault: vaultPda,
         policy: policyPda,
         priceUpdate: violatingPricePubkey,
         solver: solver.publicKey,
       })
+      .remainingAccounts(getRecoveryCustodyAccounts())
       .instruction();
 
     try {
@@ -673,13 +750,14 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
     const nonce = Number(qVault.recoveryNonce);
 
     const recoverIx = await program.methods
-      .recover(new BN(10), new BN(nonce))
+      .recover(new BN(12), new BN(nonce))
       .accountsPartial({
         vault: vaultPda,
         policy: policyPda,
         priceUpdate: violatingPricePubkey,
         solver: solver.publicKey,
       })
+      .remainingAccounts(getRecoveryCustodyAccounts())
       .instruction();
 
     // 1st execution succeeds
@@ -717,6 +795,7 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
         priceUpdate: violatingPricePubkey,
         solver: solver.publicKey,
       })
+      .remainingAccounts(getRecoveryCustodyAccounts())
       .instruction();
 
     try {
@@ -741,6 +820,7 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
         priceUpdate: violatingPricePubkey,
         solver: solver.publicKey,
       })
+      .remainingAccounts(getRecoveryCustodyAccounts())
       .instruction();
 
     try {
@@ -765,6 +845,7 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
         priceUpdate: violatingPricePubkey,
         solver: solver.publicKey,
       })
+      .remainingAccounts(getRecoveryCustodyAccounts())
       .instruction();
 
     try {
@@ -783,6 +864,7 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
         priceUpdate: violatingPricePubkey,
         solver: solver.publicKey,
       })
+      .remainingAccounts(getRecoveryCustodyAccounts())
       .instruction();
 
     try {
@@ -798,13 +880,14 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
     const nonce = Number(qVault.recoveryNonce);
 
     const recoverIx = await program.methods
-      .recover(new BN(10), new BN(nonce))
+      .recover(new BN(12), new BN(nonce))
       .accountsPartial({
         vault: vaultPda,
         policy: policyPda,
         priceUpdate: forgedPricePubkey,
         solver: solver.publicKey,
       })
+      .remainingAccounts(getRecoveryCustodyAccounts())
       .instruction();
 
     try {
@@ -820,13 +903,14 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
     const nonce = Number(qVault.recoveryNonce);
 
     const recoverIx = await program.methods
-      .recover(new BN(10), new BN(nonce))
+      .recover(new BN(12), new BN(nonce))
       .accountsPartial({
         vault: vaultPda,
         policy: policyPda,
         priceUpdate: wrongFeedPricePubkey,
         solver: solver.publicKey,
       })
+      .remainingAccounts(getRecoveryCustodyAccounts())
       .instruction();
 
     try {
@@ -842,13 +926,14 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
     const nonce = Number(qVault.recoveryNonce);
 
     const recoverIx = await program.methods
-      .recover(new BN(10), new BN(nonce))
+      .recover(new BN(12), new BN(nonce))
       .accountsPartial({
         vault: vaultPda,
         policy: policyPda,
         priceUpdate: stalePricePubkey,
         solver: solver.publicKey,
       })
+      .remainingAccounts(getRecoveryCustodyAccounts())
       .instruction();
 
     try {
@@ -859,45 +944,13 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
     }
   });
 
-  it('13. value conservation: policy with max_recovery_cost_bps below the venue fee -> ValueConservationBreached', async () => {
-    // Release vault so we can update policy and re-quarantine with the updated policy version
-    const releaseIx = await program.methods
-      .ownerRelease()
-      .accountsPartial({
-        vault: vaultPda,
-        owner: owner.publicKey,
-      })
-      .instruction();
-    await processTx(new Transaction().add(releaseIx), owner);
-
-    // Update policy max_recovery_cost_bps = 5 bps (0.05% < venue fee 30 bps = 0.30%)
-    const updatePolicyIx = await program.methods
-      .updatePolicy(
-        2500,
-        2000,
-        new BN(10000),
-        100,
-        new BN(10), // confirm_slots
-        new BN(100), // recovery_window_slots
-        5, // max_recovery_cost_bps = 5 bps
-        50, // max_bounty_bps
-        owner.publicKey,
-        true // is_active
-      )
-      .accountsPartial({
-        policy: policyPda,
-        owner: owner.publicKey,
-      })
-      .instruction();
-    await processTx(new Transaction().add(updatePolicyIx), owner);
-
-    // Re-quarantine vault under the new policy version
+  it('13. missing custody accounts -> MissingCustodyAccounts (6045)', async () => {
     await syncViolatingHoldings(20, 800000);
     const qVault = await quarantineVault(270n);
     const nonce = Number(qVault.recoveryNonce);
 
     const recoverIx = await program.methods
-      .recover(new BN(10), new BN(nonce))
+      .recover(new BN(12), new BN(nonce))
       .accountsPartial({
         vault: vaultPda,
         policy: policyPda,
@@ -908,12 +961,11 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
 
     try {
       await processTx(new Transaction().add(recoverIx), solver);
-      assert.fail('Expected recovery cost breach to fail with ValueConservationBreached');
+      assert.fail('Expected recovery without custody accounts to fail with MissingCustodyAccounts');
     } catch (err: any) {
-      assertCustomError(err, 'ValueConservationBreached', 6032);
+      assertCustomError(err, 'MissingCustodyAccounts', 6045);
     }
 
-    // Release vault and restore policy max_recovery_cost_bps back to 100 bps
     const releaseAfterIx = await program.methods
       .ownerRelease()
       .accountsPartial({
@@ -922,26 +974,6 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
       })
       .instruction();
     await processTx(new Transaction().add(releaseAfterIx), owner);
-
-    const restorePolicyIx = await program.methods
-      .updatePolicy(
-        2500,
-        2000,
-        new BN(10000),
-        100,
-        new BN(10), // confirm_slots
-        new BN(100), // recovery_window_slots
-        100, // restore 100 bps
-        50, // max_bounty_bps
-        owner.publicKey,
-        true // is_active
-      )
-      .accountsPartial({
-        policy: policyPda,
-        owner: owner.publicKey,
-      })
-      .instruction();
-    await processTx(new Transaction().add(restorePolicyIx), owner);
   });
 
   it('14. two solvers race: first succeeds, second fails', async () => {
@@ -952,25 +984,27 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
 
     const txA = new Transaction().add(
       await program.methods
-        .recover(new BN(10), new BN(nonce))
+        .recover(new BN(12), new BN(nonce))
         .accountsPartial({
           vault: vaultPda,
           policy: policyPda,
           priceUpdate: violatingPricePubkey,
           solver: solver.publicKey,
         })
+        .remainingAccounts(getRecoveryCustodyAccounts())
         .instruction()
     );
 
     const txB = new Transaction().add(
       await program.methods
-        .recover(new BN(10), new BN(nonce))
+        .recover(new BN(12), new BN(nonce))
         .accountsPartial({
           vault: vaultPda,
           policy: policyPda,
           priceUpdate: violatingPricePubkey,
           solver: solverB.publicKey,
         })
+        .remainingAccounts(getRecoveryCustodyAccounts())
         .instruction()
     );
 
@@ -994,13 +1028,14 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
     const nonce = Number(qVault.recoveryNonce);
 
     const recoverIx = await program.methods
-      .recover(new BN(10), new BN(nonce))
+      .recover(new BN(12), new BN(nonce))
       .accountsPartial({
         vault: vaultPda,
         policy: policyPda,
         priceUpdate: violatingPricePubkey,
         solver: randomSolver.publicKey,
       })
+      .remainingAccounts(getRecoveryCustodyAccounts())
       .instruction();
 
     await processTx(new Transaction().add(recoverIx), randomSolver);
@@ -1022,13 +1057,14 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
     const ownerBefore = qVault.owner.toBase58();
 
     const recoverIx = await program.methods
-      .recover(new BN(10), new BN(nonce))
+      .recover(new BN(12), new BN(nonce))
       .accountsPartial({
         vault: vaultPda,
         policy: policyPda,
         priceUpdate: violatingPricePubkey,
         solver: solver.publicKey,
       })
+      .remainingAccounts(getRecoveryCustodyAccounts())
       .instruction();
 
     await processTx(new Transaction().add(recoverIx), solver);
@@ -1125,15 +1161,16 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
       assertCustomError(err, 'VaultNotActive', 6025);
     }
 
-    // 5. Solver recovers vault (reduce-only sell 10 units) -> restores to Active
+    // 5. Solver recovers vault (reduce-only sell 12 units) -> restores to Active
     const recoverIx = await program.methods
-      .recover(new BN(10), new BN(vault.recoveryNonce))
+      .recover(new BN(12), new BN(vault.recoveryNonce))
       .accountsPartial({
         vault: vaultPda,
         policy: policyPda,
         priceUpdate: violatingPricePubkey,
         solver: solver.publicKey,
       })
+      .remainingAccounts(getRecoveryCustodyAccounts())
       .instruction();
     await processTx(new Transaction().add(recoverIx), solver);
 
@@ -1151,7 +1188,7 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
         activePromiseId,
         Array(32).fill(1),
         nvdaMint,
-        0, // BUY
+        1, // SELL
         new BN(300) // $300 NVDA trade (1 unit at current stored price $300)
       )
       .accountsPartial({
@@ -1185,11 +1222,11 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
 
     const vaultFinal = await fetchVault();
     assert.strictEqual(getStatusString(vaultFinal.status), 'Active');
-    // Bought 1 NVDA unit at $300 ($300) with USDC:
-    // NVDA units: 10 + 1 = 11 units
-    // USDC: 1,099,100 - 30,000 = 1,069,100 cents
-    assert.strictEqual(Number(vaultFinal.positions[0].amountUnits), 11);
-    assert.strictEqual(Number(vaultFinal.usdcBalanceCents), 1069100);
+    // Sold 1 NVDA unit at $300 ($300) for USDC:
+    // NVDA units: 8 - 1 = 7 units
+    // USDC: 800,000 + 30,000 = 830,000 cents
+    assert.strictEqual(Number(vaultFinal.positions[0].amountUnits), 7);
+    assert.strictEqual(Number(vaultFinal.usdcBalanceCents), 830000);
   });
 
   it('18. policy mutation during quarantine: recovery fails with PolicyFrozenDuringRecovery (6036)', async () => {
@@ -1221,13 +1258,14 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
 
     // 3. Solver attempts recover() -> must fail with PolicyFrozenDuringRecovery (6036)
     const recoverIx = await program.methods
-      .recover(new BN(5), new BN(nonce))
+      .recover(new BN(12), new BN(nonce))
       .accountsPartial({
         vault: vaultPda,
         policy: policyPda,
         priceUpdate: violatingPricePubkey,
         solver: solver.publicKey,
       })
+      .remainingAccounts(getRecoveryCustodyAccounts())
       .instruction();
 
     await assert.rejects(
@@ -1278,13 +1316,14 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
 
     // 3. Solver attempts recover() -> PolicyInactive (6004)
     const recoverIx = await program.methods
-      .recover(new BN(5), new BN(nonce))
+      .recover(new BN(12), new BN(nonce))
       .accountsPartial({
         vault: vaultPda,
         policy: policyPda,
         priceUpdate: violatingPricePubkey,
         solver: solver.publicKey,
       })
+      .remainingAccounts(getRecoveryCustodyAccounts())
       .instruction();
 
     await assert.rejects(

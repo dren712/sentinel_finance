@@ -12,7 +12,13 @@ import {
   Connection,
 } from '@solana/web3.js';
 import { BN, Program, AnchorProvider } from '@coral-xyz/anchor';
-import { SENTINEL_IDL, SENTINEL_ERROR_BY_CODE, getSentinelError, requiredRecoveryUnits } from '@sentinel/sdk';
+import {
+  SENTINEL_IDL,
+  SENTINEL_ERROR_BY_CODE,
+  getSentinelError,
+  requiredRecoveryUnits,
+  resolveRecoveryCustodyAccounts,
+} from '@sentinel/sdk';
 import {
   ShieldAlert,
   ShieldCheck,
@@ -23,6 +29,8 @@ import {
   ArrowLeft,
   CheckCircle2,
   Info,
+  Check,
+  Zap,
 } from 'lucide-react';
 
 const WalletMultiButtonDynamic = dynamicImport(
@@ -66,7 +74,19 @@ interface PolicyData {
   recoveryWindowSlots: number;
   maxRecoveryCostBps: number;
   maxBountyBps: number;
+  safeDestination: string;
 }
+
+export type RecoveryStep =
+  | 'IDLE'
+  | 'SIMULATING'
+  | 'READY'
+  | 'SOLVING'
+  | 'CONFIRMING'
+  | 'RECOVERED'
+  | 'EXPIRED'
+  | 'ERROR';
+
 
 interface TimelineItem {
   signature: string;
@@ -165,8 +185,11 @@ export default function QuarantinePage() {
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRecovering, setIsRecovering] = useState<boolean>(false);
+  const [recoveryStep, setRecoveryStep] = useState<RecoveryStep>('IDLE');
+  const [containmentPlan, setContainmentPlan] = useState<any | null>(null);
   const [errorMessage, setErrorMessage] = useState<{ name: string; code?: number; message: string } | null>(null);
   const [successTx, setSuccessTx] = useState<string | null>(null);
+
 
   // Derive PDAs
   const { vaultPda, policyPda } = useMemo(() => {
@@ -258,7 +281,9 @@ export default function QuarantinePage() {
         recoveryWindowSlots: policyAcc.recoveryWindowSlots.toNumber(),
         maxRecoveryCostBps: policyAcc.maxRecoveryCostBps,
         maxBountyBps: policyAcc.maxBountyBps,
+        safeDestination: policyAcc.safeDestination ? policyAcc.safeDestination.toBase58() : '',
       });
+
 
       // 3. Fetch Transaction History / Timeline for Vault
       const signatures = await devnetConn.getSignaturesForAddress(vaultPda, { limit: 10 });
@@ -339,29 +364,29 @@ export default function QuarantinePage() {
     return () => clearInterval(interval);
   }, [refreshData]);
 
-  // Execute Recover
-  const handleRecover = async () => {
-    if (!wallet.connected || !wallet.publicKey) {
-      alert('Please connect your Solana wallet to execute recovery.');
-      return;
+  // Sync recovery step state with vault lifecycle
+  useEffect(() => {
+    if (vault?.status === 'recoveryExpired') {
+      setRecoveryStep('EXPIRED');
+    } else if (vault?.status === 'active' && successTx) {
+      setRecoveryStep('RECOVERED');
+    } else if (vault?.status === 'active' && recoveryStep !== 'RECOVERED') {
+      setRecoveryStep('IDLE');
+    } else if (vault?.status === 'quarantined' && recoveryStep === 'IDLE' && !containmentPlan) {
+      // Prompt user or keep IDLE until simulation
     }
-    if (!vaultPda || !policyPda || !vault) {
-      return;
-    }
+  }, [vault?.status, successTx, recoveryStep, containmentPlan]);
 
-    setIsRecovering(true);
+  // 1. Simulate Containment Plan (Calculates minimal required containment units)
+  const handleSimulatePlan = async () => {
+    if (!vault || !policy) return;
+    setRecoveryStep('SIMULATING');
     setErrorMessage(null);
-    setSuccessTx(null);
 
     try {
-      const devnetConn = new Connection('https://api.devnet.solana.com', 'confirmed');
-      const provider = new AnchorProvider(devnetConn, wallet as any, { commitment: 'confirmed' });
-      const program = new Program(SENTINEL_IDL as any, provider);
-
-      // Determine optimal sell units using pure solver recovery engine:
       const pos = vault.positions[0];
       if (!pos || pos.amountUnits <= 0) {
-        throw new Error('No volatile asset position found in vault ledger to recover.');
+        throw new Error('No volatile asset position found in vault ledger to contain.');
       }
 
       const priceCents = pos.priceCents > 0 ? pos.priceCents : 10000;
@@ -371,28 +396,108 @@ export default function QuarantinePage() {
           positions: vault.positions,
         },
         {
-          maxSingleAssetBps: policy?.maxSingleAssetBps ?? 2500,
-          minStablecoinBps: policy?.minStablecoinBps ?? 2000,
-          maxRecoveryCostBps: policy?.maxRecoveryCostBps ?? 100,
+          maxSingleAssetBps: policy.maxSingleAssetBps ?? 2500,
+          minStablecoinBps: policy.minStablecoinBps ?? 2000,
+          maxRecoveryCostBps: policy.maxRecoveryCostBps ?? 100,
         },
         priceCents,
-        { mode: 'simulated' }
+        { mode: 'custody' }
       );
 
-      let sellUnits = Number(plan.sellUnits);
-      if (sellUnits <= 0) sellUnits = 1;
-      if (sellUnits > pos.amountUnits) sellUnits = pos.amountUnits;
+      let containmentUnits = Number(plan.sellUnits);
+      if (containmentUnits <= 0) containmentUnits = 1;
+      if (containmentUnits > pos.amountUnits) containmentUnits = pos.amountUnits;
+
+      setContainmentPlan({
+        ...plan,
+        containmentUnits,
+        pos,
+        priceCents,
+      });
+      setRecoveryStep('READY');
+    } catch (err: any) {
+      console.error('Simulation error:', err);
+      const parsed = parseProgramError(err);
+      setErrorMessage(parsed);
+      setRecoveryStep('ERROR');
+    }
+  };
+
+  // 2. Execute Real On-Chain Containment Recovery
+  const handleExecuteRecovery = async () => {
+    if (!wallet.connected || !wallet.publicKey) {
+      alert('Please connect your Solana wallet to execute recovery.');
+      return;
+    }
+    if (!vaultPda || !policyPda || !vault || !policy) {
+      return;
+    }
+
+    setIsRecovering(true);
+    setRecoveryStep('SOLVING');
+    setErrorMessage(null);
+    setSuccessTx(null);
+
+    try {
+      const devnetConn = new Connection('https://api.devnet.solana.com', 'confirmed');
+      const provider = new AnchorProvider(devnetConn, wallet as any, { commitment: 'confirmed' });
+      const program = new Program(SENTINEL_IDL as any, provider);
+
+      const pos = vault.positions[0];
+      if (!pos || pos.amountUnits <= 0) {
+        throw new Error('No volatile asset position found in vault to contain.');
+      }
+
+      const priceCents = pos.priceCents > 0 ? pos.priceCents : 10000;
+      const plan = containmentPlan || requiredRecoveryUnits(
+        {
+          usdcBalanceCents: vault.usdcBalanceCents,
+          positions: vault.positions,
+        },
+        {
+          maxSingleAssetBps: policy.maxSingleAssetBps ?? 2500,
+          minStablecoinBps: policy.minStablecoinBps ?? 2000,
+          maxRecoveryCostBps: policy.maxRecoveryCostBps ?? 100,
+        },
+        priceCents,
+        { mode: 'custody' }
+      );
+
+      let containmentUnits = Number(plan.sellUnits || plan.containmentUnits);
+      if (containmentUnits <= 0) containmentUnits = 1;
+      if (containmentUnits > pos.amountUnits) containmentUnits = pos.amountUnits;
 
       const expectedNonce = new BN(vault.recoveryNonce);
 
+      // Resolve 4 canonical SPL custody accounts
+      let mintPk: PublicKey;
+      try {
+        mintPk = pos.mint && pos.mint !== PublicKey.default.toBase58()
+          ? new PublicKey(pos.mint)
+          : new PublicKey('nvda111111111111111111111111111111111111111');
+      } catch {
+        mintPk = new PublicKey('nvda111111111111111111111111111111111111111');
+      }
+
+      const safeDestPk = policy.safeDestination && policy.safeDestination !== PublicKey.default.toBase58()
+        ? new PublicKey(policy.safeDestination)
+        : new PublicKey(vault.owner);
+
+      const custodyRemaining = resolveRecoveryCustodyAccounts(
+        vaultPda,
+        safeDestPk,
+        mintPk
+      );
+
       const tx = await (program.methods as any)
-        .recover(new BN(sellUnits), expectedNonce)
+        .recover(new BN(containmentUnits), expectedNonce)
         .accountsPartial({
           vault: vaultPda,
           policy: policyPda,
           priceUpdate: PYTH_PRICE_UPDATE_DEVNET,
           solver: wallet.publicKey,
         })
+        .remainingAccounts(custodyRemaining)
         .transaction();
 
       const { blockhash } = await devnetConn.getLatestBlockhash('confirmed');
@@ -400,19 +505,24 @@ export default function QuarantinePage() {
       tx.feePayer = wallet.publicKey;
 
       const signedTx = await wallet.signTransaction!(tx);
+      setRecoveryStep('CONFIRMING');
+
       const sig = await devnetConn.sendRawTransaction(signedTx.serialize());
       await devnetConn.confirmTransaction(sig, 'confirmed');
 
       setSuccessTx(sig);
+      setRecoveryStep('RECOVERED');
       await refreshData();
     } catch (err: any) {
       console.error('Recover execution error:', err);
       const parsed = parseProgramError(err);
       setErrorMessage(parsed);
+      setRecoveryStep('ERROR');
     } finally {
       setIsRecovering(false);
     }
   };
+
 
   // Compute metrics
   const volatilePos = vault?.positions[0];
@@ -463,20 +573,20 @@ export default function QuarantinePage() {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 pt-6 space-y-6">
-        {/* Honest Trust Boundary / Settlement Disclaimer */}
-        <div className="p-3.5 rounded-lg border border-amber-500/30 bg-amber-500/5 flex items-start gap-3">
-          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-          <div className="text-xs text-amber-200/90 space-y-1">
-            <div className="font-semibold text-amber-300">
-              Ledger-based vault. Simulated settlement.
+        {/* Authoritative SPL Token Custody & On-Chain Containment Disclaimer */}
+        <div className="p-3.5 rounded-lg border border-blue-500/30 bg-blue-500/5 flex items-start gap-3">
+          <ShieldCheck className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+          <div className="text-xs text-blue-200/90 space-y-1">
+            <div className="font-semibold text-blue-300">
+              Authoritative SPL Token Custody &amp; On-Chain Containment Recovery
             </div>
-            <p className="text-[11px] leading-relaxed text-amber-200/70">
-              Vault asset balances are owner-synced ledger values recorded via <code className="text-amber-300 bg-amber-500/10 px-1 py-0.2 rounded font-mono">sync_vault</code>, not live SPL token accounts.
-              Prices are authoritatively parsed and verified from live Pyth Network price accounts on Solana Devnet.
-              Solver recovery settlement is simulated at the verified Pyth oracle price minus a 30 bps venue fee. Bounty awards are simulated and not disbursed on-chain.
+            <p className="text-[11px] leading-relaxed text-blue-200/70">
+              Vault positions are backed by on-chain SPL Token custody accounts. Prices are authoritatively parsed and verified from live Pyth Network <code className="text-blue-300 bg-blue-500/10 px-1 py-0.2 rounded font-mono">PriceUpdateV2</code> accounts on Solana Devnet.
+              When quarantined, permissionless solver recovery executes program-signed CPI <code className="text-blue-300 bg-blue-500/10 px-1 py-0.2 rounded font-mono">transfer_checked_signed</code> to transfer excess volatile tokens directly to the policy safe destination, strictly restoring portfolio exposure within invariant limits.
             </p>
           </div>
         </div>
+
 
         {/* Vault Target Controller */}
         <div className="p-4 rounded-xl border border-[#1E2638] bg-[#111622] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -597,15 +707,23 @@ export default function QuarantinePage() {
 
           {/* 3. Recovery Window Slots Remaining Card */}
           <div className="p-5 rounded-xl border border-[#1E2638] bg-[#111622] space-y-3">
-            <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400">
-              Recovery Window Slots Remaining
-            </span>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400">
+                Recovery Window
+              </span>
+              <Clock className="w-3.5 h-3.5 text-slate-500" />
+            </div>
             <div className="flex items-baseline justify-between">
               <div className="text-2xl font-bold font-mono tracking-tight text-white">
                 {vault?.status === 'quarantined' ? (
-                  <span>{slotsRemaining} <span className="text-xs text-slate-400 font-normal">slots</span></span>
+                  <span>
+                    {slotsRemaining}{' '}
+                    <span className="text-xs text-slate-400 font-normal">
+                      slots (~{Math.floor(slotsRemaining * 0.4)}s)
+                    </span>
+                  </span>
                 ) : vault?.status === 'recoveryExpired' ? (
-                  <span className="text-amber-400">0</span>
+                  <span className="text-amber-400">EXPIRED</span>
                 ) : (
                   <span className="text-slate-500 text-lg">Window Inactive</span>
                 )}
@@ -614,32 +732,104 @@ export default function QuarantinePage() {
                 Current Slot: <span className="text-slate-200">{currentSlot}</span>
               </div>
             </div>
+            {/* Visual window countdown progress bar */}
+            {vault?.status === 'quarantined' && (
+              <div className="space-y-1">
+                <div className="w-full bg-[#1A2234] rounded-full h-1.5 overflow-hidden">
+                  <div
+                    className={`h-full transition-all duration-300 ${
+                      slotsRemaining < 20 ? 'bg-rose-500 animate-pulse' : 'bg-blue-500'
+                    }`}
+                    style={{
+                      width: `${Math.min(
+                        100,
+                        Math.max(
+                          5,
+                          (slotsRemaining / (policy?.recoveryWindowSlots || 100)) * 100
+                        )
+                      )}%`,
+                    }}
+                  />
+                </div>
+                <div className="flex justify-between text-[10px] font-mono text-slate-500">
+                  <span>Start: {vault?.quarantineSlot || 'N/A'}</span>
+                  <span>Closes: {vault?.recoveryExpiresSlot || 'N/A'}</span>
+                </div>
+              </div>
+            )}
             <div className="text-[11px] text-slate-400 space-y-1">
               <div className="flex justify-between font-mono">
-                <span>Quarantine Slot:</span>
-                <span className="text-slate-300">{vault?.quarantineSlot || 'N/A'}</span>
-              </div>
-              <div className="flex justify-between font-mono">
-                <span>Expires Slot:</span>
-                <span className="text-slate-300">{vault?.recoveryExpiresSlot || 'N/A'}</span>
+                <span>Total Window:</span>
+                <span className="text-slate-300">{policy?.recoveryWindowSlots ?? 100} slots</span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Recovery Action Card */}
+        {/* Recovery Action Card (8-State Interactive Coverage) */}
         <div className="p-6 rounded-xl border border-[#1E2638] bg-[#111622] space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#1E2638] pb-3">
             <div>
-              <h2 className="text-sm font-semibold text-white">Permissionless Solver Recovery</h2>
-              <p className="text-xs text-slate-400">
-                Reduce-only rebalancing: Sells volatile position into USDC to satisfy policy exposure cap and oversell guard.
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-semibold text-white">Permissionless Solver Containment</h2>
+                {/* 8-State Status Indicator */}
+                <span
+                  className={`text-[10px] font-mono px-2 py-0.5 rounded border uppercase font-bold ${
+                    recoveryStep === 'RECOVERED'
+                      ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                      : recoveryStep === 'ERROR'
+                      ? 'bg-rose-500/15 text-rose-400 border-rose-500/30'
+                      : recoveryStep === 'SOLVING' || recoveryStep === 'CONFIRMING'
+                      ? 'bg-purple-500/15 text-purple-400 border-purple-500/30'
+                      : recoveryStep === 'READY'
+                      ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+                      : recoveryStep === 'SIMULATING'
+                      ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                      : recoveryStep === 'EXPIRED'
+                      ? 'bg-slate-700/30 text-slate-400 border-slate-600/30'
+                      : 'bg-slate-800/40 text-slate-400 border-slate-700/40'
+                  }`}
+                >
+                  STATE: {recoveryStep}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Bounded Containment: Transfers excess volatile tokens to policy safe destination via program-signed CPI, strictly satisfying exposure caps and value conservation.
               </p>
             </div>
             <div className="text-xs font-mono text-slate-400">
               Recovery Nonce: <span className="text-white font-semibold">{vault?.recoveryNonce ?? 0}</span>
             </div>
           </div>
+
+          {/* Containment Plan Preview Banner */}
+          {containmentPlan && (
+            <div className="p-3.5 rounded-lg border border-blue-500/30 bg-blue-500/5 space-y-2 text-xs font-mono">
+              <div className="flex items-center justify-between text-blue-300 font-bold uppercase text-[11px]">
+                <div className="flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-blue-400" />
+                  <span>Calculated Containment Parameters</span>
+                </div>
+                <span className="text-[10px] text-blue-400 font-normal">mode: custody</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1 text-[11px]">
+                <div className="bg-[#090B10] p-2 rounded border border-[#1E2638]">
+                  <span className="text-slate-400 block text-[10px]">Containment Units:</span>
+                  <span className="text-white font-bold">{containmentPlan.containmentUnits} {volatilePos?.symbol || 'UNITS'}</span>
+                </div>
+                <div className="bg-[#090B10] p-2 rounded border border-[#1E2638]">
+                  <span className="text-slate-400 block text-[10px]">Post Exposure:</span>
+                  <span className="text-emerald-400 font-bold">{(containmentPlan.postExposureBps / 100).toFixed(2)}% (Cap: {((policy?.maxSingleAssetBps || 2500) / 100).toFixed(2)}%)</span>
+                </div>
+                <div className="bg-[#090B10] p-2 rounded border border-[#1E2638]">
+                  <span className="text-slate-400 block text-[10px]">Safe Destination:</span>
+                  <span className="text-slate-200 truncate block" title={policy?.safeDestination || vault?.owner}>
+                    {policy?.safeDestination ? `${policy.safeDestination.slice(0, 6)}...${policy.safeDestination.slice(-4)}` : 'Vault Owner'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Error Banner */}
           {errorMessage && (
@@ -659,7 +849,7 @@ export default function QuarantinePage() {
             <div className="p-3.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 space-y-1">
               <div className="flex items-center gap-2 text-emerald-300 font-semibold text-xs">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>Recovery Executed Successfully — Vault is Active Again!</span>
+                <span>Containment Executed Successfully — Vault is Active Again!</span>
               </div>
               <div className="text-[11px] text-emerald-200/80 pl-6 flex items-center gap-1 font-mono">
                 <span>Tx Signature:</span>
@@ -696,31 +886,81 @@ export default function QuarantinePage() {
               </div>
             </div>
 
-            <button
-              onClick={handleRecover}
-              disabled={isRecovering || vault?.status !== 'quarantined'}
-              className={`w-full sm:w-auto px-6 py-2.5 rounded-lg text-xs font-semibold tracking-wide transition flex items-center justify-center gap-2 ${
-                vault?.status === 'quarantined'
-                  ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/20'
-                  : 'bg-[#1A2234] text-slate-500 cursor-not-allowed border border-[#1E2638]'
-              }`}
-            >
-              {isRecovering ? (
-                <>
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  <span>Broadcasting Recover Transaction...</span>
-                </>
-              ) : vault?.status === 'quarantined' ? (
-                <>
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Execute Reduce-Only Recovery</span>
-                </>
-              ) : (
-                <span>Vault Not Quarantined</span>
+            {/* 8-State Interactive Buttons */}
+            <div className="flex items-center gap-2.5 w-full sm:w-auto">
+              {vault?.status === 'quarantined' && recoveryStep !== 'READY' && recoveryStep !== 'SOLVING' && recoveryStep !== 'CONFIRMING' && (
+                <button
+                  type="button"
+                  onClick={handleSimulatePlan}
+                  disabled={recoveryStep === 'SIMULATING'}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-lg text-xs font-semibold border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 transition flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {recoveryStep === 'SIMULATING' ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Simulating Plan...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-3.5 h-3.5 text-blue-400" />
+                      <span>1. Simulate Containment</span>
+                    </>
+                  )}
+                </button>
               )}
-            </button>
+
+              <button
+                type="button"
+                onClick={handleExecuteRecovery}
+                disabled={
+                  isRecovering ||
+                  vault?.status !== 'quarantined' ||
+                  recoveryStep === 'SOLVING' ||
+                  recoveryStep === 'CONFIRMING'
+                }
+                className={`w-full sm:w-auto px-6 py-2.5 rounded-lg text-xs font-semibold tracking-wide transition flex items-center justify-center gap-2 cursor-pointer ${
+                  vault?.status === 'quarantined'
+                    ? recoveryStep === 'READY'
+                      ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/25 ring-2 ring-blue-400/30'
+                      : 'bg-blue-600/80 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/20'
+                    : 'bg-[#1A2234] text-slate-500 cursor-not-allowed border border-[#1E2638]'
+                }`}
+              >
+                {recoveryStep === 'SOLVING' ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Awaiting Wallet Signature...</span>
+                  </>
+                ) : recoveryStep === 'CONFIRMING' ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Confirming On Solana Cluster...</span>
+                  </>
+                ) : recoveryStep === 'RECOVERED' ? (
+                  <>
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Vault Recovered (Active)</span>
+                  </>
+                ) : recoveryStep === 'EXPIRED' ? (
+                  <span>Recovery Window Expired</span>
+                ) : recoveryStep === 'READY' ? (
+                  <>
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>2. Confirm &amp; Execute Containment</span>
+                  </>
+                ) : vault?.status === 'quarantined' ? (
+                  <>
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Execute Containment Recovery</span>
+                  </>
+                ) : (
+                  <span>Vault Not Quarantined</span>
+                )}
+              </button>
+            </div>
           </div>
         </div>
+
 
         {/* Program Event & Transaction Timeline */}
         <div className="p-6 rounded-xl border border-[#1E2638] bg-[#111622] space-y-4">

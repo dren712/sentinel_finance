@@ -3,6 +3,7 @@ import { Program, AnchorProvider, BN } from '@coral-xyz/anchor';
 import { SENTINEL_IDL } from '../idl/sentinel-idl';
 import type { Sentinel } from '../idl/sentinel';
 import { WalletSigner } from '../types';
+import { parsePythPriceUpdateAccount } from '../custody';
 
 export interface WatcherConfig {
   connection: Connection;
@@ -85,10 +86,23 @@ export class SentinelWatcherService {
 
       const pos = nonIndex[0];
       const amountUnits = BigInt(pos.amountUnits);
-      const storedPriceCents = BigInt(pos.priceCents);
-      const usdcCents = BigInt(vault.usdcBalanceCents);
+      let effectivePriceCents = BigInt(pos.priceCents);
 
-      const targetCents = amountUnits * storedPriceCents;
+      // Read fresh Pyth oracle price
+      try {
+        const priceAccInfo = await this.connection.getAccountInfo(this.priceUpdatePubkey, 'confirmed');
+        if (priceAccInfo && priceAccInfo.data) {
+          const parsed = parsePythPriceUpdateAccount(priceAccInfo.data);
+          if (parsed.priceCents > 0) {
+            effectivePriceCents = BigInt(parsed.priceCents);
+          }
+        }
+      } catch {
+        // Fallback to stored price if RPC error
+      }
+
+      const usdcCents = BigInt(vault.usdcBalanceCents);
+      const targetCents = amountUnits * effectivePriceCents;
       const totalCents = usdcCents + targetCents;
       if (totalCents <= BigInt(0)) continue;
 

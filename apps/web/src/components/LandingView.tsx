@@ -133,14 +133,15 @@ export const LandingView: React.FC<LandingViewProps> = ({
           </div>
 
           <h1 className="text-3xl sm:text-5xl font-bold tracking-tight text-white leading-[1.1]">
-            Autonomous investing.
+            AUTONOMOUS CAPITAL.
             <br />
-            <span className="text-sentinel-textMuted">Rigid guarantees.</span>
+            <span className="text-sentinel-textMuted">RECOVERABLE BY DESIGN.</span>
           </h1>
 
           <p className="text-base text-sentinel-textMuted leading-relaxed max-w-md">
-            AI can choose the trade. It cannot choose what your portfolio is allowed to become. Every proposal is checked against your position limits and cash reserve floor before execution.
+            AI can propose any allocation. Sentinel enforces on-chain invariants before state commit and halts invariant violations into bounded, permissionless recovery.
           </p>
+
 
           <div className="flex flex-wrap items-center gap-3 pt-1">
             <button
@@ -416,9 +417,101 @@ export const LandingView: React.FC<LandingViewProps> = ({
       </section>
 
       {/* ========================================================================= */}
+      {/* HERO STATE RAIL: AUTHORIZED -> UNSAFE -> PROVEN -> QUARANTINED -> RECOVERED -> EXPIRED */}
+      {/* ========================================================================= */}
+      <section className="p-4 sm:p-5 rounded-2xl bg-sentinel-surface border border-sentinel-border font-mono relative overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 mb-3 border-b border-sentinel-border">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+            <span className="text-xs font-bold text-white uppercase tracking-wider">
+              Autonomous Capital Lifecycle · The CWF Recovery State Machine
+            </span>
+          </div>
+          <span className="text-[10px] text-sentinel-textSubtle tracking-tight">
+            SOLANA ANCHOR RUNTIME ENFORCEMENT
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 text-xs">
+          {/* 1. AUTHORIZED */}
+          <div className="p-3 rounded-xl bg-[#090B10] border border-blue-500/30 space-y-1 hover:border-blue-500/60 transition">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-sentinel-textSubtle uppercase">Stage 01</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+            </div>
+            <div className="font-bold text-blue-300 text-sm">AUTHORIZED</div>
+            <p className="text-[10px] text-sentinel-textMuted font-sans leading-tight">
+              Agent proposes allocation within mandated exposure limits.
+            </p>
+          </div>
+
+          {/* 2. UNSAFE */}
+          <div className="p-3 rounded-xl bg-[#090B10] border border-amber-500/30 space-y-1 hover:border-amber-500/60 transition">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-sentinel-textSubtle uppercase">Stage 02</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+            </div>
+            <div className="font-bold text-amber-300 text-sm">UNSAFE</div>
+            <p className="text-[10px] text-sentinel-textMuted font-sans leading-tight">
+              Watcher detects concentration or reserve breach prior to settlement.
+            </p>
+          </div>
+
+          {/* 3. PROVEN */}
+          <div className="p-3 rounded-xl bg-[#090B10] border border-purple-500/30 space-y-1 hover:border-purple-500/60 transition">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-sentinel-textSubtle uppercase">Stage 03</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+            </div>
+            <div className="font-bold text-purple-300 text-sm">PROVEN</div>
+            <p className="text-[10px] text-sentinel-textMuted font-sans leading-tight">
+              Oracle price &amp; token balances verified on-chain via Pyth Full Level.
+            </p>
+          </div>
+
+          {/* 4. QUARANTINED */}
+          <div className="p-3 rounded-xl bg-[#090B10] border border-rose-500/40 space-y-1 hover:border-rose-500/70 transition shadow-lg shadow-rose-950/20">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-rose-400 uppercase font-bold">Stage 04</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping" />
+            </div>
+            <div className="font-bold text-rose-300 text-sm">QUARANTINED</div>
+            <p className="text-[10px] text-rose-200/70 font-sans leading-tight">
+              Agent authority frozen. Solver recovery window opens for N slots.
+            </p>
+          </div>
+
+          {/* 5. RECOVERED */}
+          <div className="p-3 rounded-xl bg-[#090B10] border border-emerald-500/40 space-y-1 hover:border-emerald-500/70 transition">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-emerald-400 uppercase font-bold">Stage 05</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+            </div>
+            <div className="font-bold text-emerald-300 text-sm">RECOVERED</div>
+            <p className="text-[10px] text-emerald-200/70 font-sans leading-tight">
+              SPL containment moves excess to safe destination. Vault restored active.
+            </p>
+          </div>
+
+          {/* 6. EXPIRED */}
+          <div className="p-3 rounded-xl bg-[#090B10] border border-slate-700/60 space-y-1 hover:border-slate-600 transition">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-slate-500 uppercase">Stage 06</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+            </div>
+            <div className="font-bold text-slate-300 text-sm">EXPIRED</div>
+            <p className="text-[10px] text-slate-400 font-sans leading-tight">
+              Window expires if unrepaired; authority expires and owner releases.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ========================================================================= */}
       {/* 2. SHORT 5-STEP EXPLANATION                                               */}
       {/* ========================================================================= */}
       <section className="border-t border-sentinel-border pt-10">
+
         <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 mb-6">
           <h2 className="text-lg font-semibold text-white">How Sentinel Works</h2>
           <p className="text-xs text-sentinel-textMuted">

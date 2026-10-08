@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { Play, RotateCcw, Settings, ExternalLink, ChevronDown, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { Play, RotateCcw, Settings, ExternalLink, ChevronDown, CheckCircle2, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { APP_CONFIG, getExplorerAddressUrl } from '@/lib/config';
 import { formatAddress } from '@/lib/formatters';
 
@@ -21,6 +21,8 @@ interface HeaderProps {
   walletBalanceSol?: number | null;
   vaultPda?: string;
   policyPda?: string;
+  vaultStatus?: 'active' | 'quarantined' | 'pending' | 'recoveryExpired';
+  quarantineSlotsRemaining?: number;
   onToggleMode: () => void;
   onRunDemo: () => void;
   onRunPreStocksDemo?: () => void;
@@ -31,6 +33,7 @@ interface HeaderProps {
   isRunningDemo: boolean;
 }
 
+
 export const Header: React.FC<HeaderProps> = ({
   mode,
   portfolioSource = 'SIMULATED_PROJECTION',
@@ -39,6 +42,8 @@ export const Header: React.FC<HeaderProps> = ({
   walletBalanceSol,
   vaultPda,
   policyPda,
+  vaultStatus = 'active',
+  quarantineSlotsRemaining,
   onToggleMode,
   onRunDemo,
   onRunPreStocksDemo,
@@ -112,15 +117,50 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="tracking-tight">{mode === 'LIVE' ? 'Devnet Live' : 'Simulated'}</span>
           </div>
 
-          {/* Quarantine Terminal Nav Link */}
-          <Link
-            href="/quarantine"
-            className="h-9 px-2.5 sm:px-3 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 hover:text-rose-200 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
-            title="Quarantine & Solver Recovery Terminal"
-          >
-            <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
-            <span className="hidden sm:inline font-sans font-semibold">Quarantine</span>
-          </Link>
+          {/* Dynamic Context-Aware Watcher vs Quarantine State Indicator */}
+          {vaultStatus === 'quarantined' ? (
+            <Link
+              href="/quarantine"
+              className="h-9 px-2.5 sm:px-3 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-300 hover:text-rose-200 text-xs font-mono font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-lg shadow-rose-950/40 animate-pulse"
+              title="Autonomous Watcher Triggered: Vault Quarantined. Click to open Recovery Terminal."
+            >
+              <ShieldAlert className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+              <span className="tracking-tight">
+                QUARANTINED {quarantineSlotsRemaining && quarantineSlotsRemaining > 0 ? `· ${quarantineSlotsRemaining} SLOTS` : ''}
+              </span>
+            </Link>
+          ) : vaultStatus === 'pending' ? (
+            <Link
+              href="/quarantine"
+              className="h-9 px-2.5 sm:px-3 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 hover:text-amber-200 text-xs font-mono font-medium flex items-center gap-1.5 transition cursor-pointer"
+              title="Violation Pending: Confirmation hysteresis active. Click to inspect."
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+              <ShieldAlert className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span className="tracking-wider text-[11px] font-semibold">PENDING</span>
+            </Link>
+          ) : vaultStatus === 'recoveryExpired' ? (
+            <Link
+              href="/quarantine"
+              className="h-9 px-2.5 sm:px-3 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-slate-300 hover:text-slate-100 text-xs font-mono font-medium flex items-center gap-1.5 transition cursor-pointer"
+              title="Recovery Expired: Window closed."
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+              <ShieldAlert className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span className="tracking-wider text-[11px] font-semibold">EXPIRED</span>
+            </Link>
+          ) : (
+            <Link
+              href="/quarantine"
+              className="h-9 px-2.5 sm:px-3 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 hover:text-emerald-200 text-xs font-mono font-medium flex items-center gap-1.5 transition cursor-pointer"
+              title="Sentinel Autonomous Watcher Active: Invariants Continuously Monitored"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span className="tracking-wider text-[11px] font-semibold">WATCHING</span>
+            </Link>
+          )}
+
 
           {/* Quick Demo Runner with Restrained Dropdown */}
           <div className="relative" ref={demoMenuRef}>
