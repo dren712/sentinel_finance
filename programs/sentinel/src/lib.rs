@@ -2,9 +2,11 @@ use anchor_lang::prelude::*;
 
 pub mod errors;
 pub mod state;
+pub mod custody;
 
 use errors::SentinelError;
 use state::*;
+use custody::*;
 
 declare_id!("3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH");
 
@@ -648,8 +650,8 @@ pub mod sentinel {
     }
 
     /// Solves an invariant breach on a quarantined vault via permissionless, reduce-only rebalancing.
-    pub fn recover(
-        ctx: Context<Recover>,
+    pub fn recover<'a, 'b, 'c, 'info>(
+        ctx: Context<'a, 'b, 'c, 'info, Recover<'info>>,
         sell_units: u64,
         expected_nonce: u64,
     ) -> Result<()> {
@@ -700,6 +702,142 @@ pub mod sentinel {
             sell_units > 0 && sell_units <= current_amount_units,
             SentinelError::InvalidAmount
         );
+
+        let is_real_custody = ctx.remaining_accounts.len() >= 4;
+
+        if is_real_custody {
+            let vault_ta = &ctx.remaining_accounts[0];
+            let dest_ta = &ctx.remaining_accounts[1];
+            let mint_info = &ctx.remaining_accounts[2];
+            let token_prog = &ctx.remaining_accounts[3];
+
+            // 1. Verify vault token account
+            let vault_tok = unpack_token_account(vault_ta)?;
+            require!(vault_tok.owner == vault.key(), SentinelError::InvalidVaultTokenAuthority);
+            require!(vault_tok.mint == vault.positions[pos_idx].mint, SentinelError::TokenMintMismatch);
+            require!(vault_tok.amount >= sell_units, SentinelError::InvalidAmount);
+            let vault_balance_before = vault_tok.amount;
+
+            // 2. Verify destination token account: MUST be owned by policy.safe_destination
+            let dest_tok = unpack_token_account(dest_ta)?;
+            require!(dest_tok.owner == policy.safe_destination, SentinelError::DestinationNotSafe);
+            require!(dest_tok.mint == vault.positions[pos_idx].mint, SentinelError::TokenMintMismatch);
+            let dest_balance_before = dest_tok.amount;
+
+            // 3. Verify mint
+            require!(mint_info.key() == vault.positions[pos_idx].mint, SentinelError::TokenMintMismatch);
+            let decimals = unpack_mint_decimals(mint_info)?;
+
+            // 4. Pre valuations
+            let pre_target_cents = (current_amount_units as u128)
+                .checked_mul(price_cents as u128)
+                .ok_or(SentinelError::MathOverflow)?;
+            let pre_target_cents = u64::try_from(pre_target_cents)
+                .map_err(|_| error!(SentinelError::MathOverflow))?;
+            let pre_total_cents = vault.usdc_balance_cents
+                .checked_add(pre_target_cents)
+                .ok_or(SentinelError::MathOverflow)?;
+
+            // 5. Execute program-signed CPI TransferChecked from vault PDA
+            let signer_seeds: &[&[&[u8]]] = &[&[b"vault", vault.owner.as_ref(), &[vault.bump]]];
+            transfer_checked_signed(
+                token_prog,
+                vault_ta,
+                mint_info,
+                dest_ta,
+                &vault.to_account_info(),
+                sell_units,
+                decimals,
+                signer_seeds,
+            )?;
+
+            // 6. Verify Exact Token Conservation
+            let vault_tok_after = unpack_token_account(vault_ta)?;
+            let dest_tok_after = unpack_token_account(dest_ta)?;
+            require!(
+                vault_balance_before.checked_sub(vault_tok_after.amount) == Some(sell_units),
+                SentinelError::TokenBalanceMismatch
+            );
+            require!(
+                dest_tok_after.amount.checked_sub(dest_balance_before) == Some(sell_units),
+                SentinelError::TokenBalanceMismatch
+            );
+
+            // 7. Post valuations based on ACTUAL post-transfer balance
+            let post_amount_units = vault_tok_after.amount;
+            let post_target_cents = (post_amount_units as u128)
+                .checked_mul(price_cents as u128)
+                .ok_or(SentinelError::MathOverflow)?;
+            let post_target_cents = u64::try_from(post_target_cents)
+                .map_err(|_| error!(SentinelError::MathOverflow))?;
+
+            let post_total_cents = vault.usdc_balance_cents
+                .checked_add(post_target_cents)
+                .ok_or(SentinelError::MathOverflow)?;
+
+            require!(pre_total_cents > 0 && post_total_cents > 0, SentinelError::MathOverflow);
+            let pre_exposure_bps = ((pre_target_cents as u128)
+                .checked_mul(10_000)
+                .ok_or(SentinelError::MathOverflow)?
+                .checked_div(pre_total_cents as u128)
+                .ok_or(SentinelError::MathOverflow)?) as u16;
+
+            let post_exposure_bps = ((post_target_cents as u128)
+                .checked_mul(10_000)
+                .ok_or(SentinelError::MathOverflow)?
+                .checked_div(post_total_cents as u128)
+                .ok_or(SentinelError::MathOverflow)?) as u16;
+
+            let post_stable_bps = ((vault.usdc_balance_cents as u128)
+                .checked_mul(10_000)
+                .ok_or(SentinelError::MathOverflow)?
+                .checked_div(post_total_cents as u128)
+                .ok_or(SentinelError::MathOverflow)?) as u16;
+
+            // Invariant postcondition: exposure <= cap AND stablecoin >= floor
+            require!(
+                post_exposure_bps <= policy.max_single_asset_bps && post_stable_bps >= policy.min_stablecoin_bps,
+                SentinelError::PostconditionFailed
+            );
+
+            // Strict improvement & oversell guard
+            check_strict_improvement(pre_exposure_bps, post_exposure_bps)?;
+            check_oversell_guard(post_exposure_bps, policy.max_single_asset_bps, OVERSELL_BAND_BPS)?;
+
+            // Atomically restore Active state
+            let new_nonce = vault.recovery_nonce
+                .checked_add(1)
+                .ok_or(SentinelError::MathOverflow)?;
+
+            vault.status = VaultStatus::Active;
+            vault.pending_violation_slot = 0;
+            vault.quarantine_slot = 0;
+            vault.recovery_expires_slot = 0;
+            vault.policy_version_at_quarantine = 0;
+            vault.recovery_nonce = new_nonce;
+            vault.last_recovery_slot = current_slot;
+            vault.last_recovery_solver = ctx.accounts.solver.key();
+
+            vault.positions[pos_idx].amount_units = post_amount_units;
+            vault.positions[pos_idx].price_cents = price_cents;
+            vault.total_value_cents = post_total_cents;
+
+            emit!(RecoveryExecutedEvent {
+                vault: vault.key(),
+                solver: ctx.accounts.solver.key(),
+                sell_units,
+                proceeds_cents: 0,
+                pre_exposure_bps,
+                post_exposure_bps,
+                pre_total_cents,
+                post_total_cents,
+                new_nonce,
+                slot: current_slot,
+                bounty_cap_cents: 0,
+            });
+
+            return Ok(());
+        }
 
         // f. proceeds_cents = sell_units * price_cents * (10000 - RECOVERY_VENUE_FEE_BPS) / 10000 (u128 math, checked)
         let proceeds_cents = compute_recovery_proceeds(
@@ -816,6 +954,110 @@ pub mod sentinel {
             new_nonce,
             slot: current_slot,
             bounty_cap_cents,
+        });
+
+        Ok(())
+    }
+
+    /// Deposits real SPL tokens from owner into vault PDA custody account
+    pub fn owner_deposit<'a, 'b, 'c, 'info>(
+        ctx: Context<'a, 'b, 'c, 'info, OwnerDeposit<'info>>,
+        amount: u64,
+    ) -> Result<()> {
+        let vault = &mut ctx.accounts.vault;
+        require!(vault.status == VaultStatus::Active, SentinelError::VaultNotActive);
+        require!(amount > 0, SentinelError::InvalidAmount);
+
+        let mint_key = ctx.accounts.mint.key();
+
+        // Verify and unpack owner token account
+        let owner_tok = unpack_token_account(&ctx.accounts.owner_token_account)?;
+        require!(owner_tok.owner == ctx.accounts.owner.key(), SentinelError::InvalidVaultTokenAuthority);
+        require!(owner_tok.mint == mint_key, SentinelError::TokenMintMismatch);
+        require!(owner_tok.amount >= amount, SentinelError::InvalidAmount);
+
+        // Verify and unpack vault token account
+        let vault_tok = unpack_token_account(&ctx.accounts.vault_token_account)?;
+        require!(vault_tok.owner == vault.key(), SentinelError::InvalidVaultTokenAuthority);
+        require!(vault_tok.mint == mint_key, SentinelError::TokenMintMismatch);
+
+        let decimals = unpack_mint_decimals(&ctx.accounts.mint)?;
+
+        // Execute CPI transfer
+        transfer_checked_owner(
+            &ctx.accounts.token_program,
+            &ctx.accounts.owner_token_account,
+            &ctx.accounts.mint,
+            &ctx.accounts.vault_token_account,
+            &ctx.accounts.owner.to_account_info(),
+            amount,
+            decimals,
+        )?;
+
+        // Update vault state if tracked
+        if let Some(pos) = vault.positions.iter_mut().find(|p| p.mint == mint_key) {
+            pos.amount_units = pos.amount_units.checked_add(amount).ok_or(SentinelError::MathOverflow)?;
+        }
+
+        let clock = Clock::get()?;
+        emit!(DepositExecutedEvent {
+            vault: vault.key(),
+            owner: ctx.accounts.owner.key(),
+            mint: mint_key,
+            amount,
+            slot: clock.slot,
+        });
+
+        Ok(())
+    }
+
+    /// Withdraws real SPL tokens from vault PDA custody account to owner destination
+    pub fn owner_withdraw<'a, 'b, 'c, 'info>(
+        ctx: Context<'a, 'b, 'c, 'info, OwnerWithdraw<'info>>,
+        amount: u64,
+    ) -> Result<()> {
+        let vault = &mut ctx.accounts.vault;
+        require!(vault.status == VaultStatus::Active, SentinelError::VaultNotActive);
+        require!(amount > 0, SentinelError::InvalidAmount);
+
+        let mint_key = ctx.accounts.mint.key();
+
+        // Verify vault token account
+        let vault_tok = unpack_token_account(&ctx.accounts.vault_token_account)?;
+        require!(vault_tok.owner == vault.key(), SentinelError::InvalidVaultTokenAuthority);
+        require!(vault_tok.mint == mint_key, SentinelError::TokenMintMismatch);
+        require!(vault_tok.amount >= amount, SentinelError::InvalidAmount);
+
+        // Verify owner destination token account
+        let dest_tok = unpack_token_account(&ctx.accounts.destination_token_account)?;
+        require!(dest_tok.owner == ctx.accounts.owner.key(), SentinelError::InvalidVaultTokenAuthority);
+        require!(dest_tok.mint == mint_key, SentinelError::TokenMintMismatch);
+
+        let decimals = unpack_mint_decimals(&ctx.accounts.mint)?;
+
+        let signer_seeds: &[&[&[u8]]] = &[&[b"vault", vault.owner.as_ref(), &[vault.bump]]];
+        transfer_checked_signed(
+            &ctx.accounts.token_program,
+            &ctx.accounts.vault_token_account,
+            &ctx.accounts.mint,
+            &ctx.accounts.destination_token_account,
+            &vault.to_account_info(),
+            amount,
+            decimals,
+            signer_seeds,
+        )?;
+
+        if let Some(pos) = vault.positions.iter_mut().find(|p| p.mint == mint_key) {
+            pos.amount_units = pos.amount_units.checked_sub(amount).ok_or(SentinelError::MathOverflow)?;
+        }
+
+        let clock = Clock::get()?;
+        emit!(WithdrawExecutedEvent {
+            vault: vault.key(),
+            owner: ctx.accounts.owner.key(),
+            mint: mint_key,
+            amount,
+            slot: clock.slot,
         });
 
         Ok(())
@@ -1353,6 +1595,52 @@ pub struct Recover<'info> {
     pub solver: Signer<'info>,
 }
 
+#[derive(Accounts)]
+pub struct OwnerDeposit<'info> {
+    #[account(
+        mut,
+        seeds = [b"vault", owner.key().as_ref()],
+        bump = vault.bump,
+        has_one = owner,
+    )]
+    pub vault: Account<'info, PortfolioVault>,
+    #[account(mut)]
+    pub owner: Signer<'info>,
+    /// CHECK: Owner SPL token account
+    #[account(mut)]
+    pub owner_token_account: AccountInfo<'info>,
+    /// CHECK: Vault SPL token account owned by vault PDA
+    #[account(mut)]
+    pub vault_token_account: AccountInfo<'info>,
+    /// CHECK: Token mint
+    pub mint: AccountInfo<'info>,
+    /// CHECK: Token program
+    pub token_program: AccountInfo<'info>,
+}
+
+#[derive(Accounts)]
+pub struct OwnerWithdraw<'info> {
+    #[account(
+        mut,
+        seeds = [b"vault", owner.key().as_ref()],
+        bump = vault.bump,
+        has_one = owner,
+    )]
+    pub vault: Account<'info, PortfolioVault>,
+    #[account(mut)]
+    pub owner: Signer<'info>,
+    /// CHECK: Vault SPL token account owned by vault PDA
+    #[account(mut)]
+    pub vault_token_account: AccountInfo<'info>,
+    /// CHECK: Owner destination SPL token account
+    #[account(mut)]
+    pub destination_token_account: AccountInfo<'info>,
+    /// CHECK: Token mint
+    pub mint: AccountInfo<'info>,
+    /// CHECK: Token program
+    pub token_program: AccountInfo<'info>,
+}
+
 // -----------------------------------------------------------------------------
 // Events
 // -----------------------------------------------------------------------------
@@ -1472,6 +1760,24 @@ pub struct RecoveryExecutedEvent {
     pub slot: u64,
     /// SIMULATED / NOT PAID: Solver bounty ceiling calculated against policy.max_bounty_bps
     pub bounty_cap_cents: u64,
+}
+
+#[event]
+pub struct DepositExecutedEvent {
+    pub vault: Pubkey,
+    pub owner: Pubkey,
+    pub mint: Pubkey,
+    pub amount: u64,
+    pub slot: u64,
+}
+
+#[event]
+pub struct WithdrawExecutedEvent {
+    pub vault: Pubkey,
+    pub owner: Pubkey,
+    pub mint: Pubkey,
+    pub amount: u64,
+    pub slot: u64,
 }
 
 // -----------------------------------------------------------------------------

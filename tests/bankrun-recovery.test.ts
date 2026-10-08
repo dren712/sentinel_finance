@@ -13,6 +13,26 @@ export const PYTH_RECEIVER_ID = new PublicKey('rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQ
 // Load IDL
 const idl = JSON.parse(fs.readFileSync(path.resolve('target/idl/sentinel.json'), 'utf8'));
 
+const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+
+function buildTokenAccountBuffer(mint: PublicKey, owner: PublicKey, amount: bigint | number): Buffer {
+  const buf = Buffer.alloc(165);
+  mint.toBuffer().copy(buf, 0);
+  owner.toBuffer().copy(buf, 32);
+  buf.writeBigUInt64LE(BigInt(amount), 64);
+  buf.writeUInt8(1, 108); // state: Initialized
+  return buf;
+}
+
+function buildMintBuffer(decimals: number, supply: bigint | number = 1_000_000_000n): Buffer {
+  const buf = Buffer.alloc(82);
+  buf.writeUInt32LE(1, 0); // mint authority Option = Some
+  buf.writeBigUInt64LE(BigInt(supply), 36);
+  buf.writeUInt8(decimals, 44);
+  buf.writeUInt8(1, 45); // is_initialized = true
+  return buf;
+}
+
 /**
  * Builds a serialized PriceUpdateV2 account binary buffer matching Pyth Solana Receiver V2
  */
@@ -115,6 +135,17 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
   const wrongFeedPricePubkey = Keypair.generate().publicKey;
   const stalePricePubkey = Keypair.generate().publicKey;
   const wideConfPricePubkey = Keypair.generate().publicKey;
+
+  async function advanceSlot(delta: bigint = 10n) {
+    const clock = await ctx.banksClient.getClock();
+    ctx.setClock(new (clock.constructor as any)(
+      clock.slot + delta,
+      clock.epochStartTimestamp,
+      clock.epoch,
+      clock.leaderScheduleEpoch,
+      clock.unixTimestamp
+    ));
+  }
 
   async function processTx(tx: Transaction, signer: Keypair): Promise<string[]> {
     const [recentBlockhash] = await ctx.banksClient.getLatestBlockhash();
@@ -372,7 +403,7 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
       },
     ];
 
-    ctx = await startAnchor('.', [{ name: 'sentinel', programId: PROGRAM_ID }], initialAccounts);
+    ctx = await startAnchor('.', [], initialAccounts);
 
     const dummyWallet = {
       publicKey: owner.publicKey,
@@ -1419,4 +1450,792 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
       }
     );
   });
+
+  // -------------------------------------------------------------------------
+  // Real SPL Custody, Containment Recovery & Conservation (Tests 22-26)
+  // -------------------------------------------------------------------------
+
+  it('22. owner_deposit and owner_withdraw transfer real SPL tokens between owner and vault PDA', async () => {
+    const custodyOwner = Keypair.generate();
+    const [custodyPolicyPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('policy'), custodyOwner.publicKey.toBuffer()],
+      PROGRAM_ID
+    );
+    const [custodyVaultPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('vault'), custodyOwner.publicKey.toBuffer()],
+      PROGRAM_ID
+    );
+
+    const custodyMint = Keypair.generate().publicKey;
+    const ownerTokenAcc = Keypair.generate().publicKey;
+    const vaultTokenAcc = Keypair.generate().publicKey;
+
+    await ctx.setAccount(custodyOwner.publicKey, {
+      lamports: 10_000_000_000,
+      data: Buffer.alloc(0),
+      owner: SystemProgram.programId,
+      executable: false,
+    });
+
+    await ctx.setAccount(custodyMint, {
+      lamports: 1_000_000_000,
+      data: buildMintBuffer(6),
+      owner: TOKEN_PROGRAM_ID,
+      executable: false,
+    });
+    await ctx.setAccount(ownerTokenAcc, {
+      lamports: 1_000_000_000,
+      data: buildTokenAccountBuffer(custodyMint, custodyOwner.publicKey, 100n),
+      owner: TOKEN_PROGRAM_ID,
+      executable: false,
+    });
+    await ctx.setAccount(vaultTokenAcc, {
+      lamports: 1_000_000_000,
+      data: buildTokenAccountBuffer(custodyMint, custodyVaultPda, 0n),
+      owner: TOKEN_PROGRAM_ID,
+      executable: false,
+    });
+
+    const initPolIx = await program.methods
+      .initializePolicy(
+        5000,
+        3000,
+        new BN(100000),
+        100,
+        new BN(2),
+        new BN(15),
+        100,
+        50,
+        custodyOwner.publicKey
+      )
+      .accountsPartial({
+        policy: custodyPolicyPda,
+        owner: custodyOwner.publicKey,
+        systemProgram: SystemProgram.programId,
+      })
+      .instruction();
+    await processTx(new Transaction().add(initPolIx), custodyOwner);
+
+    const initVaultIx = await program.methods
+      .initializeVault(
+        new BN(50000),
+        [
+          {
+            mint: custodyMint,
+            symbol: Array.from(Buffer.from('CUST\0\0\0\0')),
+            amountUnits: new BN(0),
+            priceCents: new BN(1000),
+            isIndex: false,
+            feedId,
+          },
+        ]
+      )
+      .accountsPartial({
+        vault: custodyVaultPda,
+        policy: custodyPolicyPda,
+        owner: custodyOwner.publicKey,
+        systemProgram: SystemProgram.programId,
+      })
+      .instruction();
+    await processTx(new Transaction().add(initVaultIx), custodyOwner);
+
+    // Deposit 60 units from owner -> vault PDA
+    const depositIx = await program.methods
+      .ownerDeposit(new BN(60))
+      .accountsPartial({
+        vault: custodyVaultPda,
+        owner: custodyOwner.publicKey,
+        ownerTokenAccount: ownerTokenAcc,
+        vaultTokenAccount: vaultTokenAcc,
+        mint: custodyMint,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .instruction();
+    await processTx(new Transaction().add(depositIx), custodyOwner);
+
+    const ownerAccAfterDep = await ctx.banksClient.getAccount(ownerTokenAcc);
+    const vaultAccAfterDep = await ctx.banksClient.getAccount(vaultTokenAcc);
+    assert.strictEqual(Buffer.from(ownerAccAfterDep!.data).readBigUInt64LE(64), 40n);
+    assert.strictEqual(Buffer.from(vaultAccAfterDep!.data).readBigUInt64LE(64), 60n);
+
+    const vaultAfterDep = program.coder.accounts.decode(
+      'portfolioVault',
+      Buffer.from((await ctx.banksClient.getAccount(custodyVaultPda))!.data)
+    ) as any;
+    assert.strictEqual(vaultAfterDep.positions[0].amountUnits.toNumber(), 60);
+
+    // Withdraw 20 units from vault PDA -> owner
+    const withdrawIx = await program.methods
+      .ownerWithdraw(new BN(20))
+      .accountsPartial({
+        vault: custodyVaultPda,
+        owner: custodyOwner.publicKey,
+        vaultTokenAccount: vaultTokenAcc,
+        destinationTokenAccount: ownerTokenAcc,
+        mint: custodyMint,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .instruction();
+    await processTx(new Transaction().add(withdrawIx), custodyOwner);
+
+    const ownerAccAfterWd = await ctx.banksClient.getAccount(ownerTokenAcc);
+    const vaultAccAfterWd = await ctx.banksClient.getAccount(vaultTokenAcc);
+    assert.strictEqual(Buffer.from(ownerAccAfterWd!.data).readBigUInt64LE(64), 60n);
+    assert.strictEqual(Buffer.from(vaultAccAfterWd!.data).readBigUInt64LE(64), 40n);
+
+    const vaultAfterWd = program.coder.accounts.decode(
+      'portfolioVault',
+      Buffer.from((await ctx.banksClient.getAccount(custodyVaultPda))!.data)
+    ) as any;
+    assert.strictEqual(vaultAfterWd.positions[0].amountUnits.toNumber(), 40);
+  });
+
+  it('23. real containment recovery executes CPI TransferChecked to policy.safe_destination and restores Active', async () => {
+    const realOwner = Keypair.generate();
+    const safeDestOwner = Keypair.generate();
+    const [realPolicyPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('policy'), realOwner.publicKey.toBuffer()],
+      PROGRAM_ID
+    );
+    const [realVaultPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('vault'), realOwner.publicKey.toBuffer()],
+      PROGRAM_ID
+    );
+
+    const realMint = Keypair.generate().publicKey;
+    const realFeedId = Array(32).fill(42);
+    const vaultTa = Keypair.generate().publicKey;
+    const safeDestTa = Keypair.generate().publicKey;
+
+    const pricePubkey = Keypair.generate().publicKey;
+    const priceBuf = buildPriceUpdateV2Buffer({
+      price: 10_000_000_000n,
+      conf: 10_000_000n,
+      feedId: realFeedId,
+      publishTime: Math.floor(Date.now() / 1000),
+    });
+
+    await ctx.setAccount(realOwner.publicKey, {
+      lamports: 10_000_000_000,
+      data: Buffer.alloc(0),
+      owner: SystemProgram.programId,
+      executable: false,
+    });
+    await ctx.setAccount(pricePubkey, {
+      lamports: 1_000_000_000,
+      data: priceBuf,
+      owner: PYTH_RECEIVER_ID,
+      executable: false,
+    });
+    await ctx.setAccount(realMint, {
+      lamports: 1_000_000_000,
+      data: buildMintBuffer(6),
+      owner: TOKEN_PROGRAM_ID,
+      executable: false,
+    });
+    await ctx.setAccount(vaultTa, {
+      lamports: 1_000_000_000,
+      data: buildTokenAccountBuffer(realMint, realVaultPda, 100n),
+      owner: TOKEN_PROGRAM_ID,
+      executable: false,
+    });
+    await ctx.setAccount(safeDestTa, {
+      lamports: 1_000_000_000,
+      data: buildTokenAccountBuffer(realMint, safeDestOwner.publicKey, 0n),
+      owner: TOKEN_PROGRAM_ID,
+      executable: false,
+    });
+
+    const initPolIx = await program.methods
+      .initializePolicy(
+        5000,
+        3000,
+        new BN(100000),
+        100,
+        new BN(2),
+        new BN(15),
+        100,
+        50,
+        safeDestOwner.publicKey
+      )
+      .accountsPartial({
+        policy: realPolicyPda,
+        owner: realOwner.publicKey,
+        systemProgram: SystemProgram.programId,
+      })
+      .instruction();
+    await processTx(new Transaction().add(initPolIx), realOwner);
+
+    const initVaultIx = await program.methods
+      .initializeVault(
+        new BN(100000),
+        [
+          {
+            mint: realMint,
+            symbol: Array.from(Buffer.from('REAL\0\0\0\0')),
+            amountUnits: new BN(100),
+            priceCents: new BN(10000),
+            isIndex: false,
+            feedId: realFeedId,
+          },
+        ]
+      )
+      .accountsPartial({
+        vault: realVaultPda,
+        policy: realPolicyPda,
+        owner: realOwner.publicKey,
+        systemProgram: SystemProgram.programId,
+      })
+      .instruction();
+    await processTx(new Transaction().add(initVaultIx), realOwner);
+
+    const flag1Ix = await program.methods
+      .flagViolation()
+      .accountsPartial({
+        vault: realVaultPda,
+        policy: realPolicyPda,
+        priceUpdate: pricePubkey,
+        signer: solver.publicKey,
+      })
+      .instruction();
+    await processTx(new Transaction().add(flag1Ix), solver);
+
+    await advanceSlot(10n);
+
+    const flag2Ix = await program.methods
+      .flagViolation()
+      .accountsPartial({
+        vault: realVaultPda,
+        policy: realPolicyPda,
+        priceUpdate: pricePubkey,
+        signer: solverB.publicKey,
+      })
+      .instruction();
+    await processTx(new Transaction().add(flag2Ix), solverB);
+
+    const qVault = program.coder.accounts.decode(
+      'portfolioVault',
+      Buffer.from((await ctx.banksClient.getAccount(realVaultPda))!.data)
+    ) as any;
+    assert.strictEqual(getStatusString(qVault.status), 'Quarantined');
+
+    // Solver containment recovery: 90 units
+    const recoverIx = await program.methods
+      .recover(new BN(90), new BN(qVault.recoveryNonce))
+      .accountsPartial({
+        vault: realVaultPda,
+        policy: realPolicyPda,
+        priceUpdate: pricePubkey,
+        solver: solver.publicKey,
+      })
+      .remainingAccounts([
+        { pubkey: vaultTa, isWritable: true, isSigner: false },
+        { pubkey: safeDestTa, isWritable: true, isSigner: false },
+        { pubkey: realMint, isWritable: false, isSigner: false },
+        { pubkey: TOKEN_PROGRAM_ID, isWritable: false, isSigner: false },
+      ])
+      .instruction();
+    await processTx(new Transaction().add(recoverIx), solver);
+
+    const vaultTaAfter = await ctx.banksClient.getAccount(vaultTa);
+    const safeDestTaAfter = await ctx.banksClient.getAccount(safeDestTa);
+    assert.strictEqual(Buffer.from(vaultTaAfter!.data).readBigUInt64LE(64), 10n);
+    assert.strictEqual(Buffer.from(safeDestTaAfter!.data).readBigUInt64LE(64), 90n);
+
+    const recoveredVault = program.coder.accounts.decode(
+      'portfolioVault',
+      Buffer.from((await ctx.banksClient.getAccount(realVaultPda))!.data)
+    ) as any;
+    assert.strictEqual(getStatusString(recoveredVault.status), 'Active');
+    assert.strictEqual(recoveredVault.recoveryNonce.toNumber(), 2);
+    assert.strictEqual(recoveredVault.positions[0].amountUnits.toNumber(), 10);
+  });
+
+  it('24. recovery to unauthorized token account (not owned by safe_destination) fails with DestinationNotSafe (6041)', async () => {
+    const maliciousOwner = Keypair.generate();
+    const legitSafeDest = Keypair.generate();
+    const attacker = Keypair.generate();
+
+    const [malPolicyPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('policy'), maliciousOwner.publicKey.toBuffer()],
+      PROGRAM_ID
+    );
+    const [malVaultPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('vault'), maliciousOwner.publicKey.toBuffer()],
+      PROGRAM_ID
+    );
+
+    const malMint = Keypair.generate().publicKey;
+    const malFeedId = Array(32).fill(43);
+    const vaultTa = Keypair.generate().publicKey;
+    const attackerTa = Keypair.generate().publicKey;
+
+    const pricePubkey = Keypair.generate().publicKey;
+    const priceBuf = buildPriceUpdateV2Buffer({
+      price: 10_000_000_000n,
+      conf: 10_000_000n,
+      feedId: malFeedId,
+      publishTime: Math.floor(Date.now() / 1000),
+    });
+
+    await ctx.setAccount(maliciousOwner.publicKey, {
+      lamports: 10_000_000_000,
+      data: Buffer.alloc(0),
+      owner: SystemProgram.programId,
+      executable: false,
+    });
+    await ctx.setAccount(pricePubkey, {
+      lamports: 1_000_000_000,
+      data: priceBuf,
+      owner: PYTH_RECEIVER_ID,
+      executable: false,
+    });
+    await ctx.setAccount(malMint, {
+      lamports: 1_000_000_000,
+      data: buildMintBuffer(6),
+      owner: TOKEN_PROGRAM_ID,
+      executable: false,
+    });
+    await ctx.setAccount(vaultTa, {
+      lamports: 1_000_000_000,
+      data: buildTokenAccountBuffer(malMint, malVaultPda, 100n),
+      owner: TOKEN_PROGRAM_ID,
+      executable: false,
+    });
+    await ctx.setAccount(attackerTa, {
+      lamports: 1_000_000_000,
+      data: buildTokenAccountBuffer(malMint, attacker.publicKey, 0n),
+      owner: TOKEN_PROGRAM_ID,
+      executable: false,
+    });
+
+    const initPolIx = await program.methods
+      .initializePolicy(
+        5000,
+        3000,
+        new BN(100000),
+        100,
+        new BN(2),
+        new BN(15),
+        100,
+        50,
+        legitSafeDest.publicKey
+      )
+      .accountsPartial({
+        policy: malPolicyPda,
+        owner: maliciousOwner.publicKey,
+        systemProgram: SystemProgram.programId,
+      })
+      .instruction();
+    await processTx(new Transaction().add(initPolIx), maliciousOwner);
+
+    const initVaultIx = await program.methods
+      .initializeVault(
+        new BN(100000),
+        [
+          {
+            mint: malMint,
+            symbol: Array.from(Buffer.from('ATTK\0\0\0\0')),
+            amountUnits: new BN(100),
+            priceCents: new BN(10000),
+            isIndex: false,
+            feedId: malFeedId,
+          },
+        ]
+      )
+      .accountsPartial({
+        vault: malVaultPda,
+        policy: malPolicyPda,
+        owner: maliciousOwner.publicKey,
+        systemProgram: SystemProgram.programId,
+      })
+      .instruction();
+    await processTx(new Transaction().add(initVaultIx), maliciousOwner);
+
+    const flag1Ix = await program.methods
+      .flagViolation()
+      .accountsPartial({
+        vault: malVaultPda,
+        policy: malPolicyPda,
+        priceUpdate: pricePubkey,
+        signer: solver.publicKey,
+      })
+      .instruction();
+    await processTx(new Transaction().add(flag1Ix), solver);
+
+    await advanceSlot(10n);
+
+    const flag2Ix = await program.methods
+      .flagViolation()
+      .accountsPartial({
+        vault: malVaultPda,
+        policy: malPolicyPda,
+        priceUpdate: pricePubkey,
+        signer: solverB.publicKey,
+      })
+      .instruction();
+    await processTx(new Transaction().add(flag2Ix), solverB);
+
+    const qVault = program.coder.accounts.decode(
+      'portfolioVault',
+      Buffer.from((await ctx.banksClient.getAccount(malVaultPda))!.data)
+    ) as any;
+    assert.strictEqual(getStatusString(qVault.status), 'Quarantined');
+
+    const recoverIx = await program.methods
+      .recover(new BN(90), new BN(qVault.recoveryNonce))
+      .accountsPartial({
+        vault: malVaultPda,
+        policy: malPolicyPda,
+        priceUpdate: pricePubkey,
+        solver: solver.publicKey,
+      })
+      .remainingAccounts([
+        { pubkey: vaultTa, isWritable: true, isSigner: false },
+        { pubkey: attackerTa, isWritable: true, isSigner: false },
+        { pubkey: malMint, isWritable: false, isSigner: false },
+        { pubkey: TOKEN_PROGRAM_ID, isWritable: false, isSigner: false },
+      ])
+      .instruction();
+
+    await assert.rejects(
+      processTx(new Transaction().add(recoverIx), solver),
+      (err: any) => {
+        assertCustomError(err, 'DestinationNotSafe', 6041);
+        return true;
+      }
+    );
+
+    const vaultTaAfter = await ctx.banksClient.getAccount(vaultTa);
+    assert.strictEqual(Buffer.from(vaultTaAfter!.data).readBigUInt64LE(64), 100n);
+  });
+
+  it('25. token mint mismatch in remaining accounts fails with TokenMintMismatch (6042)', async () => {
+    const mmOwner = Keypair.generate();
+    const mmSafeDest = Keypair.generate();
+
+    const [mmPolicyPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('policy'), mmOwner.publicKey.toBuffer()],
+      PROGRAM_ID
+    );
+    const [mmVaultPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('vault'), mmOwner.publicKey.toBuffer()],
+      PROGRAM_ID
+    );
+
+    const mmMint = Keypair.generate().publicKey;
+    const otherMint = Keypair.generate().publicKey;
+    const mmFeedId = Array(32).fill(44);
+    const vaultTa = Keypair.generate().publicKey;
+    const safeDestTa = Keypair.generate().publicKey;
+
+    const pricePubkey = Keypair.generate().publicKey;
+    const priceBuf = buildPriceUpdateV2Buffer({
+      price: 10_000_000_000n,
+      conf: 10_000_000n,
+      feedId: mmFeedId,
+      publishTime: Math.floor(Date.now() / 1000),
+    });
+
+    await ctx.setAccount(mmOwner.publicKey, {
+      lamports: 10_000_000_000,
+      data: Buffer.alloc(0),
+      owner: SystemProgram.programId,
+      executable: false,
+    });
+    await ctx.setAccount(pricePubkey, {
+      lamports: 1_000_000_000,
+      data: priceBuf,
+      owner: PYTH_RECEIVER_ID,
+      executable: false,
+    });
+    await ctx.setAccount(mmMint, {
+      lamports: 1_000_000_000,
+      data: buildMintBuffer(6),
+      owner: TOKEN_PROGRAM_ID,
+      executable: false,
+    });
+    await ctx.setAccount(otherMint, {
+      lamports: 1_000_000_000,
+      data: buildMintBuffer(6),
+      owner: TOKEN_PROGRAM_ID,
+      executable: false,
+    });
+    await ctx.setAccount(vaultTa, {
+      lamports: 1_000_000_000,
+      data: buildTokenAccountBuffer(mmMint, mmVaultPda, 100n),
+      owner: TOKEN_PROGRAM_ID,
+      executable: false,
+    });
+    await ctx.setAccount(safeDestTa, {
+      lamports: 1_000_000_000,
+      data: buildTokenAccountBuffer(mmMint, mmSafeDest.publicKey, 0n),
+      owner: TOKEN_PROGRAM_ID,
+      executable: false,
+    });
+
+    const initPolIx = await program.methods
+      .initializePolicy(
+        5000,
+        3000,
+        new BN(100000),
+        100,
+        new BN(2),
+        new BN(15),
+        100,
+        50,
+        mmSafeDest.publicKey
+      )
+      .accountsPartial({
+        policy: mmPolicyPda,
+        owner: mmOwner.publicKey,
+        systemProgram: SystemProgram.programId,
+      })
+      .instruction();
+    await processTx(new Transaction().add(initPolIx), mmOwner);
+
+    const initVaultIx = await program.methods
+      .initializeVault(
+        new BN(100000),
+        [
+          {
+            mint: mmMint,
+            symbol: Array.from(Buffer.from('MMNT\0\0\0\0')),
+            amountUnits: new BN(100),
+            priceCents: new BN(10000),
+            isIndex: false,
+            feedId: mmFeedId,
+          },
+        ]
+      )
+      .accountsPartial({
+        vault: mmVaultPda,
+        policy: mmPolicyPda,
+        owner: mmOwner.publicKey,
+        systemProgram: SystemProgram.programId,
+      })
+      .instruction();
+    await processTx(new Transaction().add(initVaultIx), mmOwner);
+
+    const flag1Ix = await program.methods
+      .flagViolation()
+      .accountsPartial({
+        vault: mmVaultPda,
+        policy: mmPolicyPda,
+        priceUpdate: pricePubkey,
+        signer: solver.publicKey,
+      })
+      .instruction();
+    await processTx(new Transaction().add(flag1Ix), solver);
+
+    await advanceSlot(10n);
+
+    const flag2Ix = await program.methods
+      .flagViolation()
+      .accountsPartial({
+        vault: mmVaultPda,
+        policy: mmPolicyPda,
+        priceUpdate: pricePubkey,
+        signer: solverB.publicKey,
+      })
+      .instruction();
+    await processTx(new Transaction().add(flag2Ix), solverB);
+
+    const qVault = program.coder.accounts.decode(
+      'portfolioVault',
+      Buffer.from((await ctx.banksClient.getAccount(mmVaultPda))!.data)
+    ) as any;
+    assert.strictEqual(getStatusString(qVault.status), 'Quarantined');
+
+    // Pass wrong mint `otherMint` in remainingAccounts
+    const recoverIx = await program.methods
+      .recover(new BN(90), new BN(qVault.recoveryNonce))
+      .accountsPartial({
+        vault: mmVaultPda,
+        policy: mmPolicyPda,
+        priceUpdate: pricePubkey,
+        solver: solver.publicKey,
+      })
+      .remainingAccounts([
+        { pubkey: vaultTa, isWritable: true, isSigner: false },
+        { pubkey: safeDestTa, isWritable: true, isSigner: false },
+        { pubkey: otherMint, isWritable: false, isSigner: false },
+        { pubkey: TOKEN_PROGRAM_ID, isWritable: false, isSigner: false },
+      ])
+      .instruction();
+
+    await assert.rejects(
+      processTx(new Transaction().add(recoverIx), solver),
+      (err: any) => {
+        assertCustomError(err, 'TokenMintMismatch', 6042);
+        return true;
+      }
+    );
+  });
+
+  it('26. insufficient token sell amount fails postcondition check with PostconditionFailed (6001)', async () => {
+    const pcOwner = Keypair.generate();
+    const pcSafeDest = Keypair.generate();
+
+    const [pcPolicyPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('policy'), pcOwner.publicKey.toBuffer()],
+      PROGRAM_ID
+    );
+    const [pcVaultPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('vault'), pcOwner.publicKey.toBuffer()],
+      PROGRAM_ID
+    );
+
+    const pcMint = Keypair.generate().publicKey;
+    const pcFeedId = Array(32).fill(45);
+    const vaultTa = Keypair.generate().publicKey;
+    const safeDestTa = Keypair.generate().publicKey;
+
+    const pricePubkey = Keypair.generate().publicKey;
+    const priceBuf = buildPriceUpdateV2Buffer({
+      price: 10_000_000_000n,
+      conf: 10_000_000n,
+      feedId: pcFeedId,
+      publishTime: Math.floor(Date.now() / 1000),
+    });
+
+    await ctx.setAccount(pcOwner.publicKey, {
+      lamports: 10_000_000_000,
+      data: Buffer.alloc(0),
+      owner: SystemProgram.programId,
+      executable: false,
+    });
+    await ctx.setAccount(pricePubkey, {
+      lamports: 1_000_000_000,
+      data: priceBuf,
+      owner: PYTH_RECEIVER_ID,
+      executable: false,
+    });
+    await ctx.setAccount(pcMint, {
+      lamports: 1_000_000_000,
+      data: buildMintBuffer(6),
+      owner: TOKEN_PROGRAM_ID,
+      executable: false,
+    });
+    await ctx.setAccount(vaultTa, {
+      lamports: 1_000_000_000,
+      data: buildTokenAccountBuffer(pcMint, pcVaultPda, 100n),
+      owner: TOKEN_PROGRAM_ID,
+      executable: false,
+    });
+    await ctx.setAccount(safeDestTa, {
+      lamports: 1_000_000_000,
+      data: buildTokenAccountBuffer(pcMint, pcSafeDest.publicKey, 0n),
+      owner: TOKEN_PROGRAM_ID,
+      executable: false,
+    });
+
+    const initPolIx = await program.methods
+      .initializePolicy(
+        5000,
+        3000,
+        new BN(100000),
+        100,
+        new BN(2),
+        new BN(15),
+        100,
+        50,
+        pcSafeDest.publicKey
+      )
+      .accountsPartial({
+        policy: pcPolicyPda,
+        owner: pcOwner.publicKey,
+        systemProgram: SystemProgram.programId,
+      })
+      .instruction();
+    await processTx(new Transaction().add(initPolIx), pcOwner);
+
+    const initVaultIx = await program.methods
+      .initializeVault(
+        new BN(100000),
+        [
+          {
+            mint: pcMint,
+            symbol: Array.from(Buffer.from('POST\0\0\0\0')),
+            amountUnits: new BN(100),
+            priceCents: new BN(10000),
+            isIndex: false,
+            feedId: pcFeedId,
+          },
+        ]
+      )
+      .accountsPartial({
+        vault: pcVaultPda,
+        policy: pcPolicyPda,
+        owner: pcOwner.publicKey,
+        systemProgram: SystemProgram.programId,
+      })
+      .instruction();
+    await processTx(new Transaction().add(initVaultIx), pcOwner);
+
+    const flag1Ix = await program.methods
+      .flagViolation()
+      .accountsPartial({
+        vault: pcVaultPda,
+        policy: pcPolicyPda,
+        priceUpdate: pricePubkey,
+        signer: solver.publicKey,
+      })
+      .instruction();
+    await processTx(new Transaction().add(flag1Ix), solver);
+
+    await advanceSlot(10n);
+
+    const flag2Ix = await program.methods
+      .flagViolation()
+      .accountsPartial({
+        vault: pcVaultPda,
+        policy: pcPolicyPda,
+        priceUpdate: pricePubkey,
+        signer: solverB.publicKey,
+      })
+      .instruction();
+    await processTx(new Transaction().add(flag2Ix), solverB);
+
+    const qVault = program.coder.accounts.decode(
+      'portfolioVault',
+      Buffer.from((await ctx.banksClient.getAccount(pcVaultPda))!.data)
+    ) as any;
+    assert.strictEqual(getStatusString(qVault.status), 'Quarantined');
+
+    // Only sell 10 units out of 100: post exposure remains ~90% > 50% cap
+    const recoverIx = await program.methods
+      .recover(new BN(10), new BN(qVault.recoveryNonce))
+      .accountsPartial({
+        vault: pcVaultPda,
+        policy: pcPolicyPda,
+        priceUpdate: pricePubkey,
+        solver: solver.publicKey,
+      })
+      .remainingAccounts([
+        { pubkey: vaultTa, isWritable: true, isSigner: false },
+        { pubkey: safeDestTa, isWritable: true, isSigner: false },
+        { pubkey: pcMint, isWritable: false, isSigner: false },
+        { pubkey: TOKEN_PROGRAM_ID, isWritable: false, isSigner: false },
+      ])
+      .instruction();
+
+    await assert.rejects(
+      processTx(new Transaction().add(recoverIx), solver),
+      (err: any) => {
+        assertCustomError(err, 'PostconditionFailed', 6001);
+        return true;
+      }
+    );
+
+    // Verify vault remains quarantined and balances untouched
+    const vaultAfter = program.coder.accounts.decode(
+      'portfolioVault',
+      Buffer.from((await ctx.banksClient.getAccount(pcVaultPda))!.data)
+    ) as any;
+    assert.strictEqual(getStatusString(vaultAfter.status), 'Quarantined');
+    const vaultTaAfter = await ctx.banksClient.getAccount(vaultTa);
+    assert.strictEqual(Buffer.from(vaultTaAfter!.data).readBigUInt64LE(64), 100n);
+  });
 });
+

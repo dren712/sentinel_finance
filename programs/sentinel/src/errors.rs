@@ -115,4 +115,25 @@ pub enum SentinelError {
 
     #[msg("Vault must be configured with exactly one volatile asset position")]
     InvalidVolatileAssetConfiguration,
+
+    #[msg("Account is not owned by the Token Program")]
+    InvalidTokenAccountOwner,
+
+    #[msg("Invalid token account data length")]
+    InvalidTokenAccountData,
+
+    #[msg("Invalid mint account owner or data")]
+    InvalidMintData,
+
+    #[msg("Destination token account is not owned by the policy safe_destination")]
+    DestinationNotSafe,
+
+    #[msg("Token account mint does not match position mint")]
+    TokenMintMismatch,
+
+    #[msg("Vault token account authority does not match vault PDA")]
+    InvalidVaultTokenAuthority,
+
+    #[msg("Actual token balance does not match expected amount")]
+    TokenBalanceMismatch,
 }

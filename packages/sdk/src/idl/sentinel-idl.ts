@@ -1030,6 +1030,137 @@ export const SENTINEL_IDL = {
           "type": "bool"
         }
       ]
+    },
+    {
+      "name": "owner_deposit",
+      "docs": [
+        "Deposits real SPL tokens from owner into vault PDA custody account"
+      ],
+      "discriminator": [
+        184,
+        48,
+        123,
+        180,
+        114,
+        72,
+        157,
+        92
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.owner",
+                "account": "PortfolioVault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "owner_token_account",
+          "writable": true
+        },
+        {
+          "name": "vault_token_account",
+          "writable": true
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "token_program"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "owner_withdraw",
+      "docs": [
+        "Withdraws real SPL tokens from vault PDA custody account to owner destination"
+      ],
+      "discriminator": [
+        138,
+        172,
+        103,
+        228,
+        254,
+        96,
+        114,
+        178
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.owner",
+                "account": "PortfolioVault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "signer": true
+        },
+        {
+          "name": "vault_token_account",
+          "writable": true
+        },
+        {
+          "name": "destination_token_account",
+          "writable": true
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "token_program"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
     }
   ],
   "accounts": [
@@ -1281,6 +1412,76 @@ export const SENTINEL_IDL = {
         104,
         10
       ]
+    },
+    {
+      "name": "DepositExecutedEvent",
+      "discriminator": [
+        52,
+        208,
+        47,
+        192,
+        198,
+        87,
+        0,
+        213
+      ],
+      "fields": [
+        {
+          "name": "vault",
+          "type": "pubkey"
+        },
+        {
+          "name": "owner",
+          "type": "pubkey"
+        },
+        {
+          "name": "mint",
+          "type": "pubkey"
+        },
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "slot",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "WithdrawExecutedEvent",
+      "discriminator": [
+        68,
+        136,
+        130,
+        167,
+        200,
+        94,
+        28,
+        111
+      ],
+      "fields": [
+        {
+          "name": "vault",
+          "type": "pubkey"
+        },
+        {
+          "name": "owner",
+          "type": "pubkey"
+        },
+        {
+          "name": "mint",
+          "type": "pubkey"
+        },
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "slot",
+          "type": "u64"
+        }
+      ]
     }
   ],
   "errors": [
@@ -1473,6 +1674,41 @@ export const SENTINEL_IDL = {
       "code": 6037,
       "name": "InvalidVolatileAssetConfiguration",
       "msg": "Vault must be configured with exactly one volatile asset position"
+    },
+    {
+      "code": 6038,
+      "name": "InvalidTokenAccountOwner",
+      "msg": "Account is not owned by the Token Program"
+    },
+    {
+      "code": 6039,
+      "name": "InvalidTokenAccountData",
+      "msg": "Invalid token account data length"
+    },
+    {
+      "code": 6040,
+      "name": "InvalidMintData",
+      "msg": "Invalid mint account owner or data"
+    },
+    {
+      "code": 6041,
+      "name": "DestinationNotSafe",
+      "msg": "Destination token account is not owned by the policy safe_destination"
+    },
+    {
+      "code": 6042,
+      "name": "TokenMintMismatch",
+      "msg": "Token account mint does not match position mint"
+    },
+    {
+      "code": 6043,
+      "name": "InvalidVaultTokenAuthority",
+      "msg": "Vault token account authority does not match vault PDA"
+    },
+    {
+      "code": 6044,
+      "name": "TokenBalanceMismatch",
+      "msg": "Actual token balance does not match expected amount"
     }
   ],
   "types": [
@@ -2166,6 +2402,62 @@ export const SENTINEL_IDL = {
           {
             "name": "vault",
             "type": "pubkey"
+          },
+          {
+            "name": "slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DepositExecutedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WithdrawExecutedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
           },
           {
             "name": "slot",
