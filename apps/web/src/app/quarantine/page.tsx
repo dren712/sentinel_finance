@@ -667,6 +667,69 @@ export default function QuarantinePage() {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 pt-6 space-y-6">
+        {/* Cinematic CWF Recovery State Machine Centerpiece */}
+        <div className="p-5 sm:p-6 rounded-2xl border border-[#1E2638] bg-[#111622] space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#1E2638] pb-3">
+            <div>
+              <div className="text-xs font-mono font-bold text-rose-400 uppercase tracking-wider flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-rose-400 animate-pulse" />
+                <span>The Recovery Layer for Autonomous Capital</span>
+              </div>
+              <p className="text-xs text-slate-400 mt-1">
+                Static permissions tell agents what they may do. Sentinel protects what must remain true.
+              </p>
+            </div>
+            <div className="text-[11px] font-mono text-slate-400">
+              Prove → Quarantine → Recover → Expire
+            </div>
+          </div>
+
+          {/* Incident Primary State Hierarchy Rail */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
+            <div className="p-3 rounded-xl bg-[#090B10] border border-[#1E2638] space-y-1">
+              <span className="text-[10px] text-slate-500 uppercase">1. Invariant Breach</span>
+              <div className="text-sm font-bold text-rose-400">
+                {(exposureBps / 100).toFixed(1)}% &gt; {(capBps / 100).toFixed(1)}%
+              </div>
+              <p className="text-[10px] text-slate-400 font-sans">
+                {exposureBps > capBps ? 'INVARIANT VIOLATED' : 'PASSING INVARIANTS'}
+              </p>
+            </div>
+
+            <div className="p-3 rounded-xl bg-[#090B10] border border-[#1E2638] space-y-1">
+              <span className="text-[10px] text-slate-500 uppercase">2. Oracle Proof</span>
+              <div className="text-sm font-bold text-emerald-400">
+                PROOF VERIFIED
+              </div>
+              <p className="text-[10px] text-slate-400 font-sans">
+                Pyth Devnet Full Level
+              </p>
+            </div>
+
+            <div className="p-3 rounded-xl bg-[#090B10] border border-[#1E2638] space-y-1">
+              <span className="text-[10px] text-slate-500 uppercase">3. Quarantine Status</span>
+              <div className="text-sm font-bold text-white">
+                {vault?.status === 'quarantined' ? 'QUARANTINED' : vault?.status === 'recoveryExpired' ? 'EXPIRED' : 'ACTIVE'}
+              </div>
+              <p className="text-[10px] text-slate-400 font-sans">
+                {vault?.status === 'quarantined'
+                  ? `Window: ${slotsRemaining} / ${policy?.recoveryWindowSlots || 15} slots`
+                  : 'Agent authority normal'}
+              </p>
+            </div>
+
+            <div className="p-3 rounded-xl bg-[#090B10] border border-[#1E2638] space-y-1">
+              <span className="text-[10px] text-slate-500 uppercase">4. Bounded Recovery</span>
+              <div className="text-sm font-bold text-emerald-400">
+                {recoveryReceipt ? 'RECOVERED' : containmentPlan ? `${containmentPlan.containmentUnits} UNITS` : 'STANDBY'}
+              </div>
+              <p className="text-[10px] text-slate-400 font-sans">
+                Real SPL CPI transfer
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* Authoritative SPL Token Custody & On-Chain Containment Disclaimer */}
         <div className="p-3.5 rounded-lg border border-blue-500/30 bg-blue-500/5 flex items-start gap-3">
           <ShieldCheck className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />

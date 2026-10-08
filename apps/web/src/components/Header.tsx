@@ -104,20 +104,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Action Controls & Top Right */}
         <div className="flex items-center gap-2 sm:gap-2.5">
-          {/* Subtle Environment State Pill Indicator */}
-          <div
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-mono font-medium ${
-              mode === 'LIVE'
-                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
-            }`}
-            title={`Environment: ${mode === 'LIVE' ? 'Solana Devnet Live' : 'Deterministic Simulation'}. Open Settings to change.`}
-          >
-            <span className={`w-1.5 h-1.5 rounded-full ${mode === 'LIVE' ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
-            <span className="tracking-tight">{mode === 'LIVE' ? 'Devnet Live' : 'Simulated'}</span>
-          </div>
-
-          {/* Dynamic Context-Aware Watcher vs Quarantine State Indicator */}
+          {/* Healthy Status Pill or Urgent Quarantined Alert */}
           {vaultStatus === 'quarantined' ? (
             <Link
               href="/quarantine"
@@ -129,47 +116,38 @@ export const Header: React.FC<HeaderProps> = ({
                 DEVNET · QUARANTINED {quarantineSlotsRemaining && quarantineSlotsRemaining > 0 ? `· ${quarantineSlotsRemaining} SLOTS` : ''}
               </span>
             </Link>
-          ) : vaultStatus === 'pending' ? (
-            <Link
-              href="/quarantine"
-              className="h-9 px-2.5 sm:px-3 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 hover:text-amber-200 text-xs font-mono font-medium flex items-center gap-1.5 transition cursor-pointer"
-              title="Violation Pending: Confirmation hysteresis active. Click to inspect."
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-              <ShieldAlert className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span className="tracking-wider text-[11px] font-semibold">DEVNET · PENDING</span>
-            </Link>
-          ) : vaultStatus === 'recoveryExpired' ? (
-            <Link
-              href="/quarantine"
-              className="h-9 px-2.5 sm:px-3 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-slate-300 hover:text-slate-100 text-xs font-mono font-medium flex items-center gap-1.5 transition cursor-pointer"
-              title="Recovery Expired: Window closed."
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-              <ShieldAlert className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <span className="tracking-wider text-[11px] font-semibold">DEVNET · EXPIRED</span>
-            </Link>
           ) : (
+            <div
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-sentinel-border bg-sentinel-surfaceElevated/60 text-[11px] font-mono font-medium text-emerald-400"
+              title={`Environment: Solana Devnet. All policy invariants active.`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <span className="tracking-tight">DEVNET · PROTECTED</span>
+            </div>
+          )}
+
+          {/* Canonical Recovery Link */}
+          {vaultStatus !== 'quarantined' && (
             <Link
               href="/quarantine"
-              className="h-9 px-2.5 sm:px-3 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 hover:text-emerald-200 text-xs font-mono font-medium flex items-center gap-1.5 transition cursor-pointer"
-              title="Sentinel Autonomous Watcher Active: Invariants Continuously Monitored"
+              className="h-9 px-2.5 sm:px-3 rounded-lg bg-sentinel-surfaceElevated hover:bg-sentinel-surfaceMuted border border-sentinel-border text-sentinel-textMuted hover:text-white text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
+              title="Quarantine & Recovery Terminal"
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-              <span className="tracking-wider text-[11px] font-semibold">DEVNET · WATCHING</span>
+              <ShieldCheck className="w-3.5 h-3.5 text-sentinel-textSubtle shrink-0" />
+              <span className="hidden sm:inline font-sans">Recovery</span>
+              <span className="sm:hidden font-sans">Recovery</span>
             </Link>
           )}
 
-          {/* Devnet Lab Sandbox Link */}
+          {/* Canonical Devnet Lab Link */}
           <Link
             href="/lab"
-            className="h-9 px-2.5 sm:px-3 rounded-lg bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 text-orange-300 hover:text-orange-200 text-xs font-mono font-medium flex items-center gap-1.5 transition cursor-pointer"
+            className="h-9 px-2.5 sm:px-3 rounded-lg bg-sentinel-surfaceElevated hover:bg-sentinel-surfaceMuted border border-sentinel-border text-sentinel-textMuted hover:text-white text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
             title="Sentinel Devnet Lab: Faucets, Test Assets, and Controlled Incident Simulator"
           >
-            <FlaskConical className="w-3.5 h-3.5 text-orange-400 shrink-0" />
-            <span className="hidden sm:inline tracking-tight font-semibold">DEVNET LAB</span>
-            <span className="sm:hidden font-semibold">LAB</span>
+            <FlaskConical className="w-3.5 h-3.5 text-sentinel-textSubtle shrink-0" />
+            <span className="hidden sm:inline font-sans">Devnet Lab</span>
+            <span className="sm:hidden font-sans">Lab</span>
           </Link>
 
           {/* Quick Demo Runner with Restrained Dropdown */}

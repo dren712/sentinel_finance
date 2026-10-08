@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
 import {
   LayoutDashboard,
   PieChart,
@@ -9,8 +8,6 @@ import {
   ShieldCheck,
   CheckCircle2,
   FileCheck,
-  FlaskConical,
-  ShieldAlert,
 } from 'lucide-react';
 
 export type NavTab =
@@ -93,25 +90,6 @@ export const Navigation: React.FC<NavigationProps> = ({
               );
             })}
           </nav>
-
-          <div className="flex items-center gap-2 py-1">
-            <Link
-              href="/lab"
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-orange-500/30 bg-orange-500/10 hover:bg-orange-500/20 text-orange-300 text-xs font-mono font-medium transition-colors"
-              title="Devnet Lab Faucets &amp; Sandbox"
-            >
-              <FlaskConical className="w-3.5 h-3.5 text-orange-400" />
-              <span>Devnet Lab</span>
-            </Link>
-            <Link
-              href="/quarantine"
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-300 text-xs font-mono font-medium transition-colors"
-              title="Quarantine &amp; Recovery Terminal"
-            >
-              <ShieldAlert className="w-3.5 h-3.5 text-red-400" />
-              <span>Quarantine</span>
-            </Link>
-          </div>
         </div>
       </div>
 

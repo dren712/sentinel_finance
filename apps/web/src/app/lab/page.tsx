@@ -328,14 +328,14 @@ export default function DevnetLabPage() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-bold text-base tracking-tight text-white">
-                  SENTINEL DEVNET LAB
+                  Devnet Lab
                 </span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-orange-500/15 text-orange-400 border border-orange-500/30">
-                  DEVELOPER SANDBOX
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-medium bg-[#161D2C] text-gray-400 border border-[#1E2638]">
+                  DEVNET ONLY
                 </span>
               </div>
-              <p className="text-[11px] text-gray-400 font-mono">
-                Programmable Faucets, Controlled Invariant Shocks &amp; Real SPL Recovery
+              <p className="text-[11px] text-gray-400">
+                A disposable environment for funding, testing, and replaying Sentinel recovery.
               </p>
             </div>
           </div>
@@ -370,10 +370,10 @@ export default function DevnetLabPage() {
 
             <Link
               href="/quarantine"
-              className="px-3 py-1.5 rounded-lg border border-red-500/40 bg-red-950/30 hover:bg-red-900/40 text-red-300 text-xs font-mono font-semibold transition-colors flex items-center gap-1.5"
+              className="px-3 py-1.5 rounded-lg border border-[#1E2638] bg-[#111622] hover:bg-[#161D2C] text-gray-300 hover:text-white text-xs font-mono font-medium transition-colors flex items-center gap-1.5"
             >
-              <ShieldAlert className="w-3.5 h-3.5 text-red-400" />
-              Quarantine Terminal →
+              <ShieldAlert className="w-3.5 h-3.5 text-gray-400" />
+              <span>Recovery Terminal</span>
             </Link>
 
             <WalletMultiButtonDynamic />
@@ -420,7 +420,7 @@ export default function DevnetLabPage() {
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-mono uppercase tracking-wider text-gray-400 flex items-center gap-2">
               <Coins className="w-3.5 h-3.5 text-blue-400" />
-              1. Devnet Asset Faucets (No Real Monetary Value)
+              1. FUND (Devnet SOL &amp; SPL Test Assets)
             </h2>
             <div className="text-[11px] font-mono text-gray-400">
               Active Wallet:{' '}
@@ -562,7 +562,7 @@ export default function DevnetLabPage() {
             <div>
               <div className="flex items-center gap-2.5">
                 <span className="text-xs font-mono uppercase tracking-wider text-gray-400">
-                  2. Devnet Vault Sandbox
+                  2. CREATE VAULT (Baseline 55% Exposure)
                 </span>
                 <span className={`px-2.5 py-0.5 rounded text-xs font-mono font-bold border uppercase ${statusColor}`}>
                   {sandbox.status === 'PROTECTED' && '✓ STATUS: PROTECTED'}
@@ -659,16 +659,16 @@ export default function DevnetLabPage() {
           </div>
 
           {/* Action Trigger Banner */}
-          <div className="p-4 rounded-xl border border-orange-500/30 bg-orange-950/15 flex flex-wrap items-center justify-between gap-4">
+          <div className="p-4 rounded-xl border border-sentinel-border bg-[#161D2C] flex flex-wrap items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
                 <Flame className="w-4 h-4 text-orange-400" />
                 <span className="font-bold text-sm text-white font-mono">
-                  THE KILLER DEVNET DEMO: CONTROLLED RISK BREACH
+                  3. RUN INCIDENT (Controlled Shock &amp; Recovery)
                 </span>
               </div>
-              <p className="text-xs text-gray-300 font-mono mt-1 max-w-2xl leading-relaxed">
-                Clicking <strong>RUN INCIDENT</strong> shocks sASSET exposure from 55% to 68% (&gt; 60% limit), triggers on-chain violation flagging, confirms quarantine, runs the pure binary-search solver, and executes a <strong>real SPL token transfer</strong> to your safe destination!
+              <p className="text-xs text-gray-400 font-mono mt-1 max-w-2xl leading-relaxed">
+                Shocks sASSET exposure from 55% to 68% (&gt; 60% cap), triggers on-chain violation flagging, confirms quarantine, runs the binary-search solver, and executes a real SPL token containment transfer to the safe destination.
               </p>
             </div>
 
@@ -676,16 +676,16 @@ export default function DevnetLabPage() {
               type="button"
               onClick={handleRunIncident}
               disabled={isRunningIncident}
-              className="py-3 px-6 rounded-xl font-bold font-mono text-sm tracking-wide bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-400 hover:to-red-500 text-white shadow-lg shadow-orange-950/50 transition-all flex items-center gap-2.5 cursor-pointer disabled:opacity-50 shrink-0"
+              className="py-2.5 px-5 rounded-lg font-bold font-mono text-xs tracking-wide bg-blue-600 hover:bg-blue-500 text-white transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 shrink-0"
             >
               {isRunningIncident ? (
                 <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                   EXECUTING DEVNET RECOVERY...
                 </>
               ) : (
                 <>
-                  <Flame className="w-4 h-4" />
+                  <Flame className="w-3.5 h-3.5 text-orange-300" />
                   RUN INCIDENT (SHOCK &amp; RECOVER)
                 </>
               )}
@@ -693,12 +693,12 @@ export default function DevnetLabPage() {
           </div>
         </section>
 
-        {/* Step 3: Telemetry & Results View (Toggle between Demo and Proof Mode) */}
+        {/* Step 4: Telemetry & Results View (Toggle between Demo and Proof Mode) */}
         {activeMode === 'DEMO' ? (
           <section className="space-y-4">
             <h3 className="text-xs font-mono uppercase tracking-wider text-gray-400 flex items-center gap-2">
               <Activity className="w-3.5 h-3.5 text-blue-400" />
-              Real-Time Portfolio Risk Telemetry
+              4. INSPECT PROOF (Portfolio Risk Telemetry &amp; Recovery Receipts)
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
