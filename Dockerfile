@@ -27,7 +27,7 @@ COPY apps/web/package.json ./apps/web/
 # Configure pnpm network reliability and install dependencies
 RUN pnpm config set fetch-retries 5 && \
     pnpm config set fetch-retry-maxtimeout 120000 && \
-    pnpm install --frozen-lockfile
+    pnpm install
 
 # -----------------------------------------------------------------------------
 # Builder stage: Build domain, sdk, and Next.js web application
