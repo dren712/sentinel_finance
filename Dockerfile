@@ -6,7 +6,7 @@
 FROM node:20-slim AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable && corepack prepare pnpm@10.4.5 --activate
+RUN npm install -g pnpm@10.4.5
 WORKDIR /app
 
 # -----------------------------------------------------------------------------
