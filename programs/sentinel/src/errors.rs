@@ -109,4 +109,10 @@ pub enum SentinelError {
 
     #[msg("Recovery sell amount is zero or exceeds position holdings")]
     InvalidAmount,
+
+    #[msg("Policy version does not match policy version at quarantine or policy mutated during recovery")]
+    PolicyFrozenDuringRecovery,
+
+    #[msg("Vault must be configured with exactly one volatile asset position")]
+    InvalidVolatileAssetConfiguration,
 }

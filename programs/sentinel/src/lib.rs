@@ -130,6 +130,8 @@ pub mod sentinel {
         positions: Vec<AssetPosition>,
     ) -> Result<()> {
         require!(positions.len() <= PortfolioVault::MAX_POSITIONS, SentinelError::InvalidPolicyBounds);
+        let volatile_count = positions.iter().filter(|p| !p.is_index).count();
+        require!(volatile_count == 1, SentinelError::InvalidVolatileAssetConfiguration);
 
         let vault = &mut ctx.accounts.vault;
         vault.owner = ctx.accounts.owner.key();
@@ -144,6 +146,7 @@ pub mod sentinel {
         vault.recovery_nonce = 0;
         vault.last_recovery_slot = 0;
         vault.last_recovery_solver = Pubkey::default();
+        vault.policy_version_at_quarantine = 0;
 
         // Compute cached initial total value in cents
         let mut total_equity_cents: u64 = 0;
@@ -177,6 +180,8 @@ pub mod sentinel {
         positions: Vec<AssetPosition>,
     ) -> Result<()> {
         require!(positions.len() <= PortfolioVault::MAX_POSITIONS, SentinelError::InvalidPolicyBounds);
+        let volatile_count = positions.iter().filter(|p| !p.is_index).count();
+        require!(volatile_count == 1, SentinelError::InvalidVolatileAssetConfiguration);
 
         let vault = &mut ctx.accounts.vault;
         vault.usdc_balance_cents = usdc_balance_cents;
@@ -533,12 +538,18 @@ pub mod sentinel {
             .checked_add(recomputed_target_cents)
             .ok_or(SentinelError::MathOverflow)?;
 
-        let is_violated = check_exposure_and_reserve(
+        let eval_result = check_exposure_and_reserve(
             policy,
             recomputed_target_cents,
             recomputed_total_cents,
             vault.usdc_balance_cents,
-        ).is_err();
+        );
+
+        let is_violated = match eval_result {
+            Ok(_) => false,
+            Err(e) if e == error!(SentinelError::ExposureExceeded) || e == error!(SentinelError::StablecoinReserveBreached) => true,
+            Err(e) => return Err(e),
+        };
 
         let current_slot = clock.slot;
 
@@ -569,6 +580,7 @@ pub mod sentinel {
                     vault.status = VaultStatus::Quarantined;
                     vault.pending_violation_slot = 0;
                     vault.quarantine_slot = current_slot;
+                    vault.policy_version_at_quarantine = policy.policy_version;
                     vault.recovery_expires_slot = current_slot
                         .checked_add(policy.recovery_window_slots)
                         .ok_or(SentinelError::MathOverflow)?;
@@ -596,6 +608,7 @@ pub mod sentinel {
         vault.pending_violation_slot = 0;
         vault.quarantine_slot = 0;
         vault.recovery_expires_slot = 0;
+        vault.policy_version_at_quarantine = 0;
         vault.recovery_nonce = vault.recovery_nonce
             .checked_add(1)
             .ok_or(SentinelError::MathOverflow)?;
@@ -646,6 +659,15 @@ pub mod sentinel {
         // a. vault.status == Quarantined -> VaultNotQuarantined
         require!(vault.status == VaultStatus::Quarantined, SentinelError::VaultNotQuarantined);
 
+        // Policy must be active
+        require!(policy.is_active, SentinelError::PolicyInactive);
+
+        // Policy version must match policy version snapshotted at quarantine
+        require!(
+            vault.policy_version_at_quarantine == 0 || policy.policy_version == vault.policy_version_at_quarantine,
+            SentinelError::PolicyFrozenDuringRecovery
+        );
+
         let clock = Clock::get()?;
         let current_slot = clock.slot;
 
@@ -654,6 +676,10 @@ pub mod sentinel {
 
         // c. expected_nonce == vault.recovery_nonce -> StaleRecoveryNonce
         require!(expected_nonce == vault.recovery_nonce, SentinelError::StaleRecoveryNonce);
+
+        // Exactly one volatile (non-index) position enforced
+        let volatile_count = vault.positions.iter().filter(|p| !p.is_index).count();
+        require!(volatile_count == 1, SentinelError::InvalidVolatileAssetConfiguration);
 
         // Volatile (non-index) position
         let pos_idx = vault.positions.iter().position(|p| !p.is_index)
@@ -760,6 +786,7 @@ pub mod sentinel {
         vault.pending_violation_slot = 0;
         vault.quarantine_slot = 0;
         vault.recovery_expires_slot = 0;
+        vault.policy_version_at_quarantine = 0;
         vault.recovery_nonce = new_nonce;
         vault.last_recovery_slot = current_slot;
         vault.last_recovery_solver = ctx.accounts.solver.key();

@@ -829,8 +829,15 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
   });
 
   it('13. value conservation: policy with max_recovery_cost_bps below the venue fee -> ValueConservationBreached', async () => {
-    const qVault = await fetchVault();
-    const nonce = Number(qVault.recoveryNonce);
+    // Release vault so we can update policy and re-quarantine with the updated policy version
+    const releaseIx = await program.methods
+      .ownerRelease()
+      .accountsPartial({
+        vault: vaultPda,
+        owner: owner.publicKey,
+      })
+      .instruction();
+    await processTx(new Transaction().add(releaseIx), owner);
 
     // Update policy max_recovery_cost_bps = 5 bps (0.05% < venue fee 30 bps = 0.30%)
     const updatePolicyIx = await program.methods
@@ -853,6 +860,11 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
       .instruction();
     await processTx(new Transaction().add(updatePolicyIx), owner);
 
+    // Re-quarantine vault under the new policy version
+    await syncViolatingHoldings(20, 800000);
+    const qVault = await quarantineVault(270n);
+    const nonce = Number(qVault.recoveryNonce);
+
     const recoverIx = await program.methods
       .recover(new BN(10), new BN(nonce))
       .accountsPartial({
@@ -870,7 +882,16 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
       assertCustomError(err, 'ValueConservationBreached', 6032);
     }
 
-    // Restore policy max_recovery_cost_bps back to 100 bps
+    // Release vault and restore policy max_recovery_cost_bps back to 100 bps
+    const releaseAfterIx = await program.methods
+      .ownerRelease()
+      .accountsPartial({
+        vault: vaultPda,
+        owner: owner.publicKey,
+      })
+      .instruction();
+    await processTx(new Transaction().add(releaseAfterIx), owner);
+
     const restorePolicyIx = await program.methods
       .updatePolicy(
         2500,
@@ -895,7 +916,7 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
   it('14. two solvers race: first succeeds, second fails', async () => {
     // Put vault into Quarantined state
     await syncViolatingHoldings(20, 800000);
-    const qVault = await quarantineVault(270n);
+    const qVault = await quarantineVault(290n);
     const nonce = Number(qVault.recoveryNonce);
 
     const txA = new Transaction().add(
@@ -938,7 +959,7 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
 
   it('15. arbitrary wallet as solver succeeds (permissionless)', async () => {
     await syncViolatingHoldings(20, 800000);
-    const qVault = await quarantineVault(290n);
+    const qVault = await quarantineVault(310n);
     const nonce = Number(qVault.recoveryNonce);
 
     const recoverIx = await program.methods
@@ -960,7 +981,7 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
 
   it('16. recover cannot change policy, owner, or any other vault: assert those accounts and fields are unchanged after success', async () => {
     await syncViolatingHoldings(20, 800000);
-    const qVault = await quarantineVault(310n);
+    const qVault = await quarantineVault(330n);
     const nonce = Number(qVault.recoveryNonce);
 
     // Snapshot policy account and vault owner before recovery
@@ -1009,8 +1030,8 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
     let vault = await fetchVault();
     assert.strictEqual(getStatusString(vault.status), 'Active');
 
-    // 2. Flag violation (pending at slot 330)
-    ctx.warpToSlot(330n);
+    // 2. Flag violation (pending at slot 350)
+    ctx.warpToSlot(350n);
     const flag1 = await program.methods
       .flagViolation()
       .accountsPartial({
@@ -1024,10 +1045,10 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
 
     vault = await fetchVault();
     assert.strictEqual(getStatusString(vault.status), 'Active');
-    assert.strictEqual(Number(vault.pendingViolationSlot), 330);
+    assert.strictEqual(Number(vault.pendingViolationSlot), 350);
 
-    // 3. Confirm violation after confirm_slots (warp to 342)
-    ctx.warpToSlot(342n);
+    // 3. Confirm violation after confirm_slots (warp to 362)
+    ctx.warpToSlot(362n);
     const flag2 = await program.methods
       .flagViolation()
       .accountsPartial({
@@ -1138,5 +1159,264 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
     // USDC: 1,099,100 - 30,000 = 1,069,100 cents
     assert.strictEqual(Number(vaultFinal.positions[0].amountUnits), 11);
     assert.strictEqual(Number(vaultFinal.usdcBalanceCents), 1069100);
+  });
+
+  it('18. policy mutation during quarantine: recovery fails with PolicyFrozenDuringRecovery (6036)', async () => {
+    // 1. Induce violation to Quarantined
+    await syncViolatingHoldings(20, 800000);
+    const qVault = await quarantineVault(400n);
+    const nonce = Number(qVault.recoveryNonce);
+
+    // 2. Owner mutates policy while quarantined (increments policy_version)
+    const updatePolicyIx = await program.methods
+      .updatePolicy(
+        2500, // maxSingleAssetBps
+        2000, // minStablecoinBps
+        new BN(10000), // maxTradeValueUsd
+        100,  // maxSlippageBps
+        new BN(10), // confirmSlots
+        new BN(100), // recoveryWindowSlots
+        100, // maxRecoveryCostBps
+        50,  // maxBountyBps
+        owner.publicKey,
+        true // isActive
+      )
+      .accountsPartial({
+        policy: policyPda,
+        owner: owner.publicKey,
+      })
+      .instruction();
+    await processTx(new Transaction().add(updatePolicyIx), owner);
+
+    // 3. Solver attempts recover() -> must fail with PolicyFrozenDuringRecovery (6036)
+    const recoverIx = await program.methods
+      .recover(new BN(5), new BN(nonce))
+      .accountsPartial({
+        vault: vaultPda,
+        policy: policyPda,
+        priceUpdate: violatingPricePubkey,
+        solver: solver.publicKey,
+      })
+      .instruction();
+
+    await assert.rejects(
+      processTx(new Transaction().add(recoverIx), solver),
+      (err: any) => {
+        assertCustomError(err, 'PolicyFrozenDuringRecovery', 6036);
+        return true;
+      }
+    );
+
+    // Clean up via owner release
+    const releaseIx = await program.methods
+      .ownerRelease()
+      .accountsPartial({
+        vault: vaultPda,
+        owner: owner.publicKey,
+      })
+      .instruction();
+    await processTx(new Transaction().add(releaseIx), owner);
+  });
+
+  it('19. inactive policy blocks recovery with PolicyInactive (6004)', async () => {
+    // 1. Induce violation to Quarantined
+    await syncViolatingHoldings(20, 800000);
+    const qVault = await quarantineVault(450n);
+    const nonce = Number(qVault.recoveryNonce);
+
+    // 2. Owner deactivates policy
+    const disablePolicyIx = await program.methods
+      .updatePolicy(
+        2500,
+        2000,
+        new BN(10000),
+        100,
+        new BN(10),
+        new BN(100),
+        100,
+        50,
+        owner.publicKey,
+        false // isActive = false
+      )
+      .accountsPartial({
+        policy: policyPda,
+        owner: owner.publicKey,
+      })
+      .instruction();
+    await processTx(new Transaction().add(disablePolicyIx), owner);
+
+    // 3. Solver attempts recover() -> PolicyInactive (6004)
+    const recoverIx = await program.methods
+      .recover(new BN(5), new BN(nonce))
+      .accountsPartial({
+        vault: vaultPda,
+        policy: policyPda,
+        priceUpdate: violatingPricePubkey,
+        solver: solver.publicKey,
+      })
+      .instruction();
+
+    await assert.rejects(
+      processTx(new Transaction().add(recoverIx), solver),
+      (err: any) => {
+        assertCustomError(err, 'PolicyInactive', 6004);
+        return true;
+      }
+    );
+
+    // Re-enable policy and release
+    const enablePolicyIx = await program.methods
+      .updatePolicy(
+        2500,
+        2000,
+        new BN(10000),
+        100,
+        new BN(10),
+        new BN(100),
+        100,
+        50,
+        owner.publicKey,
+        true // isActive = true
+      )
+      .accountsPartial({
+        policy: policyPda,
+        owner: owner.publicKey,
+      })
+      .instruction();
+    await processTx(new Transaction().add(enablePolicyIx), owner);
+
+    const releaseIx = await program.methods
+      .ownerRelease()
+      .accountsPartial({
+        vault: vaultPda,
+        owner: owner.publicKey,
+      })
+      .instruction();
+    await processTx(new Transaction().add(releaseIx), owner);
+  });
+
+  it('20. multiple volatile positions in sync_vault rejected with InvalidVolatileAssetConfiguration (6037)', async () => {
+    // Attempt sync_vault with 2 non-index positions
+    const multiVolatilePositions = [
+      {
+        mint: nvdaMint,
+        symbol: Array.from(Buffer.from('NVDAx\0\0\0')),
+        amountUnits: new BN(10),
+        priceCents: new BN(10000),
+        isIndex: false,
+        feedId,
+      },
+      {
+        mint: Keypair.generate().publicKey,
+        symbol: Array.from(Buffer.from('TSLAx\0\0\0')),
+        amountUnits: new BN(10),
+        priceCents: new BN(10000),
+        isIndex: false,
+        feedId,
+      },
+    ];
+
+    const syncIx = await program.methods
+      .syncVault(new BN(800000), multiVolatilePositions)
+      .accountsPartial({
+        vault: vaultPda,
+        owner: owner.publicKey,
+      })
+      .instruction();
+
+    await assert.rejects(
+      processTx(new Transaction().add(syncIx), owner),
+      (err: any) => {
+        assert.ok(
+          err.message?.includes('InvalidVolatileAssetConfiguration') ||
+          err.message?.includes('6037') ||
+          err.message?.includes('0x1795'),
+          `Expected InvalidVolatileAssetConfiguration (6037), got: ${err.message}`
+        );
+        return true;
+      }
+    );
+  });
+
+  it('21. malformed state (total_cents = 0) fails closed with MathOverflow (6008) in flag_violation', async () => {
+    // Set up a second vault with 0 usdc and 0 amount units
+    const zeroOwner = Keypair.generate();
+    ctx.setAccount(zeroOwner.publicKey, {
+      lamports: 10_000_000_000,
+      data: Buffer.alloc(0),
+      owner: SystemProgram.programId,
+      executable: false,
+    });
+
+    const [zeroPolicyPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('policy'), zeroOwner.publicKey.toBuffer()],
+      PROGRAM_ID
+    );
+    const [zeroVaultPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('vault'), zeroOwner.publicKey.toBuffer()],
+      PROGRAM_ID
+    );
+
+    const initPolIx = await program.methods
+      .initializePolicy(
+        2500,
+        2000,
+        new BN(10000),
+        100,
+        new BN(2),
+        new BN(15),
+        100,
+        50,
+        zeroOwner.publicKey
+      )
+      .accountsPartial({
+        policy: zeroPolicyPda,
+        owner: zeroOwner.publicKey,
+        systemProgram: SystemProgram.programId,
+      })
+      .instruction();
+    await processTx(new Transaction().add(initPolIx), zeroOwner);
+
+    const initZeroVaultIx = await program.methods
+      .initializeVault(
+        new BN(0),
+        [
+          {
+            mint: nvdaMint,
+            symbol: Array.from(Buffer.from('NVDAx\0\0\0')),
+            amountUnits: new BN(0),
+            priceCents: new BN(0),
+            isIndex: false,
+            feedId,
+          },
+        ]
+      )
+      .accountsPartial({
+        vault: zeroVaultPda,
+        policy: zeroPolicyPda,
+        owner: zeroOwner.publicKey,
+        systemProgram: SystemProgram.programId,
+      })
+      .instruction();
+    await processTx(new Transaction().add(initZeroVaultIx), zeroOwner);
+
+    // Now call flag_violation on this zero vault -> total_cents is 0 -> fails closed with MathOverflow (6008), NOT treated as a violation!
+    const flagIx = await program.methods
+      .flagViolation()
+      .accountsPartial({
+        vault: zeroVaultPda,
+        policy: zeroPolicyPda,
+        priceUpdate: violatingPricePubkey,
+        signer: solver.publicKey,
+      })
+      .instruction();
+
+    await assert.rejects(
+      processTx(new Transaction().add(flagIx), solver),
+      (err: any) => {
+        assertCustomError(err, 'MathOverflow', 6008);
+        return true;
+      }
+    );
   });
 });

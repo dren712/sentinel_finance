@@ -1469,6 +1469,16 @@ export type Sentinel = {
       "code": 6035,
       "name": "invalidAmount",
       "msg": "Recovery sell amount is zero or exceeds position holdings"
+    },
+    {
+      "code": 6036,
+      "name": "policyFrozenDuringRecovery",
+      "msg": "Policy version does not match policy version at quarantine or policy mutated during recovery"
+    },
+    {
+      "code": 6037,
+      "name": "invalidVolatileAssetConfiguration",
+      "msg": "Vault must be configured with exactly one volatile asset position"
     }
   ],
   "types": [
@@ -1837,6 +1847,10 @@ export type Sentinel = {
           {
             "name": "lastRecoverySolver",
             "type": "pubkey"
+          },
+          {
+            "name": "policyVersionAtQuarantine",
+            "type": "u32"
           }
         ]
       }

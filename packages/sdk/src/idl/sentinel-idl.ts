@@ -1463,6 +1463,16 @@ export const SENTINEL_IDL = {
       "code": 6035,
       "name": "InvalidAmount",
       "msg": "Recovery sell amount is zero or exceeds position holdings"
+    },
+    {
+      "code": 6036,
+      "name": "PolicyFrozenDuringRecovery",
+      "msg": "Policy version does not match policy version at quarantine or policy mutated during recovery"
+    },
+    {
+      "code": 6037,
+      "name": "InvalidVolatileAssetConfiguration",
+      "msg": "Vault must be configured with exactly one volatile asset position"
     }
   ],
   "types": [
@@ -1831,6 +1841,10 @@ export const SENTINEL_IDL = {
           {
             "name": "last_recovery_solver",
             "type": "pubkey"
+          },
+          {
+            "name": "policy_version_at_quarantine",
+            "type": "u32"
           }
         ]
       }
