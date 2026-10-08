@@ -14,3 +14,4 @@ export * from './recovery';
 export * from './custody';
 export * from './services/watcher';
 export * from './services/solver';
+export { BN, Program, AnchorProvider } from '@coral-xyz/anchor';

@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@coral-xyz/anchor": "^0.30.1",
     "@sentinel/domain": "workspace:*",
     "@sentinel/sdk": "workspace:*",
     "@solana/wallet-adapter-base": "^0.9.23",

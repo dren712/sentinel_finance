@@ -11,13 +11,15 @@ import {
   Transaction,
   Connection,
 } from '@solana/web3.js';
-import { BN, Program, AnchorProvider } from '@coral-xyz/anchor';
 import {
   SENTINEL_IDL,
   SENTINEL_ERROR_BY_CODE,
   getSentinelError,
   requiredRecoveryUnits,
   resolveRecoveryCustodyAccounts,
+  BN,
+  Program,
+  AnchorProvider,
 } from '@sentinel/sdk';
 import {
   ShieldAlert,
