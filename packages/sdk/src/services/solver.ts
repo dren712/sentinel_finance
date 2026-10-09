@@ -162,34 +162,39 @@ export class SentinelSolverService {
           const sellUnits = new BN(plan.sellUnits.toString());
           const expectedNonce = vault.recoveryNonce;
 
-          let recoverBuilder = this.program.methods
+          if (this.mode === 'simulated') {
+            recoveryResult.recovered = true;
+            recoveryResult.signature = `simulated_recovery_${Date.now()}`;
+            results.push(recoveryResult);
+            continue;
+          }
+
+          let tokenProgramId = TOKEN_PROGRAM_ID;
+          try {
+            const mintAcc = await this.connection.getAccountInfo(pos.mint, 'confirmed');
+            if (mintAcc && mintAcc.owner.equals(TOKEN_2022_PROGRAM_ID)) {
+              tokenProgramId = TOKEN_2022_PROGRAM_ID;
+            }
+          } catch {
+            // default to standard Token Program
+          }
+
+          const custodyAccounts = resolveRecoveryCustodyAccounts(
+            vaultPubkey,
+            policy.safeDestination,
+            pos.mint,
+            tokenProgramId
+          );
+
+          const recoverBuilder = this.program.methods
             .recover(sellUnits, expectedNonce)
             .accountsPartial({
               vault: vaultPubkey,
               policy: policyPda,
               priceUpdate: this.priceUpdatePubkey,
               solver: this.signer.publicKey,
-            });
-
-          if (this.mode === 'custody') {
-            let tokenProgramId = TOKEN_PROGRAM_ID;
-            try {
-              const mintAcc = await this.connection.getAccountInfo(pos.mint, 'confirmed');
-              if (mintAcc && mintAcc.owner.equals(TOKEN_2022_PROGRAM_ID)) {
-                tokenProgramId = TOKEN_2022_PROGRAM_ID;
-              }
-            } catch {
-              // default to standard Token Program
-            }
-
-            const custodyAccounts = resolveRecoveryCustodyAccounts(
-              vaultPubkey,
-              policy.safeDestination,
-              pos.mint,
-              tokenProgramId
-            );
-            recoverBuilder = recoverBuilder.remainingAccounts(custodyAccounts);
-          }
+            })
+            .remainingAccounts(custodyAccounts);
 
           const recoverIx = await recoverBuilder.instruction();
           const tx = new Transaction().add(recoverIx);

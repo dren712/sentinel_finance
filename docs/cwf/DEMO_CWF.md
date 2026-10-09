@@ -13,7 +13,7 @@ Demonstrate the complete Sentinel CWF safety loop on Solana Devnet:
 - **On-Screen**:
   - Show the vault status badge: `ACTIVE` (Emerald).
   - Show policy risk bounds: Max Single-Asset Cap = `25.00%`, Min Stablecoin Floor = `20.00%`.
-  - Highlight the honest label: *"Ledger-based vault. Simulated settlement."*
+  - Highlight custody architecture: Vault PDA holds real SPL tokens; `safe_destination` is configured for emergency containment.
 - **Spoken / Voiceover**:
   *"Sentinel provides an autonomous execution firewall for AI agents on Solana. The portfolio is currently Active and fully compliant with owner-defined risk bounds: 20% ETH exposure against a 25% cap."*
 
@@ -57,7 +57,7 @@ Demonstrate the complete Sentinel CWF safety loop on Solana Devnet:
   - Transaction confirms on Devnet.
   - Vault exposure drops to `22.04%` (within the allowed 20–25% postcondition band).
 - **Spoken / Voiceover**:
-  *"Now an open market solver executes a permissionless reduce-only recovery. The contract validates the Pyth oracle price, verifies value conservation within 5%, and enforces an oversell guard to prevent dumping. 78 units are liquidated into USDC inside the vault ledger."*
+  *"Now an open market solver executes a permissionless reduce-only recovery. The contract validates the Pyth oracle price, verifies value conservation within 5%, and enforces an oversell guard. The program executes a signed SPL Token CPI moving exact excess tokens directly to the safe destination ATA, restoring portfolio risk to compliant bounds."*
 
 ### 1:15 – 1:30 | Safe Resumption & Verification
 - **Action**: View updated on-chain status and timeline on `/quarantine`.

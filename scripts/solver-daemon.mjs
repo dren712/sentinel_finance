@@ -34,8 +34,13 @@ function loadSigner() {
       Uint8Array.from(JSON.parse(fs.readFileSync(defaultPath, 'utf8')))
     );
   }
-  console.log('[Solver Daemon] No keypair found in env or ~/.config/solana/id.json; generating ephemeral solver.');
-  return Keypair.generate();
+  if (process.env.ALLOW_EPHEMERAL_KEYPAIR === '1' || process.env.ALLOW_EPHEMERAL_KEYPAIR === 'true') {
+    console.warn('[Solver Daemon] WARNING: ALLOW_EPHEMERAL_KEYPAIR enabled. Generating ephemeral keypair.');
+    return Keypair.generate();
+  }
+  throw new Error(
+    '[Solver Daemon] FATAL: No Solana signer configured. Set SOLVER_KEYPAIR env variable (JSON array of secret key) or place a funded keypair at ~/.config/solana/id.json. (To override for testing only, set ALLOW_EPHEMERAL_KEYPAIR=1).'
+  );
 }
 
 async function main() {
@@ -53,6 +58,9 @@ async function main() {
 
   const balance = await connection.getBalance(signer.publicKey);
   console.log(`Signer Balance:      ${(balance / 1e9).toFixed(4)} SOL`);
+  if (balance === 0) {
+    console.warn('[Solver Daemon] WARNING: Signer has 0 SOL. On-chain transaction submissions will fail due to lack of gas.');
+  }
 
   const solver = new SentinelSolverService({
     connection,

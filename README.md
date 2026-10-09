@@ -75,11 +75,12 @@ To provide complete technical transparency for judges, code auditors, and review
 
 | Dimension | Real On Solana Devnet (Authoritative) | Interactive Demo / Simulation Layer |
 | :--- | :--- | :--- |
-| **Anchor Program** | Deployed Solana program (`3gh1Cc2Q...`) enforcing `execute_guarded_trade` atomic postconditions | Client-side what-if projection simulator on Overview |
-| **Account State** | On-chain `PolicyAccount`, `AgentAccount`, `VaultAccount`, `PromiseAccount`, `EvidenceAccount` PDAs | Simulated preview headroom calculations |
+| **Anchor Program** | Dedicated CWF Solana Program ([`3TVEhBHw...`](https://explorer.solana.com/address/3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH?cluster=devnet)) enforcing pre-trade guards, quarantine state transitions, and real SPL custody containment (`recover`) | Client-side what-if projection simulator on Overview |
+| **Account State** | On-chain `PolicyAccount`, `AgentAccount`, `PortfolioVault`, `PromiseAccount`, `EvidenceAccount` PDAs holding real SPL token custody | Simulated preview headroom calculations |
 | **Policy Updates** | Signed by user's browser wallet (Phantom/Solflare) committing on Devnet RPC via Anchor | Local UI candidate state prior to on-chain signing |
+| **Emergency Containment** | Program-signed SPL Token & Token-2022 CPI `transfer_checked_signed` moving excess tokens to `policy.safe_destination` upon invariant breach | Informational solver bounty calculation in event |
 | **Flagship Rejection** | Real rejected $15K Devnet transaction ([TX `Yj4VQjWB...`](https://explorer.solana.com/tx/Yj4VQjWBtjhYZZpUvKeeuoWRL674jDawZ3HKk4rysriGPumK1Mqz7sLuB59dGD8nk4L5z7aWe27nqqnTt1G91AB?cluster=devnet)) | Preflight client-side rejection preview |
-| **Flagship Settlement** | Real $5K guarded `VaultAccount` state transition ([TX `424aJbYW...`](https://explorer.solana.com/tx/424aJbYWGVFs6o8tDttYURYnZdBiFXtcbCGtHewF6uRBaj2oZ8sZmSDs25ws8r5dmMBH8fZGCw9w7Z8yTMj6mZvU?cluster=devnet)). Ledger-only settlement; tokens do not move between SPL accounts | Target allocation slider projection curves |
+| **Flagship Settlement** | Real $5K guarded `VaultAccount` state transition ([TX `424aJbYW...`](https://explorer.solana.com/tx/424aJbYWGVFs6o8tDttYURYnZdBiFXtcbCGtHewF6uRBaj2oZ8sZmSDs25ws8r5dmMBH8fZGCw9w7Z8yTMj6mZvU?cluster=devnet)) | Target allocation slider projection curves |
 | **Evidence Proofs** | PROVN SHA-256 on-chain evidence transaction ([TX `hZFTL14Y...`](https://explorer.solana.com/tx/hZFTL14Y17EQx44JskkbPMXEivsSWLDsaUfDtC6cAnmFAo84guhBLQ1ap2VV9ZQXbX334PdYiWfLmXxKjH1MNoF?cluster=devnet)) | Two-tier evidence receipt inspection drawer |
 | **Price Feeds** | Pyth Hermes v2 sub-second price streaming in `LIVE` mode (`https://hermes.pyth.network`) | Injected 140s stale-quote demo scenario |
 | **Sponsor Scenarios** | Meteora DBC deterministic pool PDA derivations; PreStocks 409A NAV normalization | Simulated shallow DBC pool impact (`1.7% > 1.0%`) & $30K OPENAIx breach |
@@ -148,7 +149,8 @@ Agent Intelligence ➔ Sentinel Policy Postconditions ➔ SVM Execution ➔ Sola
 
 | Artifact | On-Chain Address / Signature | Explorer |
 | :--- | :--- | :--- |
-| **Sentinel Anchor Program** | `3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK` | [Program](https://explorer.solana.com/address/3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK?cluster=devnet) |
+| **Sentinel CWF Program (Authoritative)** | `3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH` | [CWF Program](https://explorer.solana.com/address/3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH?cluster=devnet) |
+| **Sentinel Stocklana Baseline Program** | `3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK` | [Baseline Program](https://explorer.solana.com/address/3gh1Cc2Qc65hJhxZKneXphWJa27z5adyFayc9kWEvAJK?cluster=devnet) |
 | **Live Railway Deployment** | `sentinel-finance-production-4560.up.railway.app` | [Live Production App](https://sentinel-finance-production-4560.up.railway.app/) |
 | **PolicyAccount PDA** | `3wTp1YDSG3xmf9TtuwZ64b11uLuLNUgQRwdesMbFJUUh` | [Policy PDA](https://explorer.solana.com/address/3wTp1YDSG3xmf9TtuwZ64b11uLuLNUgQRwdesMbFJUUh?cluster=devnet) |
 | **AgentAccount PDA (`robo-01`)** | `G9MwRFgstx8Ee4dC6CYLb4CuwhR5YXXpYUhbyHrsxSpv` *(Live/Hosted)* <br>`62vpHzSG92GUbAXtNh4czG6U6HyTpndrY4NvZM9euUnQ` *(Test Harness)* | [Live Agent PDA](https://explorer.solana.com/address/G9MwRFgstx8Ee4dC6CYLb4CuwhR5YXXpYUhbyHrsxSpv?cluster=devnet) · [Test PDA](https://explorer.solana.com/address/62vpHzSG92GUbAXtNh4czG6U6HyTpndrY4NvZM9euUnQ?cluster=devnet) |
@@ -190,15 +192,21 @@ curl http://localhost:3000/api/health
 
 ---
 
-## Testing & Verification (`147 Automated Tests Passing + Solana Devnet Gate`)
+## Testing & Verification (`195 Automated Tests Passing + Solana Devnet Gate`)
 
 ```bash
 # Run all 108 unit, domain, SDK, watcher/solver, and adversarial security tests
 pnpm test
 
 # Run slot-warped Bankrun test suites (26 recovery tests + 13 quarantine tests)
-node --test tests/bankrun-recovery.test.ts
-node --test tests/bankrun-quarantine.test.ts
+node --experimental-strip-types --test tests/bankrun-recovery.test.ts
+node --experimental-strip-types --test tests/bankrun-quarantine.test.ts
+
+# Run Anchor localnet integration tests (20 tests)
+node --experimental-strip-types --test tests/sentinel-localnet.test.ts
+
+# Run Rust program unit tests (28 tests)
+cargo test --manifest-path programs/sentinel/Cargo.toml
 
 # Run live Solana Devnet P22/P23 verification gate
 node packages/sdk/scripts/verify-p22-p23-devnet.mjs
@@ -208,7 +216,10 @@ node packages/sdk/scripts/verify-p22-p23-devnet.mjs
 
 ## Documentation Links
 
+- [Developer Quickstart Guide](./docs/QUICKSTART.md)
+- [CWF 48h Release Audit & Truth Matrix](./docs/CWF_48H_RELEASE_AUDIT.md)
 - [Quarantine & Recovery Terminal (Live)](https://sentinel-finance-production-4560.up.railway.app/quarantine)
+- [Devnet Lab (Faucets & Testing Sandbox)](https://sentinel-finance-production-4560.up.railway.app/lab)
 - [CWF Submission Document](./docs/cwf/SUBMISSION_CWF.md)
 - [Quarantine State Machine Specification](./docs/cwf/STATE_MACHINE.md)
 - [CWF Disclosure & Provenance Log](./docs/cwf/DISCLOSURE.md)

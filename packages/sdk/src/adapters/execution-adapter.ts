@@ -830,19 +830,22 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
       );
     }
 
+    if (custodyRemainingAccounts.length < 4) {
+      throw new Error(
+        `recover() strictly requires 4 custody remaining accounts [vault_ta, safe_dest_ta, mint, token_program] to execute on-chain containment. Found ${custodyRemainingAccounts.length}.`
+      );
+    }
+
     const tx = new Transaction();
-    let recoverBuilder = program.methods
+    const recoverBuilder = program.methods
       .recover(new BN(options.sellUnits.toString()), new BN(options.expectedNonce.toString()))
       .accountsPartial({
         vault: vaultPda,
         policy: policyPda,
         priceUpdate,
         solver: activeSigner.publicKey,
-      });
-
-    if (custodyRemainingAccounts.length > 0) {
-      recoverBuilder = recoverBuilder.remainingAccounts(custodyRemainingAccounts);
-    }
+      })
+      .remainingAccounts(custodyRemainingAccounts);
 
     const recoverIx = await recoverBuilder.instruction();
     tx.add(recoverIx);

@@ -109,7 +109,7 @@ export default function DevnetLabPage() {
     isInitialized: true,
     vaultAddress: '7TffMKzUgVme4eod8Wh9ANAQ3YrRMzj4c2JrfKm6AY4Y',
     policyAddress: '3wTp1YDSG3xmf9TtuwZ64b11uLuLNUgQRwdesMbFJUUh',
-    ownerAddress: targetWallet,
+    ownerAddress: devnetAssets.faucetAuthority || 'GR9CtiUswZtay68U2fGqcDeB1dg8sHtpVi9kk2nCEwzw',
     safeDestination: targetWallet,
     status: 'PROTECTED',
     onChainStatus: 'Active',
@@ -571,9 +571,13 @@ export default function DevnetLabPage() {
                   {sandbox.status === 'RECOVERED' && '✓ STATUS: RECOVERED & ACTIVE'}
                 </span>
               </div>
-              <div className="text-[11px] font-mono text-gray-400 mt-1 flex items-center gap-3">
-                <span>Vault: <span className="text-white font-mono">{sandbox.vaultAddress.slice(0, 8)}...</span></span>
-                <span>Safe Dest: <span className="text-white font-mono">{sandbox.safeDestination.slice(0, 8)}...</span></span>
+              <div className="text-[11px] font-mono text-gray-400 mt-1 flex flex-wrap items-center gap-3">
+                <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px]">
+                  Managed Demo Vault
+                </span>
+                <span>Owner: <span className="text-gray-300 font-mono">{sandbox.ownerAddress.slice(0, 6)}...{sandbox.ownerAddress.slice(-4)}</span></span>
+                <span>Vault: <span className="text-white font-mono">{sandbox.vaultAddress.slice(0, 6)}...{sandbox.vaultAddress.slice(-4)}</span></span>
+                <span>Safe Dest: <span className="text-emerald-400 font-mono">{sandbox.safeDestination.slice(0, 6)}...{sandbox.safeDestination.slice(-4)}</span> {connected && publicKey && sandbox.safeDestination === publicKey.toBase58() ? '(Your Connected Wallet)' : '(Demo Safe Dest)'}</span>
               </div>
             </div>
 
@@ -670,6 +674,12 @@ export default function DevnetLabPage() {
               <p className="text-xs text-gray-400 font-mono mt-1 max-w-2xl leading-relaxed">
                 Shocks sASSET exposure from 55% to 68% (&gt; 60% cap), triggers on-chain violation flagging, confirms quarantine, runs the binary-search solver, and executes a real SPL token containment transfer to the safe destination.
               </p>
+              <div className="mt-2.5 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] font-mono text-amber-300/90 flex items-start gap-2 max-w-2xl">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                <span>
+                  <strong>Controlled Scenario Input:</strong> The price movement ($40.00 → $50.00) in this Devnet Lab is an injected scenario test shock simulating an invariant breach. In production, price movements are read directly from live Pyth oracle feeds. All downstream actions—violation flagging, quarantine transitions, and SPL token containment transfers—are executed authoritatively on Solana Devnet.
+                </span>
+              </div>
             </div>
 
             <button
