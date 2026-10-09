@@ -3,7 +3,7 @@ import { Program, AnchorProvider, BN } from '@coral-xyz/anchor';
 import { SENTINEL_IDL } from '../idl/sentinel-idl';
 import type { Sentinel } from '../idl/sentinel';
 import { WalletSigner } from '../types';
-import { parsePythPriceUpdateAccount } from '../custody';
+import { parsePythPriceUpdateAccount, PYTH_RECEIVER_ID } from '../custody';
 
 export interface WatcherConfig {
   connection: Connection;
@@ -79,7 +79,8 @@ export class SentinelWatcherService {
         this.programId
       );
       const policy = (await (this.program.account as any).policyAccount.fetchNullable(policyPda)) as any;
-      if (!policy || !policy.active) {
+      const isPolicyActive = policy?.isActive ?? policy?.is_active ?? policy?.active ?? false;
+      if (!policy || !isPolicyActive) {
         continue;
       }
 
@@ -90,12 +91,39 @@ export class SentinelWatcherService {
       const pos = nonIndex[0];
       const amountUnits = BigInt(pos.amountUnits);
 
-      // Read fresh Pyth oracle price - fail-closed if unavailable
+      // Read fresh Pyth oracle price - fail-closed if unavailable or invalid
       let effectivePriceCents: bigint | null = null;
       try {
         const priceAccInfo = await this.connection.getAccountInfo(this.priceUpdatePubkey, 'confirmed');
         if (priceAccInfo && priceAccInfo.data) {
+          // Verify owner if present
+          if (priceAccInfo.owner && !priceAccInfo.owner.equals(PYTH_RECEIVER_ID)) {
+            continue;
+          }
           const parsed = parsePythPriceUpdateAccount(priceAccInfo.data);
+
+          // Verify feed ID matches pos.feedId if specified
+          if (pos.feedId && parsed.feedId) {
+            const posFeedBuf = Buffer.isBuffer(pos.feedId) ? pos.feedId : Buffer.from(pos.feedId);
+            if (!posFeedBuf.subarray(0, 32).equals(parsed.feedId.subarray(0, 32))) {
+              continue;
+            }
+          }
+
+          // Verify freshness (<= 60s)
+          const nowSec = Math.floor(Date.now() / 1000);
+          if (parsed.publishTime > 0 && Math.abs(nowSec - parsed.publishTime) > 60) {
+            continue;
+          }
+
+          // Verify confidence interval (<= 200 bps = 2.0%)
+          if (parsed.price > BigInt(0)) {
+            const confBps = Number((parsed.conf * BigInt(10000)) / parsed.price);
+            if (confBps > 200) {
+              continue;
+            }
+          }
+
           if (parsed.priceCents > 0) {
             effectivePriceCents = BigInt(parsed.priceCents);
           }

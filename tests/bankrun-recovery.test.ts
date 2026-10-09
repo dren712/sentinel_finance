@@ -211,7 +211,7 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
     if (vTa) {
       await ctx.setAccount(nvdaVaultTa, {
         lamports: vTa.lamports,
-        data: buildTokenAccountBuffer(nvdaMint, vaultPda, BigInt(units)),
+        data: buildTokenAccountBuffer(nvdaMint, vaultPda, BigInt(units) * 1_000_000n),
         owner: TOKEN_PROGRAM_ID,
         executable: false,
       });
@@ -335,7 +335,7 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
         address: nvdaVaultTa,
         info: {
           lamports: 1_000_000_000,
-          data: buildTokenAccountBuffer(nvdaMint, vaultPda, 20n),
+          data: buildTokenAccountBuffer(nvdaMint, vaultPda, 20_000_000n),
           owner: TOKEN_PROGRAM_ID,
           executable: false,
         },
@@ -601,8 +601,8 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
     // 2. Assert real custody token balances
     const vaultTaAfter = await ctx.banksClient.getAccount(nvdaVaultTa);
     const safeDestTaAfter = await ctx.banksClient.getAccount(nvdaSafeDestTa);
-    assert.strictEqual(Buffer.from(vaultTaAfter!.data).readBigUInt64LE(64), 8n);
-    assert.strictEqual(Buffer.from(safeDestTaAfter!.data).readBigUInt64LE(64), 12n);
+    assert.strictEqual(Buffer.from(vaultTaAfter!.data).readBigUInt64LE(64), 8_000_000n);
+    assert.strictEqual(Buffer.from(safeDestTaAfter!.data).readBigUInt64LE(64), 12_000_000n);
 
     // Exposure and reserve assertions
     const postExposureBps = (8 * 30000 * 10000) / 1040000;
@@ -1229,13 +1229,13 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
     assert.strictEqual(Number(vaultFinal.usdcBalanceCents), 830000);
   });
 
-  it('18. policy mutation during quarantine: recovery fails with PolicyFrozenDuringRecovery (6036)', async () => {
+  it('18. policy mutation during quarantine: update_policy fails with PolicyFrozenDuringRecovery (6036)', async () => {
     // 1. Induce violation to Quarantined
     await syncViolatingHoldings(20, 800000);
     const qVault = await quarantineVault(400n);
     const nonce = Number(qVault.recoveryNonce);
 
-    // 2. Owner mutates policy while quarantined (increments policy_version)
+    // 2. Owner attempts to mutate policy while quarantined -> rejected on-chain
     const updatePolicyIx = await program.methods
       .updatePolicy(
         2500, // maxSingleAssetBps
@@ -1251,25 +1251,13 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
       )
       .accountsPartial({
         policy: policyPda,
+        vault: vaultPda,
         owner: owner.publicKey,
       })
       .instruction();
-    await processTx(new Transaction().add(updatePolicyIx), owner);
-
-    // 3. Solver attempts recover() -> must fail with PolicyFrozenDuringRecovery (6036)
-    const recoverIx = await program.methods
-      .recover(new BN(12), new BN(nonce))
-      .accountsPartial({
-        vault: vaultPda,
-        policy: policyPda,
-        priceUpdate: violatingPricePubkey,
-        solver: solver.publicKey,
-      })
-      .remainingAccounts(getRecoveryCustodyAccounts())
-      .instruction();
 
     await assert.rejects(
-      processTx(new Transaction().add(recoverIx), solver),
+      processTx(new Transaction().add(updatePolicyIx), owner),
       (err: any) => {
         assertCustomError(err, 'PolicyFrozenDuringRecovery', 6036);
         return true;
@@ -1288,12 +1276,8 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
   });
 
   it('19. inactive policy blocks recovery with PolicyInactive (6004)', async () => {
-    // 1. Induce violation to Quarantined
+    // 1. Vault is Active. Owner deactivates policy while active
     await syncViolatingHoldings(20, 800000);
-    const qVault = await quarantineVault(450n);
-    const nonce = Number(qVault.recoveryNonce);
-
-    // 2. Owner deactivates policy
     const disablePolicyIx = await program.methods
       .updatePolicy(
         2500,
@@ -1309,10 +1293,15 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
       )
       .accountsPartial({
         policy: policyPda,
+        vault: vaultPda,
         owner: owner.publicKey,
       })
       .instruction();
     await processTx(new Transaction().add(disablePolicyIx), owner);
+
+    // 2. Quarantine vault
+    const qVault = await quarantineVault(450n);
+    const nonce = Number(qVault.recoveryNonce);
 
     // 3. Solver attempts recover() -> PolicyInactive (6004)
     const recoverIx = await program.methods
@@ -1334,7 +1323,17 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
       }
     );
 
-    // Re-enable policy and release
+    // Clean up via owner release to restore Active status
+    const releaseIx = await program.methods
+      .ownerRelease()
+      .accountsPartial({
+        vault: vaultPda,
+        owner: owner.publicKey,
+      })
+      .instruction();
+    await processTx(new Transaction().add(releaseIx), owner);
+
+    // Re-enable policy while vault is Active
     const enablePolicyIx = await program.methods
       .updatePolicy(
         2500,
@@ -1350,19 +1349,11 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
       )
       .accountsPartial({
         policy: policyPda,
-        owner: owner.publicKey,
-      })
-      .instruction();
-    await processTx(new Transaction().add(enablePolicyIx), owner);
-
-    const releaseIx = await program.methods
-      .ownerRelease()
-      .accountsPartial({
         vault: vaultPda,
         owner: owner.publicKey,
       })
       .instruction();
-    await processTx(new Transaction().add(releaseIx), owner);
+    await processTx(new Transaction().add(enablePolicyIx), owner);
   });
 
   it('20. multiple volatile positions in sync_vault rejected with InvalidVolatileAssetConfiguration (6037)', async () => {
@@ -1524,7 +1515,7 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
     });
     await ctx.setAccount(ownerTokenAcc, {
       lamports: 1_000_000_000,
-      data: buildTokenAccountBuffer(custodyMint, custodyOwner.publicKey, 100n),
+      data: buildTokenAccountBuffer(custodyMint, custodyOwner.publicKey, 100_000_000n),
       owner: TOKEN_PROGRAM_ID,
       executable: false,
     });
@@ -1594,8 +1585,8 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
 
     const ownerAccAfterDep = await ctx.banksClient.getAccount(ownerTokenAcc);
     const vaultAccAfterDep = await ctx.banksClient.getAccount(vaultTokenAcc);
-    assert.strictEqual(Buffer.from(ownerAccAfterDep!.data).readBigUInt64LE(64), 40n);
-    assert.strictEqual(Buffer.from(vaultAccAfterDep!.data).readBigUInt64LE(64), 60n);
+    assert.strictEqual(Buffer.from(ownerAccAfterDep!.data).readBigUInt64LE(64), 40_000_000n);
+    assert.strictEqual(Buffer.from(vaultAccAfterDep!.data).readBigUInt64LE(64), 60_000_000n);
 
     const vaultAfterDep = program.coder.accounts.decode(
       'portfolioVault',
@@ -1619,8 +1610,8 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
 
     const ownerAccAfterWd = await ctx.banksClient.getAccount(ownerTokenAcc);
     const vaultAccAfterWd = await ctx.banksClient.getAccount(vaultTokenAcc);
-    assert.strictEqual(Buffer.from(ownerAccAfterWd!.data).readBigUInt64LE(64), 60n);
-    assert.strictEqual(Buffer.from(vaultAccAfterWd!.data).readBigUInt64LE(64), 40n);
+    assert.strictEqual(Buffer.from(ownerAccAfterWd!.data).readBigUInt64LE(64), 60_000_000n);
+    assert.strictEqual(Buffer.from(vaultAccAfterWd!.data).readBigUInt64LE(64), 40_000_000n);
 
     const vaultAfterWd = program.coder.accounts.decode(
       'portfolioVault',
@@ -1674,7 +1665,7 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
     });
     await ctx.setAccount(vaultTa, {
       lamports: 1_000_000_000,
-      data: buildTokenAccountBuffer(realMint, realVaultPda, 100n),
+      data: buildTokenAccountBuffer(realMint, realVaultPda, 100_000_000n),
       owner: TOKEN_PROGRAM_ID,
       executable: false,
     });
@@ -1778,8 +1769,8 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
 
     const vaultTaAfter = await ctx.banksClient.getAccount(vaultTa);
     const safeDestTaAfter = await ctx.banksClient.getAccount(safeDestTa);
-    assert.strictEqual(Buffer.from(vaultTaAfter!.data).readBigUInt64LE(64), 10n);
-    assert.strictEqual(Buffer.from(safeDestTaAfter!.data).readBigUInt64LE(64), 90n);
+    assert.strictEqual(Buffer.from(vaultTaAfter!.data).readBigUInt64LE(64), 10_000_000n);
+    assert.strictEqual(Buffer.from(safeDestTaAfter!.data).readBigUInt64LE(64), 90_000_000n);
 
     const recoveredVault = program.coder.accounts.decode(
       'portfolioVault',
@@ -1837,7 +1828,7 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
     });
     await ctx.setAccount(vaultTa, {
       lamports: 1_000_000_000,
-      data: buildTokenAccountBuffer(malMint, malVaultPda, 100n),
+      data: buildTokenAccountBuffer(malMint, malVaultPda, 100_000_000n),
       owner: TOKEN_PROGRAM_ID,
       executable: false,
     });
@@ -1946,7 +1937,7 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
     );
 
     const vaultTaAfter = await ctx.banksClient.getAccount(vaultTa);
-    assert.strictEqual(Buffer.from(vaultTaAfter!.data).readBigUInt64LE(64), 100n);
+    assert.strictEqual(Buffer.from(vaultTaAfter!.data).readBigUInt64LE(64), 100_000_000n);
   });
 
   it('25. token mint mismatch in remaining accounts fails with TokenMintMismatch (6042)', async () => {
@@ -2002,7 +1993,7 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
     });
     await ctx.setAccount(vaultTa, {
       lamports: 1_000_000_000,
-      data: buildTokenAccountBuffer(mmMint, mmVaultPda, 100n),
+      data: buildTokenAccountBuffer(mmMint, mmVaultPda, 100_000_000n),
       owner: TOKEN_PROGRAM_ID,
       executable: false,
     });
@@ -2158,7 +2149,7 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
     });
     await ctx.setAccount(vaultTa, {
       lamports: 1_000_000_000,
-      data: buildTokenAccountBuffer(pcMint, pcVaultPda, 100n),
+      data: buildTokenAccountBuffer(pcMint, pcVaultPda, 100_000_000n),
       owner: TOKEN_PROGRAM_ID,
       executable: false,
     });
@@ -2274,7 +2265,7 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
     ) as any;
     assert.strictEqual(getStatusString(vaultAfter.status), 'Quarantined');
     const vaultTaAfter = await ctx.banksClient.getAccount(vaultTa);
-    assert.strictEqual(Buffer.from(vaultTaAfter!.data).readBigUInt64LE(64), 100n);
+    assert.strictEqual(Buffer.from(vaultTaAfter!.data).readBigUInt64LE(64), 100_000_000n);
   });
 });
 

@@ -192,10 +192,10 @@ curl http://localhost:3000/api/health
 
 ---
 
-## Testing & Verification (`195 Automated Tests Passing + Solana Devnet Gate`)
+## Testing & Verification (`197 Automated Tests Passing + Solana Devnet Gate`)
 
 ```bash
-# Run all 108 unit, domain, SDK, watcher/solver, and adversarial security tests
+# Run all 110 unit, domain, SDK, watcher/solver, and adversarial security tests
 pnpm test
 
 # Run slot-warped Bankrun test suites (26 recovery tests + 13 quarantine tests)

@@ -42,7 +42,7 @@ This document provides a comprehensive, radically honest audit of the Sentinel c
 | **Quarantine Incident Center** | **Off-Chain Real** | `apps/web/src/app/quarantine/page.tsx` | Real-time on-chain status monitoring, slot countdown, 8-state interactive recovery button, genuine Solana Explorer transaction receipts. |
 | **Devnet Lab & Faucets** | **Off-Chain Real** | `apps/web/src/app/lab/page.tsx`, `apps/web/src/lib/faucet-service.ts` | Real Devnet SOL airdrop + real Devnet SPL token minting (`sUSD`, `sASSET`) with on-chain ATA funding. |
 | **Solver Bounty Reward** | **Simulation** | `programs/sentinel/src/lib.rs` (`bounty_cap_cents`) | Informational metric emitted in `RecoveryExecutedEvent`. No token transfer is executed to the solver wallet. |
-| **Devnet Lab Price Shock** | **Simulation** | `apps/web/src/lib/devnet-sandbox.ts` | Controlled test shock ($40.00 -> $50.00) in `/lab` to demonstrate deterministic recovery without waiting for live Pyth crash. |
+| **Devnet Lab Incident Scenario** | **Controlled Input** | `apps/web/src/lib/devnet-sandbox.ts` | Uses live Pyth Devnet ETH/USD proxy feed (`GsZE13nr...`) to mark sASSET. Demonstrates breach via honest, controlled on-chain cash ledger reserve adjustment against the live Pyth price feed. |
 | **Interactive Homepage Simulator** | **Simulation** | `apps/web/src/components/LandingView.tsx` | Visual demonstration showing $15K trade rejection and $5K adapted approval. |
 | **Meteora / PreStocks Pre-Flight** | **Simulation** | `@sentinel/domain/src/market-quality.ts` | Evaluated in off-chain TypeScript filters rather than on-chain CPI swap checks. |
 | **DEX Liquidation Swaps** | **Out-of-Scope** | N/A | Sentinel deliberately executes *bounded token containment* (moving tokens to `safe_destination`), not automated DEX swaps. |
@@ -52,24 +52,29 @@ This document provides a comprehensive, radically honest audit of the Sentinel c
 
 ## 3. Discrepancy Reconciliation & Hardening Actions
 
-During the audit and implementation phases, several legacy contradictions were identified and eliminated:
+During the audit and implementation phases, several legacy contradictions and audit findings were identified and eliminated:
 
-1. **Daemon Silent Ephemeral Keypair Generation**:
-   - *Previous*: Daemons silently generated unfunded ephemeral keypairs when environment variables were missing, causing mysterious transaction failures.
-   - *Resolution*: Daemons now fail loudly with a fatal configuration error unless `SOLVER_KEYPAIR`/`WATCHER_KEYPAIR` or `~/.config/solana/id.json` is provided. Ephemeral keypairs are only permitted if explicitly requested via `ALLOW_EPHEMERAL_KEYPAIR=1`.
-2. **SDK Custody Remaining Accounts Enforcement**:
-   - *Previous*: `ExecutionAdapter.recover()` would attempt to submit instructions without remaining accounts if resolution returned an empty array.
-   - *Resolution*: Added strict check throwing `MissingCustodyAccounts` if `custodyRemainingAccounts.length < 4`.
-3. **Solver Service Mode Handling**:
-   - *Previous*: `mode: 'simulated'` would attempt to submit an on-chain transaction without custody accounts, failing on-chain with error 6045.
-   - *Resolution*: In `simulated` mode, the solver service computes the recovery plan and marks simulated completion without broadcasting broken transactions; in `custody` mode, it strictly resolves and attaches all 4 custody accounts.
-4. **Devnet Lab Ownership & Price-Source Labeling**:
-   - *Previous*: Disconnected wallet state in `/lab` caused the default demo vault to display the user wallet address as owner.
-   - *Resolution*: Explicitly labeled the vault as **Managed Demo Vault** owned by the Faucet Authority (`GR9Cti...`), while designating the connected wallet as the **Safe Destination** receiving recovered tokens.
-   - *Resolution*: Added prominent **Controlled Scenario Input** disclosure clarifying that the $40 -> $50 price shock is a controlled test input rather than a live Pyth market crash.
-5. **Homepage Restoration**:
-   - *Previous*: Homepage was cluttered with redundant 6-card lifecycle rails and technical jargon.
-   - *Resolution*: Restored original calm product headline (`Autonomous investing. Rigid guarantees.`) and copy, keeping `/quarantine` as the dedicated incident center and `/lab` as the developer testing environment.
+1. **Token Decimal Normalization (P0.1)**:
+   - *Previous*: Program ledger tracked `amount_units` in whole units while CPI calls passed units directly without scaling by decimals ($10^6$), resulting in a $10^6$ unit mismatch.
+   - *Resolution*: Canonicalized units: `amount_units` in the ledger represents whole token units, while CPI operations (`recover`, `owner_deposit`, `owner_withdraw`) strictly scale `units * 10^decimals` at the SPL Token program boundary. Exact token balance conservation asserts raw delta equality.
+2. **Pyth Oracle & Scenario Alignment (P0.2)**:
+   - *Previous*: Synthetic sASSET used Pyth ETH/USD proxy, but the Lab presented a static shock ($40 -> $50) and solver fallback assumed $50.
+   - *Resolution*: Lab directly queries the live Pyth Devnet ETH/USD feed (`GsZE13nr...`), calibrates the baseline exposure against the live quote, and induces an honest controlled reserve shock against that verified live price.
+3. **Watcher Activation Check (P0.3)**:
+   - *Previous*: Watcher checked `policy.active`, but the decoded Anchor account exposed `isActive` / `is_active`.
+   - *Resolution*: Watcher now evaluates `policy?.isActive ?? policy?.is_active ?? policy?.active` and skips inactive policies, with dedicated regression unit tests.
+4. **Authoritative Safe Destination & Idempotent Resets (P0.4 & P0.5)**:
+   - *Previous*: Lab could display a requested safe destination differing from the on-chain policy, and setup/reset minted redundant tokens inflating balances.
+   - *Resolution*: Policy safe destination is committed and re-read from on-chain account state. Setup and reset are physically idempotent: only minting the exact deficit required to restore target balance and asserting token balance matches ledger.
+5. **Elimination of Fabricated Recovery Receipts (P0.6)**:
+   - *Previous*: Solver fallback contained synthetic constants (`22`, `5940`, `6800`).
+   - *Resolution*: Removed all synthetic receipt constants. Receipts are computed dynamically from refetched on-chain vault state, Anchor event logs, and actual before/after token balance deltas.
+6. **On-Chain Policy Freeze Enforcement (P0.8)**:
+   - *Previous*: `update_policy` lacked a status check on the associated vault, potentially permitting policy alterations while quarantined.
+   - *Resolution*: Added `vault: Account<'info, PortfolioVault>` to `UpdatePolicy` with constraint `vault.status == VaultStatus::Active @ PolicyFrozenDuringRecovery` (6036).
+7. **Daemon Hardening & Split Keys**:
+   - *Previous*: Daemons silently generated unfunded ephemeral keypairs when environment variables were missing.
+   - *Resolution*: Daemons fail closed unless funded keypairs are provided or `ALLOW_EPHEMERAL_KEYPAIR=1` is explicitly set.
 
 ---
 
@@ -79,11 +84,11 @@ All test suites were executed cleanly in the local environment:
 
 | Test Suite | Framework / Tool | Test Count | Passing | Failing |
 | :--- | :--- | :---: | :---: | :---: |
-| **SDK & Domain Unit Tests** | `vitest` / Node test runner | 108 | 108 | 0 |
+| **SDK & Domain Unit Tests** | `vitest` / Node test runner | 110 | 110 | 0 |
 | **Bankrun Recovery Tests** | `solana-bankrun` | 26 | 26 | 0 |
 | **Bankrun Quarantine Tests** | `solana-bankrun` | 13 | 13 | 0 |
 | **Localnet Integration Tests** | `@coral-xyz/anchor` | 20 | 20 | 0 |
 | **Rust Program Unit Tests** | `cargo test` | 28 | 28 | 0 |
-| **TOTAL** | — | **195** | **195** | **0** |
+| **TOTAL** | — | **197** | **197** | **0** |
 
 All 16 Next.js production routes compiled cleanly with 0 TypeScript or build errors (`pnpm --filter web build`).

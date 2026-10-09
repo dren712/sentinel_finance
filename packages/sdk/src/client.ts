@@ -790,6 +790,10 @@ export class SentinelClient {
         [Buffer.from('policy'), ownerPubkey.toBuffer()],
         programId
       );
+      const [vaultPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from('vault'), ownerPubkey.toBuffer()],
+        programId
+      );
       const connection = this.getConnection();
 
       const readOnlyWallet = {
@@ -816,8 +820,9 @@ export class SentinelClient {
             policy.maxSlippageBps,
             Boolean(policy.isEmergencyPaused)
           )
-          .accounts({
-            policyAccount: policyPda,
+          .accountsPartial({
+            policy: policyPda,
+            vault: vaultPda,
             owner: ownerPubkey,
           })
           .transaction();

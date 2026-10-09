@@ -21,7 +21,7 @@ interface HeaderProps {
   walletBalanceSol?: number | null;
   vaultPda?: string;
   policyPda?: string;
-  vaultStatus?: 'active' | 'quarantined' | 'pending' | 'recoveryExpired';
+  vaultStatus?: 'active' | 'quarantined' | 'pending' | 'recoveryExpired' | 'verifying';
   quarantineSlotsRemaining?: number;
   onToggleMode: () => void;
   onRunDemo: () => void;
@@ -104,7 +104,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Action Controls & Top Right */}
         <div className="flex items-center gap-2 sm:gap-2.5">
-          {/* Healthy Status Pill or Urgent Quarantined Alert */}
+          {/* Healthy Status Pill, Urgent Quarantined Alert, or Verifying Indicator */}
           {vaultStatus === 'quarantined' ? (
             <Link
               href="/quarantine"
@@ -116,6 +116,14 @@ export const Header: React.FC<HeaderProps> = ({
                 DEVNET · QUARANTINED {quarantineSlotsRemaining && quarantineSlotsRemaining > 0 ? `· ${quarantineSlotsRemaining} SLOTS` : ''}
               </span>
             </Link>
+          ) : vaultStatus === 'verifying' ? (
+            <div
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-amber-500/30 bg-amber-500/10 text-[11px] font-mono font-medium text-amber-300"
+              title="Querying on-chain state from Solana Devnet..."
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+              <span className="tracking-tight">DEVNET · VERIFYING</span>
+            </div>
           ) : (
             <div
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-sentinel-border bg-sentinel-surfaceElevated/60 text-[11px] font-mono font-medium text-emerald-400"

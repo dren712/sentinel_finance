@@ -106,21 +106,21 @@ export default function DevnetLabPage() {
   }, [connected, publicKey]);
 
   const [sandbox, setSandbox] = useState<SandboxData>({
-    isInitialized: true,
-    vaultAddress: '7TffMKzUgVme4eod8Wh9ANAQ3YrRMzj4c2JrfKm6AY4Y',
-    policyAddress: '3wTp1YDSG3xmf9TtuwZ64b11uLuLNUgQRwdesMbFJUUh',
-    ownerAddress: devnetAssets.faucetAuthority || 'GR9CtiUswZtay68U2fGqcDeB1dg8sHtpVi9kk2nCEwzw',
+    isInitialized: false,
+    vaultAddress: '',
+    policyAddress: '',
+    ownerAddress: devnetAssets.faucetAuthority || '',
     safeDestination: targetWallet,
     status: 'PROTECTED',
-    onChainStatus: 'Active',
-    exposureBps: 5500, // 55.00%
-    maxExposureBps: 6000, // 60.00%
-    stableReserveBps: 4500, // 45.00%
-    minStableReserveBps: 2000, // 20.00%
-    sUsdBalance: 10000,
-    sAssetBalance: 100,
-    sAssetPriceUsd: 40.0,
-    recoveryNonce: 1,
+    onChainStatus: 'Uninitialized',
+    exposureBps: 0,
+    maxExposureBps: 6000,
+    stableReserveBps: 0,
+    minStableReserveBps: 2000,
+    sUsdBalance: 0,
+    sAssetBalance: 0,
+    sAssetPriceUsd: 0,
+    recoveryNonce: 0,
   });
 
   const showNotification = (type: 'success' | 'error' | 'info', message: string, tx?: string) => {
@@ -562,22 +562,38 @@ export default function DevnetLabPage() {
             <div>
               <div className="flex items-center gap-2.5">
                 <span className="text-xs font-mono uppercase tracking-wider text-gray-400">
-                  2. CREATE VAULT (Baseline 55% Exposure)
+                  2. CREATE VAULT (Baseline 50% Exposure)
                 </span>
-                <span className={`px-2.5 py-0.5 rounded text-xs font-mono font-bold border uppercase ${statusColor}`}>
-                  {sandbox.status === 'PROTECTED' && '✓ STATUS: PROTECTED'}
-                  {sandbox.status === 'VIOLATION' && '⚠ STATUS: VIOLATION PENDING'}
-                  {sandbox.status === 'QUARANTINED' && '🔒 STATUS: QUARANTINED'}
-                  {sandbox.status === 'RECOVERED' && '✓ STATUS: RECOVERED & ACTIVE'}
+                <span className={`px-2.5 py-0.5 rounded text-xs font-mono font-bold border uppercase ${
+                  !sandbox.isInitialized
+                    ? 'text-gray-400 bg-gray-900/60 border-gray-700/50'
+                    : statusColor
+                }`}>
+                  {!sandbox.isInitialized && '○ STATUS: UNINITIALIZED · SEED VAULT TO BEGIN'}
+                  {sandbox.isInitialized && sandbox.status === 'PROTECTED' && '✓ STATUS: PROTECTED'}
+                  {sandbox.isInitialized && sandbox.status === 'VIOLATION' && '⚠ STATUS: VIOLATION PENDING'}
+                  {sandbox.isInitialized && sandbox.status === 'QUARANTINED' && '🔒 STATUS: QUARANTINED'}
+                  {sandbox.isInitialized && sandbox.status === 'RECOVERED' && '✓ STATUS: RECOVERED & ACTIVE'}
+                </span>
+              </div>
+              <div className="text-[11px] font-mono text-gray-400 mt-1 flex flex-wrap items-center gap-2">
+                <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px]">
+                  REAL DEVNET ACCOUNT
+                </span>
+                <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px]">
+                  ON-CHAIN CASH LEDGER
+                </span>
+                <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 text-[10px]">
+                  PYTH ORACLE PROXY
+                </span>
+                <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px]">
+                  CONTROLLED SCENARIO
                 </span>
               </div>
               <div className="text-[11px] font-mono text-gray-400 mt-1 flex flex-wrap items-center gap-3">
-                <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px]">
-                  Managed Demo Vault
-                </span>
-                <span>Owner: <span className="text-gray-300 font-mono">{sandbox.ownerAddress.slice(0, 6)}...{sandbox.ownerAddress.slice(-4)}</span></span>
-                <span>Vault: <span className="text-white font-mono">{sandbox.vaultAddress.slice(0, 6)}...{sandbox.vaultAddress.slice(-4)}</span></span>
-                <span>Safe Dest: <span className="text-emerald-400 font-mono">{sandbox.safeDestination.slice(0, 6)}...{sandbox.safeDestination.slice(-4)}</span> {connected && publicKey && sandbox.safeDestination === publicKey.toBase58() ? '(Your Connected Wallet)' : '(Demo Safe Dest)'}</span>
+                <span>Owner: <span className="text-gray-300 font-mono">{sandbox.ownerAddress ? `${sandbox.ownerAddress.slice(0, 6)}...${sandbox.ownerAddress.slice(-4)}` : 'Deploying...'}</span></span>
+                <span>Vault: <span className="text-white font-mono">{sandbox.vaultAddress ? `${sandbox.vaultAddress.slice(0, 6)}...${sandbox.vaultAddress.slice(-4)}` : 'Not deployed (Click Create/Seed)'}</span></span>
+                <span>Safe Dest: <span className="text-emerald-400 font-mono">{sandbox.safeDestination ? `${sandbox.safeDestination.slice(0, 6)}...${sandbox.safeDestination.slice(-4)}` : 'Deploying...'}</span> {connected && publicKey && sandbox.safeDestination === publicKey.toBase58() ? '(Your Connected Wallet)' : '(Demo Safe Dest)'}</span>
               </div>
             </div>
 
@@ -621,7 +637,7 @@ export default function DevnetLabPage() {
                   : 'bg-[#161D2C] border-[#1E2638] text-gray-400'
               }`}>
                 1. NORMAL
-                <div className="text-[10px] text-gray-400 font-normal">Exposure 55% ≤ 60%</div>
+                <div className="text-[10px] text-gray-400 font-normal">Exposure 50% ≤ 60%</div>
               </div>
 
               <div className={`p-2.5 rounded-lg border text-center transition-all ${
@@ -629,8 +645,8 @@ export default function DevnetLabPage() {
                   ? 'bg-amber-950/40 border-amber-500/50 text-amber-300 font-semibold'
                   : 'bg-[#161D2C] border-[#1E2638] text-gray-400'
               }`}>
-                2. MARKET SHOCK
-                <div className="text-[10px] text-gray-400 font-normal">Price $40 → $50</div>
+                2. CONTROLLED SHOCK
+                <div className="text-[10px] text-gray-400 font-normal">Reserve Shock</div>
               </div>
 
               <div className={`p-2.5 rounded-lg border text-center transition-all ${
@@ -638,7 +654,7 @@ export default function DevnetLabPage() {
                   ? 'bg-red-950/40 border-red-500/50 text-red-300 font-semibold'
                   : 'bg-[#161D2C] border-[#1E2638] text-gray-400'
               }`}>
-                3. VIOLATION
+                3. ORACLE VERIFIED
                 <div className="text-[10px] text-gray-400 font-normal">Exposure 68% &gt; 60%</div>
               </div>
 
@@ -656,8 +672,8 @@ export default function DevnetLabPage() {
                   ? 'bg-emerald-950/50 border-emerald-400 text-emerald-200 font-bold'
                   : 'bg-[#161D2C] border-[#1E2638] text-gray-400'
               }`}>
-                5. RECOVERY
-                <div className="text-[10px] text-gray-400 font-normal">Real SPL CPI Settle</div>
+                5. REAL CONTAINMENT
+                <div className="text-[10px] text-gray-400 font-normal">Real SPL CPI Transfer</div>
               </div>
             </div>
           </div>
@@ -672,12 +688,12 @@ export default function DevnetLabPage() {
                 </span>
               </div>
               <p className="text-xs text-gray-400 font-mono mt-1 max-w-2xl leading-relaxed">
-                Shocks sASSET exposure from 55% to 68% (&gt; 60% cap), triggers on-chain violation flagging, confirms quarantine, runs the binary-search solver, and executes a real SPL token containment transfer to the safe destination.
+                Shocks sASSET exposure to 68% (&gt; 60% cap), triggers on-chain violation flagging, confirms quarantine, runs the binary-search solver, and executes a real SPL token containment transfer to the safe destination.
               </p>
               <div className="mt-2.5 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] font-mono text-amber-300/90 flex items-start gap-2 max-w-2xl">
                 <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
                 <span>
-                  <strong>Controlled Scenario Input:</strong> The price movement ($40.00 → $50.00) in this Devnet Lab is an injected scenario test shock simulating an invariant breach. In production, price movements are read directly from live Pyth oracle feeds. All downstream actions—violation flagging, quarantine transitions, and SPL token containment transfers—are executed authoritatively on Solana Devnet.
+                  <strong>Oracle &amp; Scenario Source Disclosure:</strong> In this Devnet Lab, sASSET exposure is evaluated using Pyth Network&apos;s live Devnet ETH/USD feed proxy (<code className="text-amber-200">GsZE13nr...</code>). The controlled scenario adjusts the on-chain cash ledger to simulate an invariant breach. All downstream actions—Pyth oracle verification, violation flagging, quarantine transitions, and SPL token containment transfers—are executed authoritatively on Solana Devnet.
                 </span>
               </div>
             </div>

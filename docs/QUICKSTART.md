@@ -153,7 +153,7 @@ main().catch(console.error);
 Run the complete test suite:
 
 ```bash
-# 1. Run all 108 SDK, domain, watcher/solver, and adversarial security tests
+# 1. Run all 110 SDK, domain, watcher/solver, and adversarial security tests
 pnpm test
 
 # 2. Run Bankrun recovery slot-warping tests (26 test cases)
@@ -168,4 +168,4 @@ cargo test --manifest-path programs/sentinel/Cargo.toml
 # 5. Build Next.js production bundle
 pnpm --filter web build
 ```
-Total: **195 / 195 automated tests passing with zero failures.**
+Total: **197 / 197 automated tests passing with zero failures.**

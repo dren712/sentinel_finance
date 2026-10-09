@@ -232,4 +232,151 @@ describe('SentinelWatcherService and SentinelSolverService Unit Tests', () => {
     assert.strictEqual(results[0].recovered, false);
     assert.ok(results[0].error?.includes('failed closed'));
   });
+
+  it('7. Watcher respects policy isActive flag (skips inactive, scans active)', async () => {
+    const watcher = new SentinelWatcherService({
+      connection: dummyConnection,
+      signer: dummySigner,
+      priceUpdatePubkey: dummyPriceUpdate,
+    });
+
+    (watcher as any).connection.getAccountInfo = async () => ({
+      data: Buffer.concat([
+        Buffer.from([34, 241, 35, 99, 157, 126, 244, 205]),
+        Buffer.alloc(32),
+        Buffer.from([1]),
+        Buffer.alloc(32),
+        (() => { const b = Buffer.alloc(8); b.writeBigInt64LE(10000000000n, 0); return b; })(),
+        Buffer.alloc(8),
+        (() => { const b = Buffer.alloc(4); b.writeInt32LE(-8, 0); return b; })(),
+        Buffer.alloc(8),
+        Buffer.alloc(8),
+        Buffer.alloc(8),
+        Buffer.alloc(8),
+      ]),
+    });
+
+    const activeVaultMock = {
+      publicKey: Keypair.generate().publicKey,
+      account: {
+        owner: Keypair.generate().publicKey,
+        status: { active: {} },
+        usdcBalanceCents: 100000,
+        positions: [{ amountUnits: 50, priceCents: 10000, isIndex: false }],
+      },
+    };
+
+    // Case A: policy.isActive === false -> skipped
+    (watcher as any).program.account = {
+      portfolioVault: { all: async () => [activeVaultMock] },
+      policyAccount: {
+        fetchNullable: async () => ({
+          isActive: false,
+          maxSingleAssetBps: 2500,
+          minStablecoinBps: 2000,
+          confirmSlots: 5,
+        }),
+      },
+    };
+
+    let results = await watcher.scanVaults();
+    assert.strictEqual(results.length, 0, 'Inactive policy vault must be skipped');
+
+    // Case B: policy.isActive === true -> evaluated
+    (watcher as any).connection.getSlot = async () => 100;
+    (watcher as any).connection.getLatestBlockhash = async () => ({ blockhash: '11111111111111111111111111111111' });
+    (watcher as any).program.methods = {
+      flagViolation: () => ({
+        accountsPartial: () => ({
+          instruction: async () => ({ keys: [], programId: PublicKey.default, data: Buffer.alloc(0) }),
+        }),
+      }),
+    };
+    (watcher as any).connection.sendRawTransaction = async () => 'mockSig';
+    (watcher as any).connection.confirmTransaction = async () => {};
+
+    (watcher as any).program.account.policyAccount.fetchNullable = async () => ({
+      isActive: true,
+      maxSingleAssetBps: 2500,
+      minStablecoinBps: 2000,
+      confirmSlots: 5,
+    });
+
+    results = await watcher.scanVaults();
+    assert.strictEqual(results.length, 1, 'Active policy vault must be evaluated');
+  });
+
+  it('8. Watcher rejects stale Pyth price (> 60s) or wide confidence interval (> 200 bps)', async () => {
+    const watcher = new SentinelWatcherService({
+      connection: dummyConnection,
+      signer: dummySigner,
+      priceUpdatePubkey: dummyPriceUpdate,
+    });
+
+    const nowSec = Math.floor(Date.now() / 1000);
+
+    // Stale price (publishTime = nowSec - 120s)
+    (watcher as any).connection.getAccountInfo = async () => ({
+      data: Buffer.concat([
+        Buffer.from([34, 241, 35, 99, 157, 126, 244, 205]),
+        Buffer.alloc(32),
+        Buffer.from([1]),
+        Buffer.alloc(32),
+        (() => { const b = Buffer.alloc(8); b.writeBigInt64LE(10000000000n, 0); return b; })(),
+        Buffer.alloc(8),
+        (() => { const b = Buffer.alloc(4); b.writeInt32LE(-8, 0); return b; })(),
+        (() => { const b = Buffer.alloc(8); b.writeBigInt64LE(BigInt(nowSec - 120), 0); return b; })(), // 120s old
+        Buffer.alloc(8),
+        Buffer.alloc(8),
+        Buffer.alloc(8),
+      ]),
+    });
+
+    (watcher as any).program.account = {
+      portfolioVault: {
+        all: async () => [
+          {
+            publicKey: Keypair.generate().publicKey,
+            account: {
+              owner: Keypair.generate().publicKey,
+              status: { active: {} },
+              usdcBalanceCents: 100000,
+              positions: [{ amountUnits: 50, priceCents: 10000, isIndex: false }],
+            },
+          },
+        ],
+      },
+      policyAccount: {
+        fetchNullable: async () => ({
+          isActive: true,
+          maxSingleAssetBps: 2500,
+          minStablecoinBps: 2000,
+          confirmSlots: 5,
+        }),
+      },
+    };
+
+    let results = await watcher.scanVaults();
+    assert.strictEqual(results.length, 0, 'Stale price must cause watcher to fail closed and skip');
+
+    // Fresh price but wide confidence: price = $100, conf = $5 (500 bps > 200 bps)
+    (watcher as any).connection.getAccountInfo = async () => ({
+      data: Buffer.concat([
+        Buffer.from([34, 241, 35, 99, 157, 126, 244, 205]),
+        Buffer.alloc(32),
+        Buffer.from([1]),
+        Buffer.alloc(32),
+        (() => { const b = Buffer.alloc(8); b.writeBigInt64LE(10000000000n, 0); return b; })(), // $100
+        (() => { const b = Buffer.alloc(8); b.writeBigUInt64LE(500000000n, 0); return b; })(),   // $5 = 5.0%
+        (() => { const b = Buffer.alloc(4); b.writeInt32LE(-8, 0); return b; })(),
+        (() => { const b = Buffer.alloc(8); b.writeBigInt64LE(BigInt(nowSec), 0); return b; })(), // fresh
+        Buffer.alloc(8),
+        Buffer.alloc(8),
+        Buffer.alloc(8),
+      ]),
+    });
+
+    results = await watcher.scanVaults();
+    assert.strictEqual(results.length, 0, 'Wide confidence price must cause watcher to fail closed and skip');
+  });
 });

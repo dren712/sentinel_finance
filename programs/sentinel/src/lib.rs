@@ -96,6 +96,9 @@ pub mod sentinel {
         safe_destination: Pubkey,
         is_active: bool,
     ) -> Result<()> {
+        let vault = &ctx.accounts.vault;
+        require!(vault.status == VaultStatus::Active, SentinelError::PolicyFrozenDuringRecovery);
+
         require!(max_single_asset_bps <= 10_000, SentinelError::InvalidPolicyBounds);
         require!(min_stablecoin_bps <= 10_000, SentinelError::InvalidPolicyBounds);
         require!(max_slippage_bps <= 10_000, SentinelError::InvalidPolicyBounds);
@@ -717,6 +720,9 @@ pub mod sentinel {
             .ok_or(SentinelError::MathOverflow)?;
 
         // 5. Execute program-signed CPI TransferChecked from vault PDA
+        let raw_multiplier = 10u64.checked_pow(decimals as u32).ok_or(SentinelError::MathOverflow)?;
+        let raw_sell_amount = sell_units.checked_mul(raw_multiplier).ok_or(SentinelError::MathOverflow)?;
+
         let signer_seeds: &[&[&[u8]]] = &[&[b"vault", vault.owner.as_ref(), &[vault.bump]]];
         transfer_checked_signed(
             token_prog,
@@ -724,7 +730,7 @@ pub mod sentinel {
             mint_info,
             dest_ta,
             &vault.to_account_info(),
-            sell_units,
+            raw_sell_amount,
             decimals,
             signer_seeds,
         )?;
@@ -733,16 +739,28 @@ pub mod sentinel {
         let vault_tok_after = unpack_token_account(vault_ta)?;
         let dest_tok_after = unpack_token_account(dest_ta)?;
         require!(
-            vault_balance_before.checked_sub(vault_tok_after.amount) == Some(sell_units),
+            vault_balance_before.checked_sub(vault_tok_after.amount) == Some(raw_sell_amount),
             SentinelError::TokenBalanceMismatch
         );
         require!(
-            dest_tok_after.amount.checked_sub(dest_balance_before) == Some(sell_units),
+            dest_tok_after.amount.checked_sub(dest_balance_before) == Some(raw_sell_amount),
             SentinelError::TokenBalanceMismatch
         );
 
-        // 7. Post valuations based on ACTUAL post-transfer balance
-        let post_amount_units = vault_tok_after.amount;
+        // 7. Post valuations based on normalized post-transfer whole units
+        let post_amount_units = current_amount_units
+            .checked_sub(sell_units)
+            .ok_or(SentinelError::MathOverflow)?;
+
+        // Verify vault token account raw balance matches normalized whole tokens * raw_multiplier
+        let expected_raw_vault_balance = post_amount_units
+            .checked_mul(raw_multiplier)
+            .ok_or(SentinelError::MathOverflow)?;
+        require!(
+            vault_tok_after.amount == expected_raw_vault_balance,
+            SentinelError::TokenBalanceMismatch
+        );
+
         let post_target_cents = (post_amount_units as u128)
             .checked_mul(price_cents as u128)
             .ok_or(SentinelError::MathOverflow)?;
@@ -828,18 +846,20 @@ pub mod sentinel {
 
         let mint_key = ctx.accounts.mint.key();
 
-        // Verify and unpack owner token account
+        let decimals = unpack_mint_decimals(&ctx.accounts.mint)?;
+        let raw_multiplier = 10u64.checked_pow(decimals as u32).ok_or(SentinelError::MathOverflow)?;
+        let raw_amount = amount.checked_mul(raw_multiplier).ok_or(SentinelError::MathOverflow)?;
+
+        // Verify owner token account has sufficient raw balance
         let owner_tok = unpack_token_account(&ctx.accounts.owner_token_account)?;
         require!(owner_tok.owner == ctx.accounts.owner.key(), SentinelError::InvalidVaultTokenAuthority);
         require!(owner_tok.mint == mint_key, SentinelError::TokenMintMismatch);
-        require!(owner_tok.amount >= amount, SentinelError::InvalidAmount);
+        require!(owner_tok.amount >= raw_amount, SentinelError::InvalidAmount);
 
         // Verify and unpack vault token account
         let vault_tok = unpack_token_account(&ctx.accounts.vault_token_account)?;
         require!(vault_tok.owner == vault.key(), SentinelError::InvalidVaultTokenAuthority);
         require!(vault_tok.mint == mint_key, SentinelError::TokenMintMismatch);
-
-        let decimals = unpack_mint_decimals(&ctx.accounts.mint)?;
 
         // Execute CPI transfer
         transfer_checked_owner(
@@ -848,14 +868,22 @@ pub mod sentinel {
             &ctx.accounts.mint,
             &ctx.accounts.vault_token_account,
             &ctx.accounts.owner.to_account_info(),
-            amount,
+            raw_amount,
             decimals,
         )?;
 
         // Update vault state for tracked position (reject untracked deposits)
-        let pos = vault.positions.iter_mut().find(|p| p.mint == mint_key).ok_or(SentinelError::UntrackedDepositMint)?;
-        pos.amount_units = pos.amount_units.checked_add(amount).ok_or(SentinelError::MathOverflow)?;
+        let new_amount_units = {
+            let pos = vault.positions.iter_mut().find(|p| p.mint == mint_key).ok_or(SentinelError::UntrackedDepositMint)?;
+            pos.amount_units = pos.amount_units.checked_add(amount).ok_or(SentinelError::MathOverflow)?;
+            pos.amount_units
+        };
         vault.recompute_total_value()?;
+
+        // Verify vault token account has exact expected raw balance matching normalized amount_units * raw_multiplier
+        let vault_tok_after = unpack_token_account(&ctx.accounts.vault_token_account)?;
+        let expected_raw = new_amount_units.checked_mul(raw_multiplier).ok_or(SentinelError::MathOverflow)?;
+        require!(vault_tok_after.amount == expected_raw, SentinelError::TokenBalanceMismatch);
 
         let clock = Clock::get()?;
         emit!(DepositExecutedEvent {
@@ -880,18 +908,20 @@ pub mod sentinel {
 
         let mint_key = ctx.accounts.mint.key();
 
+        let decimals = unpack_mint_decimals(&ctx.accounts.mint)?;
+        let raw_multiplier = 10u64.checked_pow(decimals as u32).ok_or(SentinelError::MathOverflow)?;
+        let raw_amount = amount.checked_mul(raw_multiplier).ok_or(SentinelError::MathOverflow)?;
+
         // Verify vault token account
         let vault_tok = unpack_token_account(&ctx.accounts.vault_token_account)?;
         require!(vault_tok.owner == vault.key(), SentinelError::InvalidVaultTokenAuthority);
         require!(vault_tok.mint == mint_key, SentinelError::TokenMintMismatch);
-        require!(vault_tok.amount >= amount, SentinelError::InvalidAmount);
+        require!(vault_tok.amount >= raw_amount, SentinelError::InvalidAmount);
 
         // Verify owner destination token account
         let dest_tok = unpack_token_account(&ctx.accounts.destination_token_account)?;
         require!(dest_tok.owner == ctx.accounts.owner.key(), SentinelError::InvalidVaultTokenAuthority);
         require!(dest_tok.mint == mint_key, SentinelError::TokenMintMismatch);
-
-        let decimals = unpack_mint_decimals(&ctx.accounts.mint)?;
 
         let signer_seeds: &[&[&[u8]]] = &[&[b"vault", vault.owner.as_ref(), &[vault.bump]]];
         transfer_checked_signed(
@@ -900,14 +930,22 @@ pub mod sentinel {
             &ctx.accounts.mint,
             &ctx.accounts.destination_token_account,
             &vault.to_account_info(),
-            amount,
+            raw_amount,
             decimals,
             signer_seeds,
         )?;
 
-        let pos = vault.positions.iter_mut().find(|p| p.mint == mint_key).ok_or(SentinelError::AssetNotFound)?;
-        pos.amount_units = pos.amount_units.checked_sub(amount).ok_or(SentinelError::InvalidAmount)?;
+        let new_amount_units = {
+            let pos = vault.positions.iter_mut().find(|p| p.mint == mint_key).ok_or(SentinelError::AssetNotFound)?;
+            pos.amount_units = pos.amount_units.checked_sub(amount).ok_or(SentinelError::InvalidAmount)?;
+            pos.amount_units
+        };
         vault.recompute_total_value()?;
+
+        // Verify vault token account has exact expected raw balance matching normalized amount_units * raw_multiplier
+        let vault_tok_after = unpack_token_account(&ctx.accounts.vault_token_account)?;
+        let expected_raw = new_amount_units.checked_mul(raw_multiplier).ok_or(SentinelError::MathOverflow)?;
+        require!(vault_tok_after.amount == expected_raw, SentinelError::TokenBalanceMismatch);
 
         let clock = Clock::get()?;
         emit!(WithdrawExecutedEvent {
@@ -1257,6 +1295,13 @@ pub struct UpdatePolicy<'info> {
         has_one = owner
     )]
     pub policy: Account<'info, PolicyAccount>,
+    #[account(
+        seeds = [b"vault", owner.key().as_ref()],
+        bump = vault.bump,
+        has_one = owner,
+        constraint = vault.status == VaultStatus::Active @ SentinelError::PolicyFrozenDuringRecovery
+    )]
+    pub vault: Account<'info, PortfolioVault>,
     pub owner: Signer<'info>,
 }
 
