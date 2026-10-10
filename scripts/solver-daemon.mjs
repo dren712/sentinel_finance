@@ -3,8 +3,8 @@
  * Sentinel Autonomous Permissionless Solver Daemon
  *
  * Continuously polls Solana Devnet for Quarantined portfolio vaults,
- * computes optimal reduce-only rebalancing recovery parameters via the pure solver engine,
- * and submits recover transactions to restore vaults to Active.
+ * computes optimal token containment parameters via the pure solver engine,
+ * and submits recover transactions to contain tokens and reactivate vaults to Active.
  */
 
 import fs from 'node:fs';

@@ -739,8 +739,8 @@ export class LiveExecutionAdapter implements ExecutionAdapter {
   }
 
   /**
-   * Permissionless recover: executes reduce-only rebalancing recovery on a quarantined vault.
-   * Can be signed by any solver wallet.
+   * Permissionless recover: executes emergency token containment transfer on a quarantined vault.
+   * Can be signed by any caller / solver wallet.
    */
   async recover(options: {
     vaultOwner: PublicKey | string;

@@ -97,7 +97,7 @@ export const Header: React.FC<HeaderProps> = ({
               </span>
             </div>
             <p className="text-[11px] text-sentinel-textSubtle hidden lg:block tracking-tight">
-              Recovery Layer for Autonomous Capital
+              On-Chain Risk Controls &amp; Emergency Containment
             </p>
           </div>
         </button>
@@ -109,7 +109,7 @@ export const Header: React.FC<HeaderProps> = ({
             <Link
               href="/quarantine"
               className="h-9 px-2.5 sm:px-3 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-300 hover:text-rose-200 text-xs font-mono font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-lg shadow-rose-950/40 animate-pulse"
-              title="Autonomous Watcher Triggered: Vault Quarantined. Click to open Recovery Terminal."
+              title="Autonomous Watcher Triggered: Vault Quarantined. Click to open Containment Terminal."
             >
               <ShieldAlert className="w-3.5 h-3.5 text-rose-400 shrink-0" />
               <span className="tracking-tight">
@@ -134,16 +134,16 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           )}
 
-          {/* Canonical Recovery Link */}
+          {/* Canonical Containment Link */}
           {vaultStatus !== 'quarantined' && (
             <Link
               href="/quarantine"
               className="h-9 px-2.5 sm:px-3 rounded-lg bg-sentinel-surfaceElevated hover:bg-sentinel-surfaceMuted border border-sentinel-border text-sentinel-textMuted hover:text-white text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
-              title="Quarantine & Recovery Terminal"
+              title="Quarantine & Containment Terminal"
             >
               <ShieldCheck className="w-3.5 h-3.5 text-sentinel-textSubtle shrink-0" />
-              <span className="hidden sm:inline font-sans">Recovery</span>
-              <span className="sm:hidden font-sans">Recovery</span>
+              <span className="hidden sm:inline font-sans">Quarantine</span>
+              <span className="sm:hidden font-sans">Quarantine</span>
             </Link>
           )}
 

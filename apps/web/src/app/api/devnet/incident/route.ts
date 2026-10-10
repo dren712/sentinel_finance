@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       sandbox: state,
-      message: 'Controlled incident executed on Devnet: Shock → Quarantine → Solver → Real Custody Transfer → Restored to Active!',
+      message: 'Controlled incident executed: Shock → Quarantine → Solver → Real Custody Containment Transfer → Vault Reactivated!',
     });
   } catch (err: any) {
     console.error('API /api/devnet/incident error:', err);

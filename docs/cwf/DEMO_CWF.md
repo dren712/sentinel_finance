@@ -46,18 +46,18 @@ Demonstrate the complete Sentinel CWF safety loop on Solana Devnet:
 - **Spoken / Voiceover**:
   *"Once hysteresis confirms the breach, the vault is atomically Quarantined. The AI trading agent is immediately locked out with on-chain error code VaultNotActive. The agent cannot drain collateral or take on further risk."*
 
-### 0:55 – 1:15 | Permissionless Solver Recovery (Reduce-Only)
-- **Action**: Connect solver wallet on `/quarantine` and click **"Execute Reduce-Only Recovery"** (or execute CLI `recover` step).
+### 0:55 – 1:15 | Permissionless Emergency Containment (Reduce-Only)
+- **Action**: Connect solver wallet on `/quarantine` and click **"Execute Containment Transfer"** (or execute CLI `recover` step).
   ```bash
-  # Solver executes reduce-only rebalance of 78 units
-  # Enforces Pyth oracle verification, value conservation (<500 bps), and oversell guard
+  # Caller executes containment transfer of 78 units to safe destination
+  # Enforces Pyth oracle verification, strict improvement, stable floor, and oversell guard
   ```
 - **On-Screen**:
   - Solver transaction submits `recover(78, nonce: 1)` with Pyth price account `GsZE13nr9acPWUHvpwnajtMzpctFyxfgquNsCnR2P52i`.
   - Transaction confirms on Devnet.
-  - Vault exposure drops to `22.04%` (within the allowed 20–25% postcondition band).
+  - Vault-level exposure drops to `22.04%` (within the allowed 20–25% postcondition band).
 - **Spoken / Voiceover**:
-  *"Now an open market solver executes a permissionless reduce-only recovery. The contract validates the Pyth oracle price, verifies value conservation within 5%, and enforces an oversell guard. The program executes a signed SPL Token CPI moving exact excess tokens directly to the safe destination ATA, restoring portfolio risk to compliant bounds."*
+  *"Now an external caller executes an emergency containment transfer. The contract validates the Pyth oracle price, verifies strict exposure reduction, preserves the stablecoin floor, and enforces an oversell guard. The program executes a signed SPL Token CPI moving exact excess tokens directly to the safe destination ATA, restoring vault-level risk to compliant bounds."*
 
 ### 1:15 – 1:30 | Safe Resumption & Verification
 - **Action**: View updated on-chain status and timeline on `/quarantine`.

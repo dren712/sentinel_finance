@@ -1,6 +1,6 @@
 # Sentinel Finance — Developer Quickstart Guide
 
-This guide walks through deploying, testing, and integrating with **Sentinel — the recovery infrastructure for autonomous Solana financial strategies**.
+This guide walks through deploying, testing, and integrating with **Sentinel — on-chain risk-control and emergency-containment infrastructure for autonomous financial strategies on Solana**.
 
 ---
 

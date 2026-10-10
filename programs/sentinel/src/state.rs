@@ -26,9 +26,9 @@ pub struct PolicyAccount {
     pub bump: u8,
     pub confirm_slots: u64,          // hysteresis
     pub recovery_window_slots: u64,  // window for solver recovery
-    pub max_recovery_cost_bps: u16,  // unused until recovery prompt
-    pub max_bounty_bps: u16,         // unused until recovery prompt
-    pub safe_destination: Pubkey,    // unused until recovery prompt
+    pub max_recovery_cost_bps: u16,  // reserved: unused in current token-containment path
+    pub max_bounty_bps: u16,         // reserved: solver bounty is emitted as 0 (inactive)
+    pub safe_destination: Pubkey,    // active: destination for SPL token containment CPI
 }
 
 impl PolicyAccount {

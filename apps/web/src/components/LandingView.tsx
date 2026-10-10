@@ -144,7 +144,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
           </p>
 
           <p className="text-xs text-sentinel-textSubtle leading-relaxed max-w-md">
-            For autonomous capital, Sentinel extends those guarantees into quarantine and bounded recovery.
+            For autonomous strategies, Sentinel extends those controls into on-chain quarantine and emergency token containment.
           </p>
 
           <div className="space-y-3 pt-1">
@@ -174,7 +174,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
                 href="/quarantine"
                 className="hover:text-white transition underline-offset-4 hover:underline"
               >
-                Recovery terminal
+                Quarantine &amp; Containment
               </Link>
               <span>·</span>
               <Link
@@ -476,8 +476,8 @@ export const LandingView: React.FC<LandingViewProps> = ({
             },
             {
               step: '05',
-              title: 'Settle',
-              desc: 'Compliant orders settle and record a verifiable SHA-256 receipt.',
+              title: 'Settle (Ledger)',
+              desc: 'Compliant orders settle into vault ledger accounting and record a verifiable SHA-256 receipt.',
             },
           ].map((item) => (
             <div key={item.step} className="space-y-1.5 border-l border-sentinel-border pl-4">

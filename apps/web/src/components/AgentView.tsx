@@ -282,7 +282,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-semibold text-white">
-                Decision Lifecycle: {targetSymbol} Rebalance
+                Decision Lifecycle: {targetSymbol} Allocation Proposal
               </h2>
               <Badge variant={adaptationResult ? 'success' : 'neutral'} size="xs">
                 {adaptationResult ? 'Cycle Executed' : 'Ready'}

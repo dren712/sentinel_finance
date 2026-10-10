@@ -951,7 +951,7 @@ export default function DevnetLabPage() {
                   <tr>
                     <td className="py-2 px-3 text-gray-400">Postcondition Assertions</td>
                     <td className="py-2 px-3 text-white">
-                      Exposure ≤ 6000 bps ✓ · Value Conserved (Loss ≤ 500 bps) ✓ · Oversell Guard Passed ✓
+                      Exposure ≤ 6000 bps ✓ · Stable Floor ≥ 2000 bps ✓ · Strict Improvement ✓ · Oversell Guard ✓
                     </td>
                     <td className="py-2 px-3 text-right text-emerald-400 font-bold">ALL INVARIANTS PASS</td>
                   </tr>

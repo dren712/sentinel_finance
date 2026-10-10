@@ -2,11 +2,11 @@
   <img src="./docs/assets/Sentinel_logo.png" alt="Sentinel Robo" width="300" />
 </p>
 
-<h1 align="center">Sentinel Finance — Recovery Layer for Autonomous Capital</h1>
+<h1 align="center">Sentinel Finance — On-Chain Risk Controls & Emergency Containment</h1>
 
 <p align="center">
-  <strong>Programmable containment and permissionless recovery for autonomous agents on Solana.</strong><br>
-  <em>When autonomous trading agents breach portfolio risk invariants, Sentinel quarantines execution authority and enables permissionless solvers to rebalance the vault via real SPL token custody containment.</em>
+  <strong>On-chain risk controls and emergency containment for autonomous financial strategies on Solana.</strong><br>
+  <em>Sentinel gives developers a policy-bound vault workflow: validate supported state changes, quarantine after a confirmed supported risk breach, and constrain token transfers out of the strategy-controlled vault to an approved destination.</em>
 </p>
 
 <p align="center">
@@ -15,17 +15,19 @@
   <a href="https://sentinel-finance-production-4560.up.railway.app/quarantine"><img src="https://img.shields.io/badge/Quarantine_Terminal-Live-E63946" alt="Quarantine Terminal"></a>
   <a href="https://explorer.solana.com/address/3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH?cluster=devnet"><img src="https://img.shields.io/badge/CWF_Program-3TVEhBHw...-9945FF?logo=solana&logoColor=white" alt="CWF Devnet Program"></a>
   <a href="https://pyth.network"><img src="https://img.shields.io/badge/Pyth_Oracle-PriceUpdateV2_Verified-E6DAFE?logo=pyth&logoColor=black" alt="Pyth Network"></a>
+  <a href="./docs/POSITIONING.md"><img src="https://img.shields.io/badge/Positioning-Canonical_Spec-blue" alt="Positioning Spec"></a>
   <a href="./docs/cwf/SUBMISSION_CWF.md"><img src="https://img.shields.io/badge/CWF-Submission_Doc-00C49F" alt="CWF Submission"></a>
   <a href="./docs/cwf/STATE_MACHINE.md"><img src="https://img.shields.io/badge/State_Machine-Quarantine_&_Recovery-2563EB" alt="State Machine"></a>
 </p>
 
 <p align="center">
-  <code>AUTHORIZED → UNSAFE → PROVEN → QUARANTINED → RECOVERED → EXPIRED</code>
+  <code>AUTHORIZED → UNSAFE → PROVEN → QUARANTINED → CONTAINED & REACTIVATED → EXPIRED</code>
 </p>
 
 <p align="center">
+  <a href="./docs/POSITIONING.md">Positioning Architecture</a> ·
   <a href="https://sentinel-finance-production-4560.up.railway.app/lab">Devnet Lab (Faucets &amp; Sandbox)</a> ·
-  <a href="https://sentinel-finance-production-4560.up.railway.app/quarantine">Quarantine &amp; Recovery Terminal</a> ·
+  <a href="https://sentinel-finance-production-4560.up.railway.app/quarantine">Quarantine &amp; Containment Terminal</a> ·
   <a href="https://sentinel-finance-production-4560.up.railway.app/">Portfolio Dashboard</a> ·
   <a href="./docs/cwf/SUBMISSION_CWF.md">CWF Submission</a> ·
   <a href="./docs/cwf/STATE_MACHINE.md">State Machine</a> ·
@@ -38,14 +40,17 @@
 
 ## About Sentinel
 
-**Sentinel is the programmable control and recovery layer for autonomous capital on Solana.**
+**Sentinel is on-chain risk-control and emergency-containment infrastructure for autonomous financial strategies on Solana.**
 
-While AI agents formulate trades and react to market signals, they operate in probabilistic space. Fine-tuning and off-chain safeguards cannot provide mathematical guarantees against catastrophic risk. Sentinel places a deterministic, on-chain state-transition boundary between agent intelligence and financial settlement:
+While autonomous agents formulate trades and react to market signals, they operate in probabilistic space. Off-chain prompt engineering and heuristics cannot provide deterministic guarantees against invalid state transitions. Sentinel places an on-chain, policy-bound state transition boundary around strategy vaults:
 
 - **Autonomous Intelligence:** The agent proposes portfolio allocations across volatile assets and stablecoins.
-- **Deterministic Guards:** Proposed trades are bounded by on-chain portfolio invariants (`max_single_asset_bps`, `min_stablecoin_bps`, `max_trade_value_usd`) verified against an authenticated Pyth oracle feed (`PriceUpdateV2`).
-- **Hysteresis Quarantine:** If market shifts or invalid states cause invariant breaches, permissionless watchers flag the vault into `Quarantined`, immediately locking out the agent's trading authority (`VaultNotActive`).
-- **Permissionless Custody Recovery:** Any external solver can permissionlessly call `recover()` during the recovery window. The contract executes a real SPL Token / Token-2022 CPI `transfer_checked_signed` to the owner's `safe_destination`, enforcing value conservation and oversell guards before restoring the vault to `Active`.
+- **Deterministic Guards:** Supported operations are bounded by on-chain portfolio invariants (`max_single_asset_bps`, `min_stablecoin_bps`, `max_trade_value_usd`) verified against an authenticated Pyth oracle feed (`PriceUpdateV2`).
+- **Hysteresis Quarantine:** If market shifts or invalid operations cause invariant breaches, permissionless watchers flag the vault into `Quarantined`, immediately halting strategy trading authority (`VaultNotActive`).
+- **Emergency Containment & Vault-State Reactivation:** During the recovery window, callers invoke `recover()` to transfer excess volatile tokens from the strategy vault PDA directly to the owner's `safe_destination` via SPL `TransferChecked` CPI. When on-chain postconditions pass, the vault is returned to `Active`.
+
+> **Current Implementation Boundary**:
+> The current prototype does not execute DEX swaps or sell contained assets. A successful containment transfer reduces assets held inside the strategy-controlled vault, but does not by itself recover lost money or guarantee that the owner's total market exposure falls. Guarded trade settlement updates internal vault accounting; it does not route to an external DEX.
 
 ---
 
@@ -219,9 +224,10 @@ node packages/sdk/scripts/verify-p22-p23-devnet.mjs
 
 ## Documentation Links
 
+- [Positioning & Capability Specification (Canonical)](./docs/POSITIONING.md)
 - [Developer Quickstart Guide](./docs/QUICKSTART.md)
 - [CWF 48h Release Audit & Truth Matrix](./docs/CWF_48H_RELEASE_AUDIT.md)
-- [Quarantine & Recovery Terminal (Live)](https://sentinel-finance-production-4560.up.railway.app/quarantine)
+- [Quarantine & Containment Terminal (Live)](https://sentinel-finance-production-4560.up.railway.app/quarantine)
 - [Devnet Lab (Faucets & Testing Sandbox)](https://sentinel-finance-production-4560.up.railway.app/lab)
 - [CWF Submission Document](./docs/cwf/SUBMISSION_CWF.md)
 - [Quarantine State Machine Specification](./docs/cwf/STATE_MACHINE.md)

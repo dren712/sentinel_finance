@@ -1,29 +1,29 @@
 # Sentinel Finance — Crypto's World Fair (CWF) Submission
 
 ## One-Line Pitch
-Sentinel is an autonomous portfolio execution engine on Solana that locks out misbehaving AI agents upon invariant breach and lets permissionless solvers safely rebalance the vault back to compliance.
+On-chain risk controls and emergency containment for autonomous financial strategies on Solana.
 
 ## 50-Word Pitch
-Autonomous trading agents frequently drift into catastrophic concentration or cash depletion during volatility. Sentinel binds agent execution to owner-defined on-chain invariants. When breaches occur, the agent is locked into quarantine, and permissionless solvers execute reduce-only rebalancing under strict value conservation and Pyth oracle verification to safely restore the vault to active status.
+Sentinel gives developers a policy-bound vault workflow: validate supported state changes, quarantine after a confirmed supported risk breach, and constrain token transfers out of the strategy-controlled vault to an approved destination. The current prototype enforces on-chain invariants and SPL token containment without executing DEX swaps.
 
 ---
 
 ## How It Works (4 Core Steps)
 
-1. **Guarded Trade Execution with Postcondition Invariants**:
-   The owner defines portfolio risk bounds (`max_single_asset_bps`, `min_stablecoin_bps`, `max_trade_value_usd`) on-chain. The autonomous agent proposes trades that must satisfy pre- and post-state checks verified against an authenticated Pyth price feed. If a proposed trade violates policy, it is rejected deterministically.
+1. **Guarded State Transitions with Policy Invariants**:
+   The owner defines portfolio risk bounds (`max_single_asset_bps`, `min_stablecoin_bps`, `max_trade_value_usd`) on-chain. The autonomous agent proposes trades that must satisfy pre- and post-state checks verified against an authenticated Pyth price feed. If a proposed state transition violates policy, it is rejected deterministically. In the current prototype, compliant orders update internal on-chain ledger accounting rather than executing external DEX trades.
    - *Source*: [`programs/sentinel/src/lib.rs`](../../programs/sentinel/src/lib.rs) (`execute_guarded_trade`, `check_exposure_and_reserve`)
 
 2. **Permissionless Violation Flagging & Hysteresis Quarantine**:
    If external price moves or ledger updates cause vault holdings to violate policy invariants, any watcher or solver can call `flag_violation`. The first flag records a pending violation slot; after a configurable hysteresis window (`confirm_slots`), a second flag transitions the vault into `Quarantined`. In this state, the agent's trading authority is immediately locked out (`VaultNotActive`).
    - *Source*: [`programs/sentinel/src/lib.rs`](../../programs/sentinel/src/lib.rs) (`flag_violation`), [`packages/sdk/src/adapters/execution-adapter.ts`](../../packages/sdk/src/adapters/execution-adapter.ts) (`flagViolation`)
 
-3. **Reduce-Only Solver Recovery under Value Conservation**:
-   During the open recovery window (`recovery_window_slots`), any external solver can permissionlessly call `recover()`. The solver can only sell volatile assets into USDC (reduce-only). On-chain checks enforce value conservation (loss capped at `max_recovery_cost_bps`), strict risk improvement, and an oversell guard (`OVERSELL_BAND_BPS = 500`) to prevent over-liquidation.
-   - *Source*: [`programs/sentinel/src/lib.rs`](../../programs/sentinel/src/lib.rs) (`recover`, `compute_recovery_proceeds`, `check_value_conservation`, `check_oversell_guard`)
+3. **Emergency Token Containment to Safe Destination**:
+   During the open recovery window (`recovery_window_slots`), any external caller can call `recover()`. The contract executes a program-signed SPL Token / Token-2022 CPI `transfer_checked` moving excess volatile tokens directly from vault PDA custody to the owner's pre-approved `safe_destination`. On-chain checks enforce strict risk improvement and oversell guards, reducing vault-level exposure to compliant bounds. (Tokens are transferred, not sold; no DEX swap or cash proceeds occur).
+   - *Source*: [`programs/sentinel/src/lib.rs`](../../programs/sentinel/src/lib.rs) (`recover`, `check_strict_improvement`, `check_oversell_guard`)
 
 4. **Replay Protection & Autonomous Resumption**:
-   Upon successful recovery, the vault status atomically reverts to `Active`, the recovery nonce increments (protecting against replay and stale states), and audit fields (`last_recovery_slot`, `last_recovery_solver`) are recorded. Once the vault is active again, the autonomous agent regains normal trading authority within policy constraints.
+   Upon verified postcondition satisfaction, the vault status atomically reverts to `Active`, the recovery nonce increments (protecting against replay and stale states), and audit fields (`last_recovery_slot`, `last_recovery_solver`) are recorded. Once the vault is active again, the autonomous agent regains normal trading authority within policy constraints.
    - *Source*: [`programs/sentinel/src/lib.rs`](../../programs/sentinel/src/lib.rs) (`recover`), [`apps/web/src/app/quarantine/page.tsx`](../../apps/web/src/app/quarantine/page.tsx)
 
 ---
@@ -59,11 +59,18 @@ Existing safety architectures in decentralized finance address operational failu
 Sentinel adapts these concepts specifically for autonomous AI agents managing discretionary portfolios:
 1. **Owner-Defined Invariants**: Risk bounds are set by the portfolio owner rather than protocol liquidation parameters.
 2. **Targeted Agent Lockout**: Agent signing keys are locked out while preserving owner release authority.
-3. **Permissionless Solver Rebalancing**: Any third-party solver can rebalance the vault back into compliance.
-4. **Value Conservation Bounds**: Proposed rebalancing must prove on-chain that portfolio value is not eroded beyond `max_recovery_cost_bps`.
-5. **Recovery Expiry**: Quarantines have bounded lifespans (`recovery_window_slots`) to prevent indefinite solver exposure.
+3. **Constrained Token Containment**: Transfers excess risk assets directly to the owner's pre-approved safe destination rather than risking execution slippage in unhedged auctions.
+4. **Enforced Postconditions**: Post-containment vault exposure must strictly improve and observe configured caps.
+5. **Recovery Expiry**: Quarantines have bounded lifespans (`recovery_window_slots`) to prevent indefinite lockout.
 
 We found no directly matching implementation in the prior art we reviewed.
+
+---
+
+## Explicit Capability Boundary & Current Limitations
+
+> **Current Implementation Boundary**:
+> The current prototype does not execute DEX swaps or sell contained assets. A successful containment transfer reduces assets held inside the strategy-controlled vault, but does not by itself recover lost money or guarantee that the owner's total market exposure falls. Guarded trade settlement updates internal vault accounting; it does not route to an external DEX. Bounties emitted in recovery events are currently informational (0).
 
 ---
 

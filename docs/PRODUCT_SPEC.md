@@ -5,7 +5,7 @@
 - **Product Name**: Sentinel Finance (Sentinel Robo)
 - **Tagline**: Autonomous investing for tokenized stocks with enforceable financial guarantees.
 - **Hackathon Track**: Stocklana — Solana Tokenized-Stock Hackathon (Trading & Investing Track).
-- **Core Thesis**: Tokenized equities and pre-IPO assets trade 24/7 on Solana. Investors want autonomous AI robo-agents to actively manage and rebalance portfolios, but cannot risk agent hallucination, runaway liquidation, or prompt-injection attacks. Sentinel solves this by introducing mathematically enforceable on-chain postconditions.
+- **Core Thesis**: Tokenized equities and pre-IPO assets trade 24/7 on Solana. Investors want autonomous financial strategies to actively manage portfolios, but cannot risk agent hallucination, runaway losses, or prompt-injection attacks. Sentinel solves this by introducing mathematically enforceable on-chain policy controls and emergency token containment.
 
 ---
 

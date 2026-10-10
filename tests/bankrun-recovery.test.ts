@@ -559,7 +559,7 @@ describe('Phase 2: Bankrun Recovery Test Suite (Slot-Warped)', () => {
     await processTx(new Transaction().add(initVaultIx), owner);
   });
 
-  it('1. happy path: Quarantined -> recover -> Active; exposure <= cap; stable >= floor; nonce incremented; post_total >= conservation bound; RecoveryExecutedEvent fields match the chain state', async () => {
+  it('1. happy path: Quarantined -> recover -> Active; exposure <= cap; stable >= floor; nonce incremented; real SPL containment transfer verified; RecoveryExecutedEvent fields match the chain state', async () => {
     // Quarantine vault at slot 20 -> confirmed at slot 32
     const qVault = await quarantineVault(20n);
     const nonce = Number(qVault.recoveryNonce); // 1

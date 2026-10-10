@@ -224,7 +224,7 @@ async function main() {
   console.log(`Recovery Nonce:            `, vaultAcc.recoveryNonce.toString());
 
   // 7. Recover (Permissionless Solver -> Active)
-  console.log('\n--- 6. Permissionless Solver Recovery (reduce-only rebalancing) ---');
+  console.log('\n--- 6. Permissionless Containment Transfer (token containment to safe destination) ---');
   const policyAcc = await ownerProgram.account.policyAccount.fetch(policyPda);
   const plan = requiredRecoveryUnits(
     {

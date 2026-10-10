@@ -631,7 +631,18 @@ pub mod sentinel {
         Ok(())
     }
 
-    /// Solves an invariant breach on a quarantined vault via permissionless, reduce-only rebalancing.
+    /// Executes emergency token containment on a quarantined vault.
+    ///
+    /// Semantics:
+    /// - `sell_units`: Represents normalized token units transferred out of vault PDA custody
+    ///   to the owner-configured `policy.safe_destination` via SPL `TransferChecked` CPI.
+    ///   Note: This is an emergency containment transfer, NOT an external DEX swap or cash sale.
+    /// - Bounded containment reduces the vault's internal position units and recomputes
+    ///   post-transfer vault-level exposure against the unchanged stablecoin reserve ledger.
+    ///   It does not guarantee a reduction in the owner's total economic exposure if contained
+    ///   tokens remain in owner custody at `safe_destination`.
+    /// - If on-chain postconditions pass (exposure within bounds, stablecoin floor preserved,
+    ///   oversell guard satisfied), the vault status is reactivated to `Active`.
     pub fn recover<'a, 'b, 'c, 'info>(
         ctx: Context<'a, 'b, 'c, 'info, Recover<'info>>,
         sell_units: u64,
@@ -1211,6 +1222,10 @@ pub fn compute_recovery_proceeds(sell_units: u64, price_cents: u64, fee_bps: u16
     u64::try_from(net).map_err(|_| error!(SentinelError::MathOverflow))
 }
 
+/// Helper: checks value conservation between pre- and post- total portfolio values.
+/// NOTE: In the current containment prototype, recover() performs SPL custody token transfers
+/// rather than DEX swaps for cash proceeds; this helper is verified via standalone unit tests
+/// but is not invoked on the active containment transfer path.
 pub fn check_value_conservation(
     pre_total: u64,
     post_total: u64,

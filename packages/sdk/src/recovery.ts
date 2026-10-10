@@ -1,13 +1,15 @@
 /**
- * Pure Solver Recovery Engine for Sentinel Finance
+ * Containment Solver Engine for Sentinel Finance
  *
- * Calculates optimal reduce-only rebalancing recovery parameters to transition
- * a quarantined vault back to Active while strictly satisfying all on-chain invariants:
+ * Calculates optimal token containment parameters to transition
+ * a quarantined vault back to Active while strictly satisfying on-chain postconditions:
  * 1. Post single-asset exposure <= policy.max_single_asset_bps
  * 2. Post stablecoin reserve >= policy.min_stablecoin_bps
  * 3. Strict risk improvement: post_exposure_bps < pre_exposure_bps
- * 4. Value conservation: post_total_cents >= pre_total_cents * (10000 - max_recovery_cost_bps) / 10000
- * 5. Oversell guard: post_exposure_bps >= max_single_asset_bps - oversell_band_bps
+ * 4. Oversell guard: post_exposure_bps >= max_single_asset_bps - oversell_band_bps
+ *
+ * Note: In 'custody' mode (on-chain Devnet), tokens are transferred to policy.safe_destination
+ * rather than sold on a DEX; proceedsCents is 0.
  */
 
 export interface VaultPositionLike {

@@ -673,7 +673,7 @@ export default function QuarantinePage() {
             <div>
               <div className="text-xs font-mono font-bold text-rose-400 uppercase tracking-wider flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-rose-400 animate-pulse" />
-                <span>The Recovery Layer for Autonomous Capital</span>
+                <span>On-Chain Risk Controls &amp; Emergency Containment</span>
               </div>
               <p className="text-xs text-slate-400 mt-1">
                 Static permissions tell agents what they may do. Sentinel protects what must remain true.
@@ -983,7 +983,7 @@ export default function QuarantinePage() {
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                Bounded Containment: Transfers excess volatile tokens to policy safe destination via program-signed CPI, strictly satisfying exposure caps and value conservation.
+                Bounded Containment: Transfers excess volatile tokens to policy safe destination via program-signed CPI, reducing vault-level exposure to meet policy caps. (Containment moves tokens; it does not execute a DEX sale or reverse economic loss).
               </p>
             </div>
             <div className="text-xs font-mono text-slate-400">
@@ -1039,7 +1039,7 @@ export default function QuarantinePage() {
               <div className="flex items-center justify-between border-b border-emerald-500/20 pb-2">
                 <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase tracking-wide">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>On-Chain Containment Recovery Receipt</span>
+                  <span>On-Chain Containment &amp; Reactivation Receipt</span>
                 </div>
                 <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                   REAL SPL CUSTODY CPI
@@ -1054,7 +1054,7 @@ export default function QuarantinePage() {
                   </span>
                 </div>
                 <div className="bg-[#0D1612] p-2.5 rounded border border-emerald-900/40 space-y-1">
-                  <span className="text-slate-400 block text-[10px] uppercase">Risk Reduction</span>
+                  <span className="text-slate-400 block text-[10px] uppercase">Vault Exposure Delta</span>
                   <span className="text-emerald-400 font-bold text-sm tabular-nums">
                     {(recoveryReceipt.preExposureBps / 100).toFixed(2)}% → {(recoveryReceipt.postExposureBps / 100).toFixed(2)}%
                   </span>
