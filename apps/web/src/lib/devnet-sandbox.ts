@@ -42,6 +42,8 @@ export interface SandboxState {
   sUsdBalance: number; // Internal on-chain cash ledger (USD)
   sAssetBalance: number; // Volatile SPL token balance (whole tokens)
   sAssetPriceUsd: number; // Pyth Devnet oracle proxy price (USD)
+  sAssetPriceSource: 'live_pyth_devnet' | 'controlled_scenario_fallback';
+  sAssetPriceIsLive: boolean;
   recoveryNonce: number;
   lastTxSignature?: string;
   lastIncidentTrail?: {
@@ -90,39 +92,70 @@ let sandboxState: SandboxState = {
   sUsdBalance: 0,
   sAssetBalance: 0,
   sAssetPriceUsd: 0,
+  sAssetPriceSource: 'live_pyth_devnet',
+  sAssetPriceIsLive: false,
   recoveryNonce: 0,
 };
 
+export interface OraclePriceReading {
+  priceCents: number;
+  source: 'live_pyth_devnet' | 'controlled_scenario_fallback';
+  isLive: boolean;
+  publishTime?: number;
+  confBps?: number;
+}
+
 /**
- * Fetches the live Pyth Devnet price in cents for the configured oracle feed
+ * Fetches the live Pyth Devnet price in cents for the configured oracle feed with explicit provenance.
+ * In live operations, fails closed if Pyth oracle is unavailable, unverified, or stale (> 60s).
  */
-async function fetchLivePythPriceCents(connection: Connection): Promise<number> {
+export async function fetchPythPriceReading(connection: Connection, allowFallback: boolean = true): Promise<OraclePriceReading> {
   try {
     const pythAcc = await connection.getAccountInfo(PYTH_PRICE_UPDATE_DEVNET, 'confirmed');
     if (pythAcc && pythAcc.data) {
       const parsed = parsePythPriceUpdateAccount(pythAcc.data);
-      if (parsed.priceCents > 0) {
-        return parsed.priceCents;
+      const nowSec = Math.floor(Date.now() / 1000);
+      const isFresh = parsed.publishTime > 0 && Math.abs(nowSec - parsed.publishTime) <= 60;
+      if (parsed.priceCents > 0 && isFresh) {
+        const confBps = parsed.price > BigInt(0) ? Number((parsed.conf * BigInt(10000)) / parsed.price) : 0;
+        return {
+          priceCents: parsed.priceCents,
+          source: 'live_pyth_devnet',
+          isLive: true,
+          publishTime: parsed.publishTime,
+          confBps,
+        };
       }
     }
   } catch (err) {
-    console.warn('[Sandbox] Failed reading Pyth price from RPC, using calibrated baseline:', err);
+    console.warn('[Oracle] Live Pyth Devnet fetch failed or stale:', err);
   }
-  return 2500_00; // Calibrated fallback: $2,500.00
+
+  if (!allowFallback) {
+    throw new Error('Pyth oracle feed unavailable, unverified, or stale on Devnet. Fails closed in live mode.');
+  }
+
+  return {
+    priceCents: 2500_00,
+    source: 'controlled_scenario_fallback',
+    isLive: false,
+  };
 }
 
 /**
  * Initializes a clean Devnet Sandbox Vault with real SPL token custody
  * Guarantee: Idempotent token minting (only mints deficit to target balance).
+ * Security: Shared managed demo vault's recovery destination is strictly server-controlled.
  */
 export async function setupDevnetSandbox(
   userWalletAddress: string,
-  safeDestinationAddress?: string
+  _safeDestinationAddress?: string
 ): Promise<SandboxState> {
   const connection = new Connection(DEVNET_RPC_URL, 'confirmed');
   const authority = getFaucetAuthority();
-  const safeDest = safeDestinationAddress || userWalletAddress || authority.publicKey.toBase58();
-  const safeDestPubkey = new PublicKey(safeDest);
+  // P1 Security Enforcement: The shared managed demo vault's safe destination is immutable
+  // and anchored to server-controlled authority to prevent anonymous fund redirection.
+  const safeDestPubkey = authority.publicKey;
 
   const [policyPda] = PublicKey.findProgramAddressSync(
     [Buffer.from('policy'), authority.publicKey.toBuffer()],
@@ -136,8 +169,9 @@ export async function setupDevnetSandbox(
   const provider = new AnchorProvider(connection, new SimpleWallet(authority) as any, { commitment: 'confirmed' });
   const program: any = new Program(SENTINEL_IDL as any, provider);
 
-  // 1. Fetch live Pyth price
-  const livePythPriceCents = await fetchLivePythPriceCents(connection);
+  // 1. Fetch live Pyth price with explicit provenance (fallback permitted only for sandbox bootstrap)
+  const priceReading = await fetchPythPriceReading(connection, true);
+  const livePythPriceCents = priceReading.priceCents;
 
   // 2. Initialize or Update Policy (60.00% max single asset, 20.00% min stablecoin reserve)
   const policyInfo = await connection.getAccountInfo(policyPda);
@@ -323,6 +357,8 @@ export async function setupDevnetSandbox(
     sUsdBalance: postInitVault.usdcBalanceCents.toNumber() / 100,
     sAssetBalance: targetAssetUnits,
     sAssetPriceUsd: livePythPriceCents / 100,
+    sAssetPriceSource: priceReading.source,
+    sAssetPriceIsLive: priceReading.isLive,
     recoveryNonce: postInitVault.recoveryNonce.toNumber(),
     lastTxSignature: initTxSig,
   };
@@ -372,8 +408,9 @@ export async function runDevnetIncident(userWalletAddress: string): Promise<Sand
   const symbolBytes = Array.from(Buffer.from('sASSET\0\0'));
   const feedIdBytes = Array.from(Buffer.from('ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace', 'hex'));
 
-  // 1. Read live Pyth oracle price
-  const livePythPriceCents = await fetchLivePythPriceCents(connection);
+  // 1. Read Pyth oracle price with explicit provenance
+  const priceReading = await fetchPythPriceReading(connection, true);
+  const livePythPriceCents = priceReading.priceCents;
 
   // 2. Market Shock: Adjust cash reserve ledger so exposure reaches 68.00% (> 60.00% cap)
   // Volatile holdings = 2 units @ livePythPriceCents = 2 * P
@@ -516,6 +553,8 @@ export async function runDevnetIncident(userWalletAddress: string): Promise<Sand
     sUsdBalance: postVaultAcc.usdcBalanceCents.toNumber() / 100,
     sAssetBalance: postRemainingUnits,
     sAssetPriceUsd: livePythPriceCents / 100,
+    sAssetPriceSource: priceReading.source,
+    sAssetPriceIsLive: priceReading.isLive,
     recoveryNonce: postVaultAcc.recoveryNonce.toNumber(),
     lastTxSignature: recoverSig,
     lastIncidentTrail: {

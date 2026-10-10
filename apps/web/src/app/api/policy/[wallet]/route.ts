@@ -1,7 +1,8 @@
 import { Connection } from '@solana/web3.js';
-import { deriveSentinelPda } from '@sentinel/domain';
+import { deriveSentinelPda, SENTINEL_PROGRAM_ID } from '@sentinel/domain';
+import { utils } from '@sentinel/sdk';
 import { APP_CONFIG } from '../../../../lib/config';
-import { getServerStore, reconcilePolicyFromSolana } from '../../../../lib/server-state';
+import { getServerStore, reconcilePolicyFromSolana, fetchOnChainPolicy } from '../../../../lib/server-state';
 
 /**
  * /api/policy/[wallet]
@@ -136,6 +137,8 @@ export async function POST(
       candidatePolicy
     );
 
+    let committedPolicy = candidatePolicy;
+
     if (commitMode === 'CONFIRMED_ON_CHAIN') {
       const sig = typeof body.confirmedTxSignature === 'string' ? body.confirmedTxSignature.trim() : '';
       if (!sig || sig.length < 64 || sig.startsWith('sim_') || sig.startsWith('SIM_')) {
@@ -167,31 +170,105 @@ export async function POST(
 
       const accountKeys = parsedTx.transaction.message.accountKeys || [];
       const signerMatched = accountKeys.some(
-        (k: any) => k.signer && k.pubkey?.toBase58?.() === ownerAddress
+        (k: any) => k.signer && (typeof k.pubkey === 'string' ? k.pubkey === ownerAddress : k.pubkey?.toBase58?.() === ownerAddress)
       );
-      const targetMatched = accountKeys.some((k: any) => {
-        const keyStr = k.pubkey?.toBase58?.();
-        return keyStr === expectedPolicyPda || keyStr === APP_CONFIG.sentinelProgramId;
-      });
-
-      if (!signerMatched || !targetMatched) {
+      if (!signerMatched) {
         return Response.json(
           {
             success: false,
-            error: 'Transaction signer or Policy PDA account does not match wallet owner binding.',
+            error: `Transaction signer does not match expected policy owner address (${ownerAddress}).`,
           },
           { status: 400 }
         );
       }
 
-      store.policy = candidatePolicy;
-      await reconcilePolicyFromSolana(ownerAddress).catch(() => {});
+      // Verify instruction discriminator and target Policy PDA
+      const targetProgramId = APP_CONFIG.sentinelProgramId || SENTINEL_PROGRAM_ID.toBase58();
+      const instructions = parsedTx.transaction.message.instructions || [];
+      let foundPolicyIx = false;
+
+      for (const ix of instructions) {
+        const progKey = (ix as any).programId?.toBase58 ? (ix as any).programId.toBase58() : (ix as any).programId;
+        if (progKey !== targetProgramId) continue;
+
+        const accounts = (ix as any).accounts || [];
+        const accountStrs = accounts.map((a: any) => (a?.toBase58 ? a.toBase58() : String(a)));
+        const targetsPolicyPda = accountStrs.includes(expectedPolicyPda);
+
+        // Check discriminator if raw instruction data is present
+        const rawData = (ix as any).data;
+        if (rawData && typeof rawData === 'string') {
+          try {
+            const dataBuf = Buffer.from(utils.bytes.bs58.decode(rawData));
+            if (dataBuf.length >= 8) {
+              const discHex = dataBuf.subarray(0, 8).toString('hex');
+              // update_policy (d4f5f607a3971239) or initialize_policy (09ba56e181a2e738)
+              if (discHex === 'd4f5f607a3971239' || discHex === '09ba56e181a2e738') {
+                if (targetsPolicyPda) {
+                  foundPolicyIx = true;
+                  break;
+                }
+              }
+            }
+          } catch {
+            if (targetsPolicyPda) {
+              foundPolicyIx = true;
+              break;
+            }
+          }
+        } else if (targetsPolicyPda) {
+          foundPolicyIx = true;
+          break;
+        }
+      }
+
+      if (!foundPolicyIx) {
+        return Response.json(
+          {
+            success: false,
+            error: 'Confirmed transaction does not contain a verified Sentinel update_policy or initialize_policy instruction for target Policy PDA.',
+          },
+          { status: 400 }
+        );
+      }
+
+      // Read back authoritative on-chain state directly from chain
+      const onChain = await fetchOnChainPolicy(ownerAddress);
+      if (!onChain) {
+        return Response.json(
+          {
+            success: false,
+            error: 'Transaction confirmed, but PolicyAccount PDA could not be read or decoded from Solana RPC.',
+          },
+          { status: 502 }
+        );
+      }
+
+      store.policy = onChain;
+      committedPolicy = onChain;
     } else if (commitMode === 'SIMULATION') {
       store.policy = candidatePolicy;
+      committedPolicy = candidatePolicy;
     }
+
+    const authority =
+      commitMode === 'CONFIRMED_ON_CHAIN'
+        ? 'SOLANA_ON_CHAIN'
+        : commitMode === 'SIMULATION'
+        ? 'SIMULATION'
+        : 'PREPARE_ONLY';
+
+    const source =
+      commitMode === 'CONFIRMED_ON_CHAIN'
+        ? 'on_chain'
+        : commitMode === 'SIMULATION'
+        ? 'simulation'
+        : 'candidate';
 
     return Response.json({
       success: true,
+      authority,
+      source,
       commitMode,
       committed: commitMode === 'CONFIRMED_ON_CHAIN' || commitMode === 'SIMULATION',
       confirmedTxSignature: body.confirmedTxSignature || undefined,
@@ -203,7 +280,7 @@ export async function POST(
           : commitMode === 'CONFIRMED_ON_CHAIN'
           ? 'On-chain Policy PDA transaction verified via Solana RPC and committed'
           : 'Simulation policy state updated',
-      policy: candidatePolicy,
+      policy: committedPolicy,
       preparedTransaction,
     });
   } catch (error: any) {

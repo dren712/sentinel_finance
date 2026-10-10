@@ -162,9 +162,10 @@ export function getServerStore(): ServerStateStore {
 }
 
 /**
- * Ensures the Postgres / read-model index is seeded with the initial confirmed Solana Devnet
- * lifecycle events if no runs exist yet, so `GET /api/activity/:wallet` is always the canonical
- * source of transaction history for `ActivityView.tsx`.
+ * Ensures demo/specimen history is available ONLY when running in explicit demo mode.
+ * In production and live Devnet modes, this function does nothing: activity history
+ * is derived exclusively from genuine verified executions and decoded on-chain state.
+ * Real transaction signatures are NEVER attached to synthetic decisions.
  */
 export async function ensureSeededDevnetHistory(
   store: ServerStateStore = getServerStore(),
@@ -173,26 +174,31 @@ export async function ensureSeededDevnetHistory(
   if (store.seededCanonicalHistory) return;
   store.seededCanonicalHistory = true;
 
+  // In live or non-demo mode, do NOT seed synthetic activity into database.
+  // Real activity must derive only from verified executions and on-chain events.
+  const isDemo = APP_CONFIG.features.demoMode || process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+  if (!isDemo) return;
+
   const existingDecisions = await store.db.queryDecisions(walletAddress, 5);
   if (existingDecisions.length > 0) return;
 
   const now = Date.now();
   const owner = walletAddress && walletAddress !== 'default' ? walletAddress : store.portfolio.owner;
-  const seedRunId = 'run_devnet_p20_verified';
+  const seedRunId = 'run_specimen_demo_simulated';
 
   await store.db.recordAgentRun({
     run_id: seedRunId,
     agent_id: 'robo-01',
     wallet_address: owner,
     scenario: 'flagship',
-    llm_provider: 'DemoProvider (Canonical Seed)',
+    llm_provider: 'DemoProvider (Simulation Specimen)',
     stage: 'SETTLED',
     status: 'COMPLETED',
-    summary: 'Canonical Devnet Evidence: $15,000 BUY NVDAx blocked by Sentinel -> adapted to $5,000 BUY NVDAx and settled on-chain.',
+    summary: 'Offline Demo Simulation Specimen: $15,000 BUY NVDAx blocked by Sentinel simulation guard -> adapted to $5,000 BUY NVDAx in simulation.',
     created_at: now - 120_000,
   });
 
-  // 1. Rejected $15,000 BUY NVDAx (Devnet TX Yj4VQjWB...)
+  // 1. Rejected $15,000 BUY NVDAx (Simulation Specimen - explicitly marked simulation, no fake signature)
   const badIntent = store.client.getAgent().proposeIntent({
     assetSymbol: 'NVDAx',
     assetMint: 'NVDAxMint1111111111111111111111111111111111',
@@ -202,8 +208,8 @@ export async function ensureSeededDevnetHistory(
     strategyRationale: 'Aggressive momentum allocation into NVDAx ($15,000)',
   });
   const badReport = await store.client.executeDecisionCycle(store.portfolio, store.policy, badIntent);
-  badReport.evidenceRecord.transactionSignature = APP_CONFIG.devnetTransactions.rejectBadTradeTx;
-  badReport.evidenceRecord.isSimulation = false;
+  badReport.evidenceRecord.transactionSignature = 'sim_specimen_reject_15k';
+  badReport.evidenceRecord.isSimulation = true;
 
   const seedPolicySnapshot = {
     policyVersion: store.policy.policyVersion,
@@ -213,12 +219,12 @@ export async function ensureSeededDevnetHistory(
     maxPreIpoExposureBps: store.policy.maxPreIpoExposureBps ?? 2000,
   };
 
-  const dec1Id = 'dec_devnet_reject_15k';
+  const dec1Id = 'dec_specimen_reject_15k';
   await store.db.recordDecision({
     decision_id: dec1Id,
     run_id: seedRunId,
     wallet_address: owner,
-    model_provider: 'DemoProvider (Canonical Seed)',
+    model_provider: 'DemoProvider (Simulation Specimen)',
     structured_intent_json: {
       action: badIntent.direction,
       asset: badIntent.assetSymbol,
@@ -237,25 +243,25 @@ export async function ensureSeededDevnetHistory(
     policy_version: store.policy.policyVersion,
     policy_snapshot_json: seedPolicySnapshot,
     evidence_id: badReport.evidenceRecord.id,
-    transaction_signature: APP_CONFIG.devnetTransactions.rejectBadTradeTx,
+    transaction_signature: 'sim_specimen_reject_15k',
     created_at: now - 125_000,
   });
   await store.db.recordExecution({
-    execution_id: 'exec_devnet_reject_15k',
+    execution_id: 'exec_specimen_reject_15k',
     decision_id: dec1Id,
     wallet_address: owner,
     venue_type: 'SOLANA',
-    venue_name: 'Solana Devnet (Canonical Seed Rejection)',
-    transaction_signature: APP_CONFIG.devnetTransactions.rejectBadTradeTx,
+    venue_name: 'Simulated Execution (Offline Specimen)',
+    transaction_signature: 'sim_specimen_reject_15k',
     executed_amount_usd: 0,
     executed_price_usd: 120,
     cluster: APP_CONFIG.clusterLabel,
-    is_simulation: false,
+    is_simulation: true,
     created_at: now - 125_000,
   });
   await store.db.recordEvidenceIndex(badReport.evidenceRecord, dec1Id, owner);
 
-  // 2. Adapted & Settled $5,000 BUY NVDAx (Devnet TX 424aJbYW...)
+  // 2. Adapted & Settled $5,000 BUY NVDAx (Simulation Specimen - explicitly marked simulation, no fake signature)
   const goodIntent = store.client.getAgent().proposeIntent({
     assetSymbol: 'NVDAx',
     assetMint: 'NVDAxMint1111111111111111111111111111111111',
@@ -265,16 +271,15 @@ export async function ensureSeededDevnetHistory(
     strategyRationale: 'Adapted $5,000 BUY NVDAx satisfying 25.0% concentration ceiling and 20.0% USDC floor',
   });
   const goodReport = await store.client.executeDecisionCycle(store.portfolio, store.policy, goodIntent);
-  goodReport.evidenceRecord.transactionSignature = APP_CONFIG.devnetTransactions.executeValidTradeTx;
-  goodReport.evidenceRecord.isSimulation = false;
+  goodReport.evidenceRecord.transactionSignature = 'sim_specimen_settle_5k';
+  goodReport.evidenceRecord.isSimulation = true;
 
-  const dec2Id = 'dec_devnet_settle_5k';
+  const dec2Id = 'dec_specimen_settle_5k';
   await store.db.recordDecision({
     decision_id: dec2Id,
     run_id: seedRunId,
     wallet_address: owner,
-    model_provider: 'DemoProvider (Canonical Seed)',
-
+    model_provider: 'DemoProvider (Simulation Specimen)',
     structured_intent_json: {
       action: goodIntent.direction,
       asset: goodIntent.assetSymbol,
@@ -289,20 +294,20 @@ export async function ensureSeededDevnetHistory(
     policy_version: store.policy.policyVersion,
     policy_snapshot_json: seedPolicySnapshot,
     evidence_id: goodReport.evidenceRecord.id,
-    transaction_signature: APP_CONFIG.devnetTransactions.executeValidTradeTx,
+    transaction_signature: 'sim_specimen_settle_5k',
     created_at: now - 120_000,
   });
   await store.db.recordExecution({
-    execution_id: 'exec_devnet_settle_5k',
+    execution_id: 'exec_specimen_settle_5k',
     decision_id: dec2Id,
     wallet_address: owner,
     venue_type: 'SOLANA',
-    venue_name: 'Solana Devnet (Sentinel Guarded Settlement)',
-    transaction_signature: APP_CONFIG.devnetTransactions.executeValidTradeTx,
+    venue_name: 'Simulated Execution (Offline Specimen)',
+    transaction_signature: 'sim_specimen_settle_5k',
     executed_amount_usd: 5_000,
     executed_price_usd: 120,
     cluster: APP_CONFIG.clusterLabel,
-    is_simulation: false,
+    is_simulation: true,
     created_at: now - 120_000,
   });
   await store.db.recordEvidenceIndex(goodReport.evidenceRecord, dec2Id, owner);
@@ -310,13 +315,12 @@ export async function ensureSeededDevnetHistory(
 }
 
 /**
- * Reconciles authoritative financial policy from Solana RPC (PolicyAccount PDA: [b"policy", owner]).
- * If uninitialized or offline on-chain, reconstructs policy invariants from Postgres read history.
+ * Strictly fetches and decodes the on-chain PolicyAccount PDA from Solana RPC.
+ * Returns null if the account does not exist or fails to decode, without fallback.
  */
-export async function reconcilePolicyFromSolana(walletAddress?: string): Promise<FinancialPolicy> {
+export async function fetchOnChainPolicy(walletAddress?: string): Promise<FinancialPolicy | null> {
   const store = getServerStore();
-  const targetOwner =
-    walletAddress && walletAddress !== 'default' ? walletAddress : store.portfolio.owner;
+  const targetOwner = walletAddress && walletAddress !== 'default' ? walletAddress : store.portfolio.owner;
 
   try {
     const ownerPubkey = new PublicKey(targetOwner);
@@ -338,8 +342,13 @@ export async function reconcilePolicyFromSolana(walletAddress?: string): Promise
       const policyVersion = buf.readUInt32LE(54);
       const isActive = buf.readUInt8(58) === 1;
 
+      let safeDestination: string | undefined = undefined;
+      if (buf.length >= 112) {
+        safeDestination = new PublicKey(buf.subarray(80, 112)).toBase58();
+      }
+
       if (maxSingleAssetBps > 0 && minStablecoinBps > 0) {
-        store.policy = {
+        return {
           ...store.policy,
           owner: ownerPubkey.toBase58(),
           maxSingleAssetBps,
@@ -348,12 +357,30 @@ export async function reconcilePolicyFromSolana(walletAddress?: string): Promise
           maxSlippageBps,
           policyVersion,
           isActive,
+          ...(safeDestination ? { safeDestination } : {}),
         };
-        return store.policy;
       }
     }
-  } catch {
-    // Keep existing session policy if RPC is unreachable or wallet address is synthetic
+  } catch (err) {
+    console.warn('[Policy] fetchOnChainPolicy failed:', err);
+  }
+
+  return null;
+}
+
+/**
+ * Reconciles authoritative financial policy from Solana RPC (PolicyAccount PDA: [b"policy", owner]).
+ * If uninitialized or offline on-chain, reconstructs policy invariants from Postgres read history.
+ */
+export async function reconcilePolicyFromSolana(walletAddress?: string): Promise<FinancialPolicy> {
+  const store = getServerStore();
+  const targetOwner =
+    walletAddress && walletAddress !== 'default' ? walletAddress : store.portfolio.owner;
+
+  const onChain = await fetchOnChainPolicy(targetOwner);
+  if (onChain) {
+    store.policy = onChain;
+    return store.policy;
   }
 
   // State Reconstruction from Postgres read history (across restarts or container replicas)

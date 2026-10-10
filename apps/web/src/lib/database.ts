@@ -1,5 +1,7 @@
 import { Pool } from 'pg';
-import { EvidenceRecord, PortfolioSnapshot, hashPortfolioState } from '@sentinel/domain';
+import type { EvidenceRecord, PortfolioSnapshot } from '@sentinel/domain';
+import * as domainPkg from '@sentinel/domain';
+const { hashPortfolioState } = (domainPkg as any).default || domainPkg;
 
 /**
  * P13 — PERSISTENT READ HISTORY REPOSITORY (POSTGRES + FALLBACK)
@@ -199,7 +201,9 @@ export interface EvidenceIndexRow {
 }
 
 export class SentinelReadHistoryRepository {
-  public readonly authority = 'SOLANA_ON_CHAIN' as const;
+  public get authority(): 'POSTGRES_READ_MODEL' | 'IN_MEMORY_READ_MODEL' {
+    return this.isPostgresConnected() ? 'POSTGRES_READ_MODEL' : 'IN_MEMORY_READ_MODEL';
+  }
   public readonly role = 'QUERY_INDEX_HISTORY' as const;
 
   private agentRuns: AgentRunRow[] = [];
@@ -213,7 +217,10 @@ export class SentinelReadHistoryRepository {
   private lastError: string | null = null;
   private lastErrorAt: number | null = null;
 
-  constructor(private databaseUrl: string | undefined = process.env.DATABASE_URL) {
+  private databaseUrl: string | undefined;
+
+  constructor(databaseUrl: string | undefined = process.env.DATABASE_URL) {
+    this.databaseUrl = databaseUrl;
     if (this.databaseUrl) {
       this.initPromise = this.initPostgresAsync();
     }

@@ -29,10 +29,13 @@ export async function GET(
       portfolioSnapshots = [];
     }
 
+    const isPostgres = store.db.isPostgresConnected();
+
     return Response.json({
       success: true,
       wallet,
       authority: store.db.authority,
+      source: isPostgres ? 'postgres_read_model' : 'in_memory_read_model',
       historyStore: activityData.stats,
       totalActivities: activityData.activities.length,
       activities: activityData.activities.map((item: any) => ({
@@ -53,6 +56,9 @@ export async function GET(
         signature: item.signature,
         evidenceId: item.evidenceId,
         evidenceRecord: item.evidenceRecord,
+        isSimulation: Boolean(item.isSimulation),
+        venueName: item.venueName,
+        source: item.isSimulation ? 'simulation' : (item.signature ? 'on_chain' : 'simulation'),
       })),
       tables: {
         agent_runs: activityData.agentRuns,

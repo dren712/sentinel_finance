@@ -134,9 +134,10 @@ pub mod sentinel {
         usdc_balance_cents: u64,
         positions: Vec<AssetPosition>,
     ) -> Result<()> {
-        require!(positions.len() <= PortfolioVault::MAX_POSITIONS, SentinelError::InvalidPolicyBounds);
-        let volatile_count = positions.iter().filter(|p| !p.is_index).count();
-        require!(volatile_count == 1, SentinelError::InvalidVolatileAssetConfiguration);
+        require!(positions.len() == 1, SentinelError::InvalidVolatileAssetConfiguration);
+        require!(!positions[0].is_index, SentinelError::InvalidVolatileAssetConfiguration);
+        require!(positions[0].mint != Pubkey::default(), SentinelError::AssetNotFound);
+        require!(positions[0].amount_units == 0 || positions[0].price_cents > 0, SentinelError::InvalidPrice);
 
         let vault = &mut ctx.accounts.vault;
         vault.owner = ctx.accounts.owner.key();
@@ -171,9 +172,10 @@ pub mod sentinel {
         usdc_balance_cents: u64,
         positions: Vec<AssetPosition>,
     ) -> Result<()> {
-        require!(positions.len() <= PortfolioVault::MAX_POSITIONS, SentinelError::InvalidPolicyBounds);
-        let volatile_count = positions.iter().filter(|p| !p.is_index).count();
-        require!(volatile_count == 1, SentinelError::InvalidVolatileAssetConfiguration);
+        require!(positions.len() == 1, SentinelError::InvalidVolatileAssetConfiguration);
+        require!(!positions[0].is_index, SentinelError::InvalidVolatileAssetConfiguration);
+        require!(positions[0].mint != Pubkey::default(), SentinelError::AssetNotFound);
+        require!(positions[0].amount_units == 0 || positions[0].price_cents > 0, SentinelError::InvalidPrice);
 
         let vault = &mut ctx.accounts.vault;
         require!(vault.status == VaultStatus::Active, SentinelError::VaultNotActive);
@@ -499,8 +501,9 @@ pub mod sentinel {
         require!(vault.status == VaultStatus::Active, SentinelError::VaultNotActive);
 
         // MVP scope: a vault holds ONE volatile asset + USDC
-        let pos = vault.positions.iter().find(|p| !p.is_index)
-            .ok_or(SentinelError::AssetNotFound)?;
+        require!(vault.positions.len() == 1, SentinelError::InvalidVolatileAssetConfiguration);
+        require!(!vault.positions[0].is_index, SentinelError::InvalidVolatileAssetConfiguration);
+        let pos = &vault.positions[0];
 
         let clock = Clock::get()?;
         let pyth_price_cents = parse_and_verify_pyth_price(
@@ -659,12 +662,11 @@ pub mod sentinel {
         require!(expected_nonce == vault.recovery_nonce, SentinelError::StaleRecoveryNonce);
 
         // Exactly one volatile (non-index) position enforced
-        let volatile_count = vault.positions.iter().filter(|p| !p.is_index).count();
-        require!(volatile_count == 1, SentinelError::InvalidVolatileAssetConfiguration);
+        require!(vault.positions.len() == 1, SentinelError::InvalidVolatileAssetConfiguration);
+        require!(!vault.positions[0].is_index, SentinelError::InvalidVolatileAssetConfiguration);
 
         // Volatile (non-index) position
-        let pos_idx = vault.positions.iter().position(|p| !p.is_index)
-            .ok_or(SentinelError::AssetNotFound)?;
+        let pos_idx = 0;
         let feed_id = vault.positions[pos_idx].feed_id;
 
         // d. price = parse_and_verify_pyth_price(...) with the position's feed_id

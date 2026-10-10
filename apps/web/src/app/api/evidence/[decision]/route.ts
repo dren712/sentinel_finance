@@ -40,20 +40,13 @@ export async function GET(
     }
 
     if (!record) {
-      const [port, pol] = await Promise.all([
-        reconcilePortfolioFromSolana(),
-        reconcilePolicyFromSolana(),
-      ]);
-      const intent = store.client.getAgent().proposeIntent({
-        assetSymbol: 'NVDAx',
-        assetMint: 'NVDA111111111111111111111111111111111111111',
-        direction: 'BUY',
-        tradeAmountUsd: 5000,
-        referencePriceUsd: 120,
-        strategyRationale: 'Robo-01 compliant growth trade',
-      });
-      const report = await store.client.executeDecisionCycle(port, pol, intent);
-      record = report.evidenceRecord;
+      return Response.json(
+        {
+          success: false,
+          error: `Decision evidence record '${decisionId}' not found.`,
+        },
+        { status: 404 }
+      );
     }
 
     const receipt = store.client.formatReceipt(record);
@@ -67,7 +60,7 @@ export async function GET(
       !txSig.startsWith('5xSentinelSim');
 
     let txConfirmedOnChain = false;
-    let confirmationStatus: string = isRealBase58Sig ? 'confirmed' : 'simulated';
+    let confirmationStatus: string = isRealBase58Sig ? 'unconfirmed' : 'simulated';
     let txSlot: number | null = null;
 
     if (isRealBase58Sig) {
@@ -78,17 +71,18 @@ export async function GET(
         });
         if (statusResp?.value) {
           txConfirmedOnChain =
-            statusResp.value.confirmationStatus === 'confirmed' ||
-            statusResp.value.confirmationStatus === 'finalized' ||
-            statusResp.value.err !== undefined;
-          confirmationStatus = statusResp.value.confirmationStatus || 'confirmed';
+            (statusResp.value.confirmationStatus === 'confirmed' ||
+             statusResp.value.confirmationStatus === 'finalized') &&
+            !statusResp.value.err;
+          confirmationStatus = statusResp.value.confirmationStatus || (statusResp.value.err ? 'failed' : 'unconfirmed');
           txSlot = statusResp.value.slot ?? null;
         } else {
-          // Known verified Devnet proofs anchored on Solana Devnet
-          txConfirmedOnChain = true;
+          txConfirmedOnChain = false;
+          confirmationStatus = 'not_found_on_rpc';
         }
       } catch {
-        txConfirmedOnChain = isRealBase58Sig;
+        txConfirmedOnChain = false;
+        confirmationStatus = 'rpc_error';
       }
     }
 

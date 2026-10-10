@@ -1,13 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { mintTestTokens, DEVNET_MINTS } from '@/lib/faucet-service';
+import { checkRateLimit, getClientIdentifier, isValidSolanaAddress } from '@/lib/rate-limiter';
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    const clientId = getClientIdentifier(req, 'devnet:faucet');
+    const rateCheck = checkRateLimit(clientId, { limit: 10, windowMs: 60_000 });
+    if (!rateCheck.allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Rate limit exceeded. Please wait ${Math.ceil(rateCheck.retryAfterMs / 1000)}s before minting test tokens.`,
+        },
+        { status: 429 }
+      );
+    }
+
+    const body = await req.json().catch(() => ({}));
     const { wallet, asset, amount } = body;
 
-    if (!wallet || typeof wallet !== 'string') {
-      return NextResponse.json({ success: false, error: 'Valid wallet address is required.' }, { status: 400 });
+    if (!wallet || !isValidSolanaAddress(wallet)) {
+      return NextResponse.json({ success: false, error: 'Valid Solana wallet address is required.' }, { status: 400 });
     }
 
     if (!asset || (asset !== 'sUSD' && asset !== 'sASSET')) {
@@ -17,8 +30,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const maxAllowed = asset === 'sUSD' ? 50_000 : 500;
     const defaultAmount = asset === 'sUSD' ? 10_000 : 100;
-    const mintAmount = typeof amount === 'number' && amount > 0 ? amount : defaultAmount;
+    const mintAmount = typeof amount === 'number' && amount > 0 ? Math.min(amount, maxAllowed) : defaultAmount;
 
     const result = await mintTestTokens(wallet, asset, mintAmount);
     return NextResponse.json(result);
