@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
 
     // 2. Bounded body size and input validation
     const body = await req.json().catch(() => ({}));
-    const { wallet, safeDestination } = body;
+    const { wallet, safeDestination, simulationMode } = body;
 
     if (wallet && typeof wallet === 'string' && !isValidSolanaAddress(wallet)) {
       return NextResponse.json(
@@ -35,9 +35,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Shared managed demo vault ignores caller-chosen safe destinations to prevent unauthorized fund redirection
+    // Shared managed demo vault strictly pins recovery safe destination to server authority
+    // to prevent anonymous fund redirection
     const targetWallet = wallet && typeof wallet === 'string' ? wallet : '7TffMKzUgVme4eod8Wh9ANAQ3YrRMzj4c2JrfKm6AY4Y';
-    const state = await setupDevnetSandbox(targetWallet);
+    const state = await setupDevnetSandbox(targetWallet, undefined, {
+      simulationMode: Boolean(simulationMode),
+    });
 
     return NextResponse.json({
       success: true,
@@ -52,4 +55,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-

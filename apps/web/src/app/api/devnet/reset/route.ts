@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { wallet } = body;
+    const { wallet, simulationMode } = body;
 
     if (wallet && typeof wallet === 'string' && !isValidSolanaAddress(wallet)) {
       return NextResponse.json(
@@ -28,7 +28,9 @@ export async function POST(req: NextRequest) {
     }
 
     const targetWallet = wallet && typeof wallet === 'string' ? wallet : '7TffMKzUgVme4eod8Wh9ANAQ3YrRMzj4c2JrfKm6AY4Y';
-    const state = await resetDevnetSandbox(targetWallet);
+    const state = await resetDevnetSandbox(targetWallet, {
+      simulationMode: Boolean(simulationMode),
+    });
 
     return NextResponse.json({
       success: true,

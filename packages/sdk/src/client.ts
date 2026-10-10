@@ -807,7 +807,13 @@ export class SentinelClient {
       const program = new Program(SENTINEL_IDL as any, provider);
 
       const policyInfo = await connection.getAccountInfo(policyPda).catch(() => null);
-      const maxTradeScaled = new BN(Math.floor(policy.maxTradeValueUsd * 1_000_000));
+      const maxTradeValue = new BN(policy.maxTradeValueUsd);
+      const safeDestPubkey = new PublicKey((policy as any).safeDestination || ownerPubkey);
+      const confirmSlots = new BN((policy as any).confirmSlots ?? 2);
+      const recoveryWindowSlots = new BN((policy as any).recoveryWindowSlots ?? 100);
+      const maxRecoveryCostBps = (policy as any).maxRecoveryCostBps ?? 500;
+      const maxBountyBps = (policy as any).maxBountyBps ?? 100;
+      const isActive = policy.isActive !== undefined ? Boolean(policy.isActive) : true;
       let instructionName: 'updatePolicy' | 'initializePolicy' = 'updatePolicy';
       let tx: Transaction;
 
@@ -816,9 +822,14 @@ export class SentinelClient {
           .updatePolicy(
             policy.maxSingleAssetBps,
             policy.minStablecoinBps,
-            maxTradeScaled,
+            maxTradeValue,
             policy.maxSlippageBps,
-            Boolean(policy.isEmergencyPaused)
+            confirmSlots,
+            recoveryWindowSlots,
+            maxRecoveryCostBps,
+            maxBountyBps,
+            safeDestPubkey,
+            isActive
           )
           .accountsPartial({
             policy: policyPda,
@@ -832,11 +843,16 @@ export class SentinelClient {
           .initializePolicy(
             policy.maxSingleAssetBps,
             policy.minStablecoinBps,
-            maxTradeScaled,
-            policy.maxSlippageBps
+            maxTradeValue,
+            policy.maxSlippageBps,
+            confirmSlots,
+            recoveryWindowSlots,
+            maxRecoveryCostBps,
+            maxBountyBps,
+            safeDestPubkey
           )
-          .accounts({
-            policyAccount: policyPda,
+          .accountsPartial({
+            policy: policyPda,
             owner: ownerPubkey,
             systemProgram: SystemProgram.programId,
           })

@@ -45,9 +45,12 @@ export async function GET(
     const minReserveFloorPct = (policy?.minStablecoinBps ?? 2000) / 100;
     const isReserveCompliant = (portfolio?.stablecoinExposureBps ?? 2500) >= (policy?.minStablecoinBps ?? 2000);
 
+    const authority =
+      portfolio.source === 'ON_CHAIN_PROJECTION' ? 'SOLANA_ON_CHAIN' : 'SIMULATION';
+
     return Response.json({
       success: true,
-      authority: 'SOLANA_ON_CHAIN',
+      authority,
       wallet: wallet === 'default' ? portfolio.owner : wallet,
       source: portfolio.source,
       totalValueUsd: portfolio.totalValueUsd,

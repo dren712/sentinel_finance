@@ -1,7 +1,6 @@
 import { Pool } from 'pg';
 import type { EvidenceRecord, PortfolioSnapshot } from '@sentinel/domain';
-import * as domainPkg from '@sentinel/domain';
-const { hashPortfolioState } = (domainPkg as any).default || domainPkg;
+import { hashPortfolioState } from '@sentinel/domain';
 
 /**
  * P13 — PERSISTENT READ HISTORY REPOSITORY (POSTGRES + FALLBACK)

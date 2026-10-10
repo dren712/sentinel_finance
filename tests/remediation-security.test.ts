@@ -8,9 +8,90 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { checkRateLimit, isValidSolanaAddress } from '../apps/web/src/lib/rate-limiter.ts';
 import { SentinelReadHistoryRepository } from '../apps/web/src/lib/database.ts';
+import {
+  verifyPolicyTransaction,
+  decodePolicyInstructionData,
+  UPDATE_POLICY_DISCRIMINATOR,
+  INITIALIZE_POLICY_DISCRIMINATOR,
+} from '../apps/web/src/lib/policy-verifier.ts';
+import { fetchPythPriceReading } from '../apps/web/src/lib/oracle-reader.ts';
+const bs58 = (anchorPkg as any).utils?.bytes?.bs58 || (anchorPkg as any).default?.utils?.bytes?.bs58;
 
 const PROGRAM_ID = new PublicKey('3TVEhBHwQNoEU1VwNNdzDCVyFBQ2At77n9uTqRKz8AgH');
 const idl = JSON.parse(fs.readFileSync(path.resolve('target/idl/sentinel.json'), 'utf8'));
+
+function encodeUpdatePolicy(args: {
+  maxSingleAssetBps: number;
+  minStablecoinBps: number;
+  maxTradeValueUsd: bigint;
+  maxSlippageBps: number;
+  confirmSlots: bigint;
+  recoveryWindowSlots: bigint;
+  maxRecoveryCostBps: number;
+  maxBountyBps: number;
+  safeDestination: PublicKey;
+  isActive: boolean;
+}): Buffer {
+  const buf = Buffer.alloc(75);
+  Buffer.from(UPDATE_POLICY_DISCRIMINATOR, 'hex').copy(buf, 0);
+  buf.writeUInt16LE(args.maxSingleAssetBps, 8);
+  buf.writeUInt16LE(args.minStablecoinBps, 10);
+  buf.writeBigUInt64LE(args.maxTradeValueUsd, 12);
+  buf.writeUInt16LE(args.maxSlippageBps, 20);
+  buf.writeBigUInt64LE(args.confirmSlots, 22);
+  buf.writeBigUInt64LE(args.recoveryWindowSlots, 30);
+  buf.writeUInt16LE(args.maxRecoveryCostBps, 38);
+  buf.writeUInt16LE(args.maxBountyBps, 40);
+  args.safeDestination.toBuffer().copy(buf, 42);
+  buf.writeUInt8(args.isActive ? 1 : 0, 74);
+  return buf;
+}
+
+function encodeInitializePolicy(args: {
+  maxSingleAssetBps: number;
+  minStablecoinBps: number;
+  maxTradeValueUsd: bigint;
+  maxSlippageBps: number;
+  confirmSlots: bigint;
+  recoveryWindowSlots: bigint;
+  maxRecoveryCostBps: number;
+  maxBountyBps: number;
+  safeDestination: PublicKey;
+}): Buffer {
+  const buf = Buffer.alloc(74);
+  Buffer.from(INITIALIZE_POLICY_DISCRIMINATOR, 'hex').copy(buf, 0);
+  buf.writeUInt16LE(args.maxSingleAssetBps, 8);
+  buf.writeUInt16LE(args.minStablecoinBps, 10);
+  buf.writeBigUInt64LE(args.maxTradeValueUsd, 12);
+  buf.writeUInt16LE(args.maxSlippageBps, 20);
+  buf.writeBigUInt64LE(args.confirmSlots, 22);
+  buf.writeBigUInt64LE(args.recoveryWindowSlots, 30);
+  buf.writeUInt16LE(args.maxRecoveryCostBps, 38);
+  buf.writeUInt16LE(args.maxBountyBps, 40);
+  args.safeDestination.toBuffer().copy(buf, 42);
+  return buf;
+}
+
+function createPythAccountData(params: {
+  price: bigint;
+  conf: bigint;
+  exponent: number;
+  publishTime: number;
+}): Buffer {
+  const buf = Buffer.alloc(125);
+  PublicKey.default.toBuffer().copy(buf, 0);
+  buf.writeUInt8(1, 32); // Full verification
+  Buffer.alloc(32, 1).copy(buf, 33); // feedId
+  buf.writeBigInt64LE(params.price, 65);
+  buf.writeBigUInt64LE(params.conf, 73);
+  buf.writeInt32LE(params.exponent, 81);
+  buf.writeBigInt64LE(BigInt(params.publishTime), 85);
+  buf.writeBigInt64LE(BigInt(params.publishTime - 1), 93);
+  buf.writeBigInt64LE(params.price, 101);
+  buf.writeBigUInt64LE(params.conf, 109);
+  buf.writeBigUInt64LE(BigInt(100), 117);
+  return buf;
+}
 
 describe('CWF 2026 Remediation Security & Integrity Suite', () => {
   describe('P0: Activity & Evidence Integrity', () => {
@@ -70,6 +151,427 @@ describe('CWF 2026 Remediation Security & Integrity Suite', () => {
       const repo = new SentinelReadHistoryRepository();
       const nonExistent = repo.getEvidenceById('non_existent_decision_123');
       assert.strictEqual(nonExistent, undefined);
+    });
+  });
+
+  describe('P0: Policy-Update Transaction Verification Suite', () => {
+    const owner = Keypair.generate();
+    const ownerStr = owner.publicKey.toBase58();
+    const policyPda = PublicKey.findProgramAddressSync(
+      [Buffer.from('policy'), owner.publicKey.toBuffer()],
+      PROGRAM_ID
+    )[0];
+    const vaultPda = PublicKey.findProgramAddressSync(
+      [Buffer.from('vault'), owner.publicKey.toBuffer()],
+      PROGRAM_ID
+    )[0];
+    const safeDest = Keypair.generate().publicKey;
+
+    it('verifies a valid update_policy transaction with matching arguments', () => {
+      const buf = encodeUpdatePolicy({
+        maxSingleAssetBps: 2500,
+        minStablecoinBps: 2000,
+        maxTradeValueUsd: BigInt(10000),
+        maxSlippageBps: 100,
+        confirmSlots: BigInt(2),
+        recoveryWindowSlots: BigInt(100),
+        maxRecoveryCostBps: 500,
+        maxBountyBps: 100,
+        safeDestination: safeDest,
+        isActive: true,
+      });
+
+      const parsedTx = {
+        meta: { err: null },
+        transaction: {
+          message: {
+            accountKeys: [
+              { pubkey: ownerStr, signer: true, writable: true },
+              { pubkey: policyPda.toBase58(), signer: false, writable: true },
+              { pubkey: vaultPda.toBase58(), signer: false, writable: false },
+            ],
+            instructions: [
+              {
+                programId: PROGRAM_ID,
+                accounts: [policyPda, vaultPda, owner.publicKey],
+                data: bs58.encode(buf),
+              },
+            ],
+          },
+        },
+      };
+
+      const res = verifyPolicyTransaction(parsedTx, ownerStr, policyPda.toBase58(), PROGRAM_ID.toBase58(), {
+        maxSingleAssetBps: 2500,
+        minStablecoinBps: 2000,
+        maxTradeValueUsd: 10000,
+        maxSlippageBps: 100,
+        isActive: true,
+      });
+
+      assert.strictEqual(res.valid, true);
+      assert.strictEqual(res.instructionType, 'update_policy');
+      assert.strictEqual(res.decoded?.maxSingleAssetBps, 2500);
+      assert.strictEqual(res.decoded?.safeDestination, safeDest.toBase58());
+    });
+
+    it('verifies a valid initialize_policy transaction with matching arguments', () => {
+      const buf = encodeInitializePolicy({
+        maxSingleAssetBps: 2500,
+        minStablecoinBps: 2000,
+        maxTradeValueUsd: BigInt(10000),
+        maxSlippageBps: 100,
+        confirmSlots: BigInt(2),
+        recoveryWindowSlots: BigInt(100),
+        maxRecoveryCostBps: 500,
+        maxBountyBps: 100,
+        safeDestination: safeDest,
+      });
+
+      const parsedTx = {
+        meta: { err: null },
+        transaction: {
+          message: {
+            accountKeys: [
+              { pubkey: ownerStr, signer: true, writable: true },
+              { pubkey: policyPda.toBase58(), signer: false, writable: true },
+            ],
+            instructions: [
+              {
+                programId: PROGRAM_ID,
+                accounts: [policyPda, owner.publicKey, SystemProgram.programId],
+                data: bs58.encode(buf),
+              },
+            ],
+          },
+        },
+      };
+
+      const res = verifyPolicyTransaction(parsedTx, ownerStr, policyPda.toBase58(), PROGRAM_ID.toBase58(), {
+        maxSingleAssetBps: 2500,
+        minStablecoinBps: 2000,
+        maxTradeValueUsd: 10000,
+        maxSlippageBps: 100,
+      });
+
+      assert.strictEqual(res.valid, true);
+      assert.strictEqual(res.instructionType, 'initialize_policy');
+    });
+
+    it('rejects an unrelated transaction containing no Sentinel instructions', () => {
+      const parsedTx = {
+        meta: { err: null },
+        transaction: {
+          message: {
+            accountKeys: [{ pubkey: ownerStr, signer: true, writable: true }],
+            instructions: [
+              {
+                programId: SystemProgram.programId,
+                accounts: [owner.publicKey],
+                data: bs58.encode(Buffer.from('transfer_dummy')),
+              },
+            ],
+          },
+        },
+      };
+
+      const res = verifyPolicyTransaction(parsedTx, ownerStr, policyPda.toBase58(), PROGRAM_ID.toBase58());
+      assert.strictEqual(res.valid, false);
+      assert.ok(res.error?.includes('does not contain a verified Sentinel policy instruction'));
+    });
+
+    it('rejects transaction with on-chain execution error', () => {
+      const parsedTx = {
+        meta: { err: { InstructionError: [0, 'Custom'] } },
+        transaction: {
+          message: {
+            accountKeys: [{ pubkey: ownerStr, signer: true, writable: true }],
+            instructions: [],
+          },
+        },
+      };
+
+      const res = verifyPolicyTransaction(parsedTx, ownerStr, policyPda.toBase58(), PROGRAM_ID.toBase58());
+      assert.strictEqual(res.valid, false);
+      assert.ok(res.error?.includes('execution error'));
+    });
+
+    it('rejects transaction where expected owner is not a signer', () => {
+      const parsedTx = {
+        meta: { err: null },
+        transaction: {
+          message: {
+            accountKeys: [{ pubkey: ownerStr, signer: false, writable: true }],
+            instructions: [],
+          },
+        },
+      };
+
+      const res = verifyPolicyTransaction(parsedTx, ownerStr, policyPda.toBase58(), PROGRAM_ID.toBase58());
+      assert.strictEqual(res.valid, false);
+      assert.ok(res.error?.includes('signer does not match'));
+    });
+
+    it('rejects transaction targeting wrong program ID', () => {
+      const otherProgram = Keypair.generate().publicKey;
+      const buf = encodeUpdatePolicy({
+        maxSingleAssetBps: 2500,
+        minStablecoinBps: 2000,
+        maxTradeValueUsd: BigInt(10000),
+        maxSlippageBps: 100,
+        confirmSlots: BigInt(2),
+        recoveryWindowSlots: BigInt(100),
+        maxRecoveryCostBps: 500,
+        maxBountyBps: 100,
+        safeDestination: safeDest,
+        isActive: true,
+      });
+
+      const parsedTx = {
+        meta: { err: null },
+        transaction: {
+          message: {
+            accountKeys: [{ pubkey: ownerStr, signer: true, writable: true }],
+            instructions: [
+              {
+                programId: otherProgram,
+                accounts: [policyPda, vaultPda, owner.publicKey],
+                data: bs58.encode(buf),
+              },
+            ],
+          },
+        },
+      };
+
+      const res = verifyPolicyTransaction(parsedTx, ownerStr, policyPda.toBase58(), PROGRAM_ID.toBase58());
+      assert.strictEqual(res.valid, false);
+    });
+
+    it('rejects transaction targeting wrong Policy PDA', () => {
+      const otherPda = Keypair.generate().publicKey;
+      const buf = encodeUpdatePolicy({
+        maxSingleAssetBps: 2500,
+        minStablecoinBps: 2000,
+        maxTradeValueUsd: BigInt(10000),
+        maxSlippageBps: 100,
+        confirmSlots: BigInt(2),
+        recoveryWindowSlots: BigInt(100),
+        maxRecoveryCostBps: 500,
+        maxBountyBps: 100,
+        safeDestination: safeDest,
+        isActive: true,
+      });
+
+      const parsedTx = {
+        meta: { err: null },
+        transaction: {
+          message: {
+            accountKeys: [{ pubkey: ownerStr, signer: true, writable: true }],
+            instructions: [
+              {
+                programId: PROGRAM_ID,
+                accounts: [otherPda, vaultPda, owner.publicKey],
+                data: bs58.encode(buf),
+              },
+            ],
+          },
+        },
+      };
+
+      const res = verifyPolicyTransaction(parsedTx, ownerStr, policyPda.toBase58(), PROGRAM_ID.toBase58());
+      assert.strictEqual(res.valid, false);
+      assert.ok(res.error?.includes('does not match expected Policy PDA'));
+    });
+
+    it('rejects transaction with invalid discriminator', () => {
+      const buf = Buffer.alloc(75);
+      Buffer.from('deadbeefdeadbeef', 'hex').copy(buf, 0);
+
+      const parsedTx = {
+        meta: { err: null },
+        transaction: {
+          message: {
+            accountKeys: [{ pubkey: ownerStr, signer: true, writable: true }],
+            instructions: [
+              {
+                programId: PROGRAM_ID,
+                accounts: [policyPda, vaultPda, owner.publicKey],
+                data: bs58.encode(buf),
+              },
+            ],
+          },
+        },
+      };
+
+      const res = verifyPolicyTransaction(parsedTx, ownerStr, policyPda.toBase58(), PROGRAM_ID.toBase58());
+      assert.strictEqual(res.valid, false);
+    });
+
+    it('rejects transaction with truncated instruction data', () => {
+      const buf = Buffer.alloc(20);
+      Buffer.from(UPDATE_POLICY_DISCRIMINATOR, 'hex').copy(buf, 0);
+
+      const parsedTx = {
+        meta: { err: null },
+        transaction: {
+          message: {
+            accountKeys: [{ pubkey: ownerStr, signer: true, writable: true }],
+            instructions: [
+              {
+                programId: PROGRAM_ID,
+                accounts: [policyPda, vaultPda, owner.publicKey],
+                data: bs58.encode(buf),
+              },
+            ],
+          },
+        },
+      };
+
+      const res = verifyPolicyTransaction(parsedTx, ownerStr, policyPda.toBase58(), PROGRAM_ID.toBase58());
+      assert.strictEqual(res.valid, false);
+      assert.ok(res.error?.includes('too short'));
+    });
+
+    it('rejects transaction when instruction arguments do not match submitted candidate', () => {
+      const buf = encodeUpdatePolicy({
+        maxSingleAssetBps: 3000, // Altered in tx (30.0%)
+        minStablecoinBps: 2000,
+        maxTradeValueUsd: BigInt(10000),
+        maxSlippageBps: 100,
+        confirmSlots: BigInt(2),
+        recoveryWindowSlots: BigInt(100),
+        maxRecoveryCostBps: 500,
+        maxBountyBps: 100,
+        safeDestination: safeDest,
+        isActive: true,
+      });
+
+      const parsedTx = {
+        meta: { err: null },
+        transaction: {
+          message: {
+            accountKeys: [
+              { pubkey: ownerStr, signer: true, writable: true },
+              { pubkey: policyPda.toBase58(), signer: false, writable: true },
+              { pubkey: vaultPda.toBase58(), signer: false, writable: false },
+            ],
+            instructions: [
+              {
+                programId: PROGRAM_ID,
+                accounts: [policyPda, vaultPda, owner.publicKey],
+                data: bs58.encode(buf),
+              },
+            ],
+          },
+        },
+      };
+
+      const res = verifyPolicyTransaction(parsedTx, ownerStr, policyPda.toBase58(), PROGRAM_ID.toBase58(), {
+        maxSingleAssetBps: 2500, // Candidate expects 25.0%
+        minStablecoinBps: 2000,
+        maxTradeValueUsd: 10000,
+      });
+
+      assert.strictEqual(res.valid, false);
+      assert.ok(res.error?.includes('Decoded maxSingleAssetBps (3000) does not match candidate (2500)'));
+    });
+  });
+
+  describe('P1: Live-Oracle Fail-Closed & Simulation Mode Suite', () => {
+    it('fails closed in live mode when Pyth account does not exist on RPC', async () => {
+      const mockConnMissing = {
+        getAccountInfo: async () => null,
+      } as any;
+
+      await assert.rejects(
+        async () => {
+          await fetchPythPriceReading(mockConnMissing, { explicitSimulation: false });
+        },
+        (err: any) => {
+          assert.ok(err.message.includes('Fails closed in live mode'));
+          return true;
+        }
+      );
+    });
+
+    it('fails closed in live mode when Pyth price reading is stale (> 60s)', async () => {
+      const nowSec = Math.floor(Date.now() / 1000);
+      const staleData = createPythAccountData({
+        price: BigInt(2500_00000000),
+        conf: BigInt(10_00000000),
+        exponent: -8,
+        publishTime: nowSec - 120, // 120s old
+      });
+
+      const mockConnStale = {
+        getAccountInfo: async () => ({ data: staleData }),
+      } as any;
+
+      await assert.rejects(
+        async () => {
+          await fetchPythPriceReading(mockConnStale, { explicitSimulation: false });
+        },
+        (err: any) => {
+          assert.ok(err.message.includes('stale') && err.message.includes('Fails closed'));
+          return true;
+        }
+      );
+    });
+
+    it('fails closed in live mode when Pyth confidence ratio is wider than 200 bps', async () => {
+      const nowSec = Math.floor(Date.now() / 1000);
+      const wideConfData = createPythAccountData({
+        price: BigInt(100_00000000), // $100
+        conf: BigInt(5_00000000),    // ±$5 (500 bps spread > 200 bps limit)
+        exponent: -8,
+        publishTime: nowSec - 5,
+      });
+
+      const mockConnWide = {
+        getAccountInfo: async () => ({ data: wideConfData }),
+      } as any;
+
+      await assert.rejects(
+        async () => {
+          await fetchPythPriceReading(mockConnWide, { explicitSimulation: false });
+        },
+        (err: any) => {
+          assert.ok(err.message.includes('confidence interval too wide'));
+          return true;
+        }
+      );
+    });
+
+    it('returns verified live reading when Pyth account is fresh and within confidence bound', async () => {
+      const nowSec = Math.floor(Date.now() / 1000);
+      const validData = createPythAccountData({
+        price: BigInt(2500_00000000), // $2500
+        conf: BigInt(10_00000000),    // ±$10 (40 bps spread <= 200 bps)
+        exponent: -8,
+        publishTime: nowSec - 5,
+      });
+
+      const mockConnValid = {
+        getAccountInfo: async () => ({ data: validData }),
+      } as any;
+
+      const reading = await fetchPythPriceReading(mockConnValid, { explicitSimulation: false });
+      assert.strictEqual(reading.isLive, true);
+      assert.strictEqual(reading.isSimulation, false);
+      assert.strictEqual(reading.source, 'live_pyth_devnet');
+      assert.strictEqual(reading.priceCents, 250000);
+    });
+
+    it('explicit simulation returns isSimulation: true and controlled_scenario_simulation provenance', async () => {
+      const mockConn = {
+        getAccountInfo: async () => null,
+      } as any;
+
+      const reading = await fetchPythPriceReading(mockConn, { explicitSimulation: true });
+      assert.strictEqual(reading.isLive, false);
+      assert.strictEqual(reading.isSimulation, true);
+      assert.strictEqual(reading.source, 'controlled_scenario_simulation');
+      assert.strictEqual(reading.priceCents, 250000);
     });
   });
 

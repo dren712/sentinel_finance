@@ -1,8 +1,8 @@
 import { Connection } from '@solana/web3.js';
 import { deriveSentinelPda, SENTINEL_PROGRAM_ID } from '@sentinel/domain';
-import { utils } from '@sentinel/sdk';
 import { APP_CONFIG } from '../../../../lib/config';
 import { getServerStore, reconcilePolicyFromSolana, fetchOnChainPolicy } from '../../../../lib/server-state';
+import { verifyPolicyTransaction } from '../../../../lib/policy-verifier';
 
 /**
  * /api/policy/[wallet]
@@ -11,9 +11,9 @@ import { getServerStore, reconcilePolicyFromSolana, fetchOnChainPolicy } from '.
  * POST:
  *   - PREPARE_ONLY: Validates candidate policy and prepares an unsigned Anchor transaction
  *     bound to (wallet == policy.owner == PolicyAccount PDA) WITHOUT mutating server state.
- *   - CONFIRMED_ON_CHAIN: Independently verifies confirmedTxSignature on Solana RPC
- *     (confirmed status, no execution error, signer == ownerAddress, Policy PDA / Program matched)
- *     before committing to server state.
+ *   - CONFIRMED_ON_CHAIN: Strictly and independently verifies confirmedTxSignature on Solana RPC:
+ *     (confirmed status, no execution error, signer == ownerAddress, Policy PDA & Program matched,
+ *      instruction arguments match submitted candidate values) before reading back on-chain state.
  *   - SIMULATION: Explicitly updates in-memory simulation policy state.
  */
 export async function GET(
@@ -22,14 +22,18 @@ export async function GET(
 ) {
   try {
     const { wallet: walletParam } = await params;
-    const policy = await reconcilePolicyFromSolana(walletParam);
+    const store = getServerStore();
     const ownerAddress =
-      walletParam && walletParam !== 'default' ? walletParam : policy.owner;
+      walletParam && walletParam !== 'default' ? walletParam : store.policy.owner;
+
+    const onChain = await fetchOnChainPolicy(ownerAddress);
+    const policy = onChain ?? (await reconcilePolicyFromSolana(walletParam));
     const policyPda = deriveSentinelPda(ownerAddress);
+    const authority = onChain ? 'SOLANA_ON_CHAIN' : 'POSTGRES_READ_MODEL';
 
     return Response.json({
       success: true,
-      authority: 'SOLANA_ON_CHAIN',
+      authority,
       wallet: ownerAddress,
       policyPda,
       policy: {
@@ -158,75 +162,20 @@ export async function POST(
         maxSupportedTransactionVersion: 0,
       });
 
-      if (!parsedTx || parsedTx.meta?.err) {
-        return Response.json(
-          {
-            success: false,
-            error: 'On-chain transaction signature could not be verified as confirmed without error on Solana RPC.',
-          },
-          { status: 400 }
-        );
-      }
-
-      const accountKeys = parsedTx.transaction.message.accountKeys || [];
-      const signerMatched = accountKeys.some(
-        (k: any) => k.signer && (typeof k.pubkey === 'string' ? k.pubkey === ownerAddress : k.pubkey?.toBase58?.() === ownerAddress)
-      );
-      if (!signerMatched) {
-        return Response.json(
-          {
-            success: false,
-            error: `Transaction signer does not match expected policy owner address (${ownerAddress}).`,
-          },
-          { status: 400 }
-        );
-      }
-
-      // Verify instruction discriminator and target Policy PDA
       const targetProgramId = APP_CONFIG.sentinelProgramId || SENTINEL_PROGRAM_ID.toBase58();
-      const instructions = parsedTx.transaction.message.instructions || [];
-      let foundPolicyIx = false;
+      const verification = verifyPolicyTransaction(
+        parsedTx,
+        ownerAddress,
+        expectedPolicyPda,
+        targetProgramId,
+        candidatePolicy
+      );
 
-      for (const ix of instructions) {
-        const progKey = (ix as any).programId?.toBase58 ? (ix as any).programId.toBase58() : (ix as any).programId;
-        if (progKey !== targetProgramId) continue;
-
-        const accounts = (ix as any).accounts || [];
-        const accountStrs = accounts.map((a: any) => (a?.toBase58 ? a.toBase58() : String(a)));
-        const targetsPolicyPda = accountStrs.includes(expectedPolicyPda);
-
-        // Check discriminator if raw instruction data is present
-        const rawData = (ix as any).data;
-        if (rawData && typeof rawData === 'string') {
-          try {
-            const dataBuf = Buffer.from(utils.bytes.bs58.decode(rawData));
-            if (dataBuf.length >= 8) {
-              const discHex = dataBuf.subarray(0, 8).toString('hex');
-              // update_policy (d4f5f607a3971239) or initialize_policy (09ba56e181a2e738)
-              if (discHex === 'd4f5f607a3971239' || discHex === '09ba56e181a2e738') {
-                if (targetsPolicyPda) {
-                  foundPolicyIx = true;
-                  break;
-                }
-              }
-            }
-          } catch {
-            if (targetsPolicyPda) {
-              foundPolicyIx = true;
-              break;
-            }
-          }
-        } else if (targetsPolicyPda) {
-          foundPolicyIx = true;
-          break;
-        }
-      }
-
-      if (!foundPolicyIx) {
+      if (!verification.valid) {
         return Response.json(
           {
             success: false,
-            error: 'Confirmed transaction does not contain a verified Sentinel update_policy or initialize_policy instruction for target Policy PDA.',
+            error: `On-chain policy transaction verification failed: ${verification.error}`,
           },
           { status: 400 }
         );
@@ -293,4 +242,3 @@ export async function POST(
     );
   }
 }
-
